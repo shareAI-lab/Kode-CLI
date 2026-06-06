@@ -116,6 +116,7 @@ function posixRelative(fromPath: string, toPath: string): string {
 
 export function expandSymlinkPaths(inputPath: string): string[] {
   const out = [inputPath]
+  if (inputPath.startsWith('\\\\') || inputPath.startsWith('//')) return out
   if (!existsSync(inputPath)) return out
   try {
     const resolved = realpathSync(inputPath)

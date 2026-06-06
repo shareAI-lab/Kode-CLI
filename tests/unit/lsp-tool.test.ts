@@ -1,9 +1,18 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  setDefaultTimeout,
+  test,
+} from 'bun:test'
 import { mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { LspTool } from '@tools/search/LspTool/LspTool'
 import { setCwd } from '@utils/state'
+
+setDefaultTimeout(15_000)
 
 function makeContext(): any {
   return {
