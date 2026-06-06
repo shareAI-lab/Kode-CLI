@@ -125,17 +125,18 @@ type GateQueryFn = (args: {
   model?: 'quick' | 'main'
 }) => Promise<string>
 
-type GateLlmModule = {
-  API_ERROR_MESSAGE_PREFIX: string
+type LlmModule = {
   queryLLM: typeof import('@services/llm').queryLLM
+  API_ERROR_MESSAGE_PREFIX: typeof import('@services/llmConstants').API_ERROR_MESSAGE_PREFIX
 }
 
-let defaultGateQueryLlmModuleForTests: GateLlmModule | null = null
+let llmModuleLoader: () => Promise<LlmModule> = async () =>
+  await import('@services/llm')
 
-export function __setDefaultGateQueryLlmModuleForTests(
-  llmModule: GateLlmModule | null,
+export function __setLlmModuleLoaderForTests(
+  loader: (() => Promise<LlmModule>) | null,
 ): void {
-  defaultGateQueryLlmModuleForTests = llmModule
+  llmModuleLoader = loader ?? (async () => await import('@services/llm'))
 }
 
 function collectTextBlocks(content: any): string {
@@ -172,8 +173,7 @@ async function defaultGateQuery(args: {
   signal: AbortSignal
   model?: 'quick' | 'main'
 }): Promise<string> {
-  const { API_ERROR_MESSAGE_PREFIX, queryLLM } =
-    defaultGateQueryLlmModuleForTests ?? (await import('@services/llm'))
+  const { API_ERROR_MESSAGE_PREFIX, queryLLM } = await llmModuleLoader()
   const messages: any[] = [
     {
       type: 'user',

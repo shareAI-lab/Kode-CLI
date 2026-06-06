@@ -72,16 +72,6 @@ WORKDIR /workspace
 COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/src /app/src
-
-# Create the entrypoint script
-# RUN cat << 'EOF' > /entrypoint.sh
-# #!/bin/sh
- 
-# /root/.bun/bin/bun /app/dist/entrypoints/cli.js -c /workspace "$@"
-# EOF
-
-# RUN chmod +x /entrypoint.sh
 
 # Set the entrypoint
-ENTRYPOINT ["/root/.bun/bin/bun", "/app/dist/entrypoints/cli.js", "-c", "/workspace"]
+ENTRYPOINT ["/root/.bun/bin/bun", "/app/dist/index.js", "-c", "/workspace"]

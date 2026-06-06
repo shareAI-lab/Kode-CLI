@@ -43,8 +43,8 @@
     "postinstall": "node scripts/postinstall.js || true",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\" \"tests/**/*.{ts,tsx,js,jsx,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\" \"tests/**/*.{ts,tsx,js,jsx,json}\"",
-    "lint": "eslint . --ext .ts,.tsx,.js --max-warnings 0",
-    "lint:fix": "eslint . --ext .ts,.tsx,.js --fix",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "test": "bun test",
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
@@ -111,6 +111,7 @@
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.4",
     "@types/bun": "latest",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.1.0",
@@ -119,7 +120,7 @@
     "@typescript-eslint/parser": "^8.50.1",
     "bun-types": "latest",
     "esbuild": "^0.25.9",
-    "eslint": "8.57.0",
+    "eslint": "9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "prettier": "3.7.3",
     "react-devtools-core": "^7.0.1",
