@@ -9,6 +9,7 @@ import {
   shouldTreatAsSpecialPaste,
   shouldAggregatePasteChunk,
 } from '@utils/terminal/paste'
+import type { ClipboardImage } from '@utils/image/media'
 
 const BRACKETED_PASTE_ENABLE = '\x1b[?2004h'
 const BRACKETED_PASTE_DISABLE = '\x1b[?2004l'
@@ -73,7 +74,7 @@ export type Props = {
 
   readonly columns: number
 
-  readonly onImagePaste?: (base64Image: string) => string | void
+  readonly onImagePaste?: (image: ClipboardImage) => string | void
 
   readonly onPaste?: (text: string) => void
 

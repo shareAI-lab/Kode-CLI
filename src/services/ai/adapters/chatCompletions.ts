@@ -7,6 +7,10 @@ import {
 import { Tool, getToolDescription } from '@tool'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { setRequestStatus } from '@utils/session/requestStatus'
+import {
+  extractTextAndImageUrls,
+  toOpenAIImageUrlParts,
+} from '@utils/model/visionContent'
 
 export class ChatCompletionsAdapter extends OpenAIAdapter {
   createRequest(params: UnifiedRequestParams): any {
@@ -120,33 +124,44 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       return []
     }
 
-    return messages.map(msg => {
+    const normalized: any[] = []
+
+    for (const msg of messages) {
       if (!msg || typeof msg !== 'object') {
-        return msg
+        normalized.push(msg)
+        continue
       }
 
       if (msg.role === 'tool') {
-        if (Array.isArray(msg.content)) {
-          return {
-            ...msg,
-            content:
-              msg.content
-                .map(c => c?.text || '')
-                .filter(Boolean)
-                .join('\n\n') || '(empty content)',
-          }
-        } else if (typeof msg.content !== 'string') {
-          return {
-            ...msg,
-            content:
-              msg.content === null || msg.content === undefined
-                ? '(empty content)'
-                : JSON.stringify(msg.content),
-          }
+        const { text, imageUrls } = extractTextAndImageUrls(msg.content)
+        normalized.push({
+          ...msg,
+          content:
+            text ||
+            (imageUrls.length > 0
+              ? '(image output attached in following message)'
+              : '(empty content)'),
+        })
+
+        if (imageUrls.length > 0) {
+          normalized.push({
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Image output from tool ${msg.tool_call_id || msg.id || 'unknown'}:`,
+              },
+              ...toOpenAIImageUrlParts(imageUrls),
+            ],
+          })
         }
+        continue
       }
-      return msg
-    })
+
+      normalized.push(msg)
+    }
+
+    return normalized
   }
 
   protected async *processStreamingChunk(

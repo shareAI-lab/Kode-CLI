@@ -119,5 +119,40 @@ describe('Chat Completions API Tests', () => {
       expect(hasUserMessage).toBe(true)
       expect(hasAssistantMessage).toBe(true)
     })
+
+    test('preserves tool result images in adjacent user vision message', () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      const request = adapter.createRequest({
+        messages: [
+          {
+            role: 'tool',
+            tool_call_id: 'tool_123',
+            content: [
+              { type: 'text', text: 'Screenshot captured' },
+              {
+                type: 'image_url',
+                image_url: { url: 'data:image/gif;base64,Zm9v' },
+              },
+            ],
+          },
+        ],
+        systemPrompt: ['You are helpful'],
+        maxTokens: 100,
+      })
+
+      const toolIndex = request.messages.findIndex(
+        (msg: any) => msg.role === 'tool',
+      )
+      expect(toolIndex).toBeGreaterThanOrEqual(0)
+      expect(request.messages[toolIndex].content).toBe('Screenshot captured')
+
+      const imageMessage = request.messages[toolIndex + 1]
+      expect(imageMessage.role).toBe('user')
+      expect(imageMessage.content).toContainEqual({
+        type: 'image_url',
+        image_url: { url: 'data:image/gif;base64,Zm9v' },
+      })
+    })
   })
 })

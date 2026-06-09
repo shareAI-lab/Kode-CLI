@@ -33,6 +33,7 @@ import { CompactModeIndicator } from '@components/ModeIndicator'
 import { getPromptInputSpecialKeyAction } from '@utils/terminal/promptInputSpecialKey'
 import { logStartupProfile } from '@utils/config/startupProfile'
 import { useStatusLine } from '@hooks/useStatusLine'
+import type { ClipboardImage } from '@utils/image/media'
 
 async function interpretHashCommand(input: string): Promise<string> {
   try {
@@ -498,13 +499,13 @@ function PromptInput({
     }
   }
 
-  function onImagePaste(image: string): string {
+  function onImagePaste(image: ClipboardImage): string {
     onModeChange('prompt')
     const placeholder = `[Image #${pastedImageCounter.current}]`
     pastedImageCounter.current += 1
     setPastedImages(prev => [
       ...prev,
-      { placeholder, data: image, mediaType: 'image/png' },
+      { placeholder, data: image.data, mediaType: image.mediaType },
     ])
     return placeholder
   }

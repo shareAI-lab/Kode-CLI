@@ -80,4 +80,54 @@ describe('openaiMessageConversion', () => {
     expect((converted[3] as any)?.role).toBe('assistant')
     expect((converted[3] as any)?.content).toBe('Done')
   })
+
+  test('preserves tool-result images as adjacent user vision messages', () => {
+    const messages: any[] = [
+      {
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool_1',
+              name: 'Read',
+              input: { path: 'screenshot.png' },
+            },
+          ],
+        },
+      },
+      {
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool_1',
+              content: [
+                { type: 'text', text: 'Read image' },
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: 'image/jpeg',
+                    data: 'Zm9v',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]
+
+    const converted = convertAnthropicMessagesToOpenAIMessages(messages)
+
+    expect((converted[1] as any)?.role).toBe('tool')
+    expect((converted[1] as any)?.content).toBe('Read image')
+    expect((converted[2] as any)?.role).toBe('user')
+    expect((converted[2] as any)?.content).toContainEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/jpeg;base64,Zm9v' },
+    })
+  })
 })

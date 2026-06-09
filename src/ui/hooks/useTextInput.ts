@@ -7,6 +7,7 @@ import {
   CLIPBOARD_ERROR_MESSAGE,
 } from '@utils/terminal/imagePaste'
 import { normalizeLineEndings } from '@utils/terminal/paste'
+import type { ClipboardImage } from '@utils/image/media'
 
 const IMAGE_PLACEHOLDER = '[Image pasted]'
 
@@ -38,7 +39,7 @@ type UseTextInputProps = {
   invert: (text: string) => string
   themeText: (text: string) => string
   columns: number
-  onImagePaste?: (base64Image: string) => string | void
+  onImagePaste?: (image: ClipboardImage) => string | void
   disableCursorMovementForUpDownKeys?: boolean
   externalOffset: number
   onOffsetChange: (offset: number) => void
@@ -134,13 +135,10 @@ export function useTextInput({
       return cursor
     }
 
-    const base64Image = getImageFromClipboard()
-    if (base64Image === null) {
-      if (process.platform !== 'darwin') {
-        return cursor
-      }
-      onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
+    const image = getImageFromClipboard()
+    if (image === null) {
       maybeClearImagePasteErrorTimeout()
+      onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
       setImagePasteErrorTimeout(
         setTimeout(() => {
           onMessage?.(false)
@@ -149,7 +147,7 @@ export function useTextInput({
       return cursor
     }
 
-    const placeholder = onImagePaste?.(base64Image)
+    const placeholder = onImagePaste?.(image)
     return cursor.insert(
       typeof placeholder === 'string' ? placeholder : IMAGE_PLACEHOLDER,
     )

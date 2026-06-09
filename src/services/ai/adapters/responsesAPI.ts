@@ -9,6 +9,11 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import { processResponsesStream } from './responsesStreaming'
 import { debug as debugLogger } from '@utils/log/debugLogger'
 import { logError } from '@utils/log'
+import {
+  extractTextAndImageUrls,
+  getImageUrlFromPart,
+  toResponsesImageParts,
+} from '@utils/model/visionContent'
 
 export class ResponsesAPIAdapter extends OpenAIAdapter {
   createRequest(params: UnifiedRequestParams): any {
@@ -387,26 +392,12 @@ ${reasoningContent}
       if (role === 'tool') {
         const callId = message.tool_call_id || message.id
         if (typeof callId === 'string' && callId) {
-          let content = message.content || ''
-          if (Array.isArray(content)) {
-            const texts = []
-            for (const part of content) {
-              if (typeof part === 'object' && part !== null) {
-                const t = part.text || part.content
-                if (typeof t === 'string' && t) {
-                  texts.push(t)
-                }
-              }
-            }
-            content = texts.join('\n')
-          }
-          if (typeof content === 'string') {
-            inputItems.push({
-              type: 'function_call_output',
-              call_id: callId,
-              output: content,
-            })
-          }
+          const output = this.convertToolOutput(message.content)
+          inputItems.push({
+            type: 'function_call_output',
+            call_id: callId,
+            output,
+          })
         }
         continue
       }
@@ -456,11 +447,19 @@ ${reasoningContent}
               contentItems.push({ type: kind, text: text })
             }
           } else if (ptype === 'image_url') {
-            const image = part.image_url
-            const url =
-              typeof image === 'object' && image !== null ? image.url : image
-            if (typeof url === 'string' && url) {
-              contentItems.push({ type: 'input_image', image_url: url })
+            const imageUrl = getImageUrlFromPart(part)
+            if (imageUrl) {
+              contentItems.push({ type: 'input_image', image_url: imageUrl })
+            }
+          } else if (ptype === 'image') {
+            const imageUrl = getImageUrlFromPart(part)
+            if (imageUrl) {
+              contentItems.push({ type: 'input_image', image_url: imageUrl })
+            }
+          } else if (ptype === 'input_image') {
+            const imageUrl = getImageUrlFromPart(part)
+            if (imageUrl) {
+              contentItems.push({ type: 'input_image', image_url: imageUrl })
             }
           }
         }
@@ -480,6 +479,20 @@ ${reasoningContent}
     }
 
     return inputItems
+  }
+
+  private convertToolOutput(content: unknown): string | any[] {
+    const { text, imageUrls } = extractTextAndImageUrls(content)
+    if (imageUrls.length === 0) {
+      return text
+    }
+
+    const output: any[] = []
+    if (text) {
+      output.push({ type: 'input_text', text })
+    }
+    output.push(...toResponsesImageParts(imageUrls))
+    return output
   }
 
   private buildInstructions(systemPrompt: string[]): string {

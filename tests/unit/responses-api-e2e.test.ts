@@ -122,6 +122,75 @@ describe('Responses API Tests', () => {
       )
       expect(hasFunctionCallOutput).toBe(true)
     })
+
+    test('converts Anthropic user image blocks to input_image content', () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      const request = adapter.createRequest({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What is in this image?' },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: 'Zm9v',
+                },
+              },
+            ],
+          },
+        ],
+        systemPrompt: ['You are helpful'],
+        maxTokens: 100,
+      })
+
+      expect(request.input[0].content).toContainEqual({
+        type: 'input_image',
+        image_url: 'data:image/jpeg;base64,Zm9v',
+      })
+    })
+
+    test('converts tool result images to function_call_output arrays', () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      const request = adapter.createRequest({
+        messages: [
+          {
+            role: 'tool',
+            tool_call_id: 'tool_123',
+            content: [
+              { type: 'text', text: 'Screenshot captured' },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/webp',
+                  data: 'Zm9v',
+                },
+              },
+            ],
+          },
+        ],
+        systemPrompt: ['You are helpful'],
+        maxTokens: 100,
+      })
+
+      const output = request.input.find(
+        (item: any) => item.type === 'function_call_output',
+      )?.output
+      expect(Array.isArray(output)).toBe(true)
+      expect(output).toContainEqual({
+        type: 'input_text',
+        text: 'Screenshot captured',
+      })
+      expect(output).toContainEqual({
+        type: 'input_image',
+        image_url: 'data:image/webp;base64,Zm9v',
+      })
+    })
   })
 
   describe('Responses API unique behaviors', () => {

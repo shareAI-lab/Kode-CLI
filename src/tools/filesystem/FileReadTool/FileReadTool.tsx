@@ -25,17 +25,27 @@ import {
 import { DESCRIPTION, PROMPT } from './prompt'
 import { hasReadPermission } from '@utils/permissions/filesystem'
 import { secureFileService } from '@utils/fs/secureFile'
-import { readFileBun, fileExistsBun, getFileSizeBun } from '@utils/bun/file'
+import { readFileBun } from '@utils/bun/file'
 import {
-  type AnthropicImageMediaType,
-  normalizeImageMediaType,
-} from '@utils/ai/anthropic'
+  detectImageMediaType,
+  isSvgBuffer,
+  isSvgExtension,
+  rasterizeSvgToPng,
+  type SupportedImageMediaType,
+} from '@utils/image/media'
 
 const MAX_LINES_TO_RENDER = 5
 const MAX_LINE_LENGTH = 2000
 const MAX_OUTPUT_SIZE = 0.25 * 1024 * 1024
 
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
+const IMAGE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.svg',
+])
 
 const MAX_WIDTH = 2000
 const MAX_HEIGHT = 2000
@@ -433,7 +443,7 @@ export const FileReadTool = {
       type: 'image'
       file: {
         base64: string
-        type: AnthropicImageMediaType
+        type: SupportedImageMediaType
         originalSize: number
       }
     }
@@ -449,30 +459,21 @@ const formatFileSizeError = (sizeInBytes: number) =>
 
 function createImageResponse(
   buffer: Buffer,
-  ext: string,
+  mediaType: SupportedImageMediaType,
   originalSize: number,
 ): {
   type: 'image'
   file: {
     base64: string
-    type: AnthropicImageMediaType
+    type: SupportedImageMediaType
     originalSize: number
   }
 } {
-  const normalized = normalizeImageMediaType(
-    ext === '.jpg' || ext === '.jpeg'
-      ? 'image/jpeg'
-      : ext === '.png'
-        ? 'image/png'
-        : ext === '.gif'
-          ? 'image/gif'
-          : 'image/webp',
-  )
   return {
     type: 'image',
     file: {
       base64: buffer.toString('base64'),
-      type: normalized,
+      type: mediaType,
       originalSize,
     },
   }
@@ -485,31 +486,46 @@ async function readImage(
   type: 'image'
   file: {
     base64: string
-    type: AnthropicImageMediaType
+    type: SupportedImageMediaType
     originalSize: number
   }
 }> {
   try {
     const stats = statSync(filePath)
-    const sharpModule = (await import('sharp')) as any
-    const sharp = sharpModule.default || sharpModule
-
     const fileReadResult = secureFileService.safeReadFile(filePath, {
       encoding: 'buffer' as BufferEncoding,
       maxFileSize: MAX_IMAGE_SIZE,
+      checkFileExtension: false,
     })
 
     if (!fileReadResult.success) {
       throw new Error(`Failed to read image file: ${fileReadResult.error}`)
     }
 
-    const image = sharp(fileReadResult.content as Buffer)
+    const inputBuffer = fileReadResult.content as Buffer
+
+    if (isSvgExtension(ext) || isSvgBuffer(inputBuffer)) {
+      const rasterized = await rasterizeSvgToPng(inputBuffer)
+      return createImageResponse(rasterized, 'image/png', stats.size)
+    }
+
+    const detectedMediaType = detectImageMediaType(inputBuffer)
+    if (!detectedMediaType) {
+      throw new Error(
+        'Unsupported image format. Supported image formats are PNG, JPEG, GIF, WebP, and SVG.',
+      )
+    }
+
+    const sharpModule = (await import('sharp')) as any
+    const sharp = sharpModule.default || sharpModule
+
+    const image = sharp(inputBuffer)
     const metadata = await image.metadata()
 
     if (!metadata.width || !metadata.height) {
       if (stats.size > MAX_IMAGE_SIZE) {
         const compressedBuffer = await image.jpeg({ quality: 80 }).toBuffer()
-        return createImageResponse(compressedBuffer, '.jpeg', stats.size)
+        return createImageResponse(compressedBuffer, 'image/jpeg', stats.size)
       }
     }
 
@@ -521,20 +537,7 @@ async function readImage(
       width <= MAX_WIDTH &&
       height <= MAX_HEIGHT
     ) {
-      const fileReadResult = secureFileService.safeReadFile(filePath, {
-        encoding: 'buffer' as BufferEncoding,
-        maxFileSize: MAX_IMAGE_SIZE,
-      })
-
-      if (!fileReadResult.success) {
-        throw new Error(`Failed to read image file: ${fileReadResult.error}`)
-      }
-
-      return createImageResponse(
-        fileReadResult.content as Buffer,
-        ext,
-        stats.size,
-      )
+      return createImageResponse(inputBuffer, detectedMediaType, stats.size)
     }
 
     if (width > MAX_WIDTH) {
@@ -556,10 +559,14 @@ async function readImage(
 
     if (resizedImageBuffer.length > MAX_IMAGE_SIZE) {
       const compressedBuffer = await image.jpeg({ quality: 80 }).toBuffer()
-      return createImageResponse(compressedBuffer, '.jpeg', stats.size)
+      return createImageResponse(compressedBuffer, 'image/jpeg', stats.size)
     }
 
-    return createImageResponse(resizedImageBuffer, ext, stats.size)
+    return createImageResponse(
+      resizedImageBuffer,
+      detectedMediaType,
+      stats.size,
+    )
   } catch (e) {
     logError(e)
     const stats = statSync(filePath)
@@ -572,10 +579,14 @@ async function readImage(
       throw new Error(`Failed to read image file: ${fileReadResult.error}`)
     }
 
-    return createImageResponse(
-      fileReadResult.content as Buffer,
-      ext,
-      stats.size,
-    )
+    const buffer = fileReadResult.content as Buffer
+    const detectedMediaType = detectImageMediaType(buffer)
+    if (!detectedMediaType) {
+      throw new Error(
+        'Unsupported image format. Supported image formats are PNG, JPEG, GIF, WebP, and SVG.',
+      )
+    }
+
+    return createImageResponse(buffer, detectedMediaType, stats.size)
   }
 }

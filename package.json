@@ -97,6 +97,7 @@
     "openai": "^4.104.0",
     "react": "18.3.1",
     "semver": "^7.8.2",
+    "sharp": "^0.34.5",
     "shell-quote": "^1.8.4",
     "spawn-rx": "^5.1.2",
     "string-width": "^7.2.0",
