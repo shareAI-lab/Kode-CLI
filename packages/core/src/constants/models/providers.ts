@@ -39,6 +39,10 @@ export const providers = {
     name: 'OpenRouter',
     baseURL: 'https://openrouter.ai/api/v1',
   },
+  requesty: {
+    name: 'Requesty',
+    baseURL: 'https://router.requesty.ai/v1',
+  },
   minimax: {
     name: 'MiniMax',
     baseURL: 'https://api.minimaxi.com/v1',

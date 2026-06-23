@@ -161,6 +161,7 @@ export type ProviderType =
   | 'xai'
   | 'groq'
   | 'openrouter'
+  | 'requesty'
   | 'gemini'
   | 'ollama'
   | 'azure'

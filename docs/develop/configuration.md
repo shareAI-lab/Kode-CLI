@@ -120,6 +120,7 @@ For models, prefer `/model` or `kode models import/export` (not `kode config set
 # API Keys
 OPENAI_API_KEY=sk-...
 OPENROUTER_API_KEY=sk-or-v1-...
+REQUESTY_API_KEY=rqsty-sk-...
 
 # Model Selection
 CLAUDE_MODEL=claude-3-5-sonnet-20241022
@@ -284,6 +285,30 @@ pointers:
 ```
 
 OpenRouter model IDs use the `provider/model` format shown in the [OpenRouter model list](https://openrouter.ai/models).
+
+#### Requesty
+
+Requesty is available as an OpenAI-compatible provider. Use the `/model` selector and choose Requesty, or import a model profile:
+
+```yaml
+version: 1
+profiles:
+  - name: Requesty GPT-4o mini
+    provider: requesty
+    modelName: openai/gpt-4o-mini
+    baseURL: https://router.requesty.ai/v1
+    maxTokens: 8192
+    contextLength: 128000
+    apiKey:
+      fromEnv: REQUESTY_API_KEY
+pointers:
+  main: openai/gpt-4o-mini
+  task: openai/gpt-4o-mini
+  compact: openai/gpt-4o-mini
+  quick: openai/gpt-4o-mini
+```
+
+Requesty model IDs use the `provider/model` format (e.g. `openai/gpt-4o-mini`) shown in the [Requesty model list](https://app.requesty.ai/models). Create an API key at [app.requesty.ai/api-keys](https://app.requesty.ai/api-keys).
 
 ```json
 {

@@ -47,6 +47,7 @@ export function useModelSelectorMenus(args: {
       'qwen',
       'deepseek',
       'openrouter',
+      'requesty',
       'burncloud',
       'siliconflow',
       'baidu-qianfan',
