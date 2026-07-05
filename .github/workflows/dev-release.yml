@@ -6,7 +6,7 @@ on:
 
 concurrency:
   group: dev-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   compute-version:
@@ -39,9 +39,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-          - os: ubuntu-24.04-arm64
           - os: macos-latest
-          - os: macos-13
           - os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
