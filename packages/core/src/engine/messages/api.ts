@@ -11,12 +11,8 @@ import type { AssistantMessage, Message, UserMessage } from '#core/query'
 export function normalizeMessagesForAPI(
   messages: Message[],
 ): (UserMessage | AssistantMessage)[] {
-  function isSyntheticApiErrorMessage(message: Message): boolean {
-    return (
-      message.type === 'assistant' &&
-      message.isApiErrorMessage === true &&
-      message.message.model === '<synthetic>'
-    )
+  function isApiErrorMessage(message: Message): boolean {
+    return message.type === 'assistant' && message.isApiErrorMessage === true
   }
 
   function isSyntheticMetaMessage(message: Message): boolean {
@@ -73,7 +69,7 @@ export function normalizeMessagesForAPI(
   const result: (UserMessage | AssistantMessage)[] = []
   for (const message of messages) {
     if (message.type === 'progress') continue
-    if (isSyntheticApiErrorMessage(message)) continue
+    if (isApiErrorMessage(message)) continue
     if (isSyntheticMetaMessage(message)) continue
 
     switch (message.type) {

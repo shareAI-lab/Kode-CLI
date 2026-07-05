@@ -1,11 +1,17 @@
 import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
 import type OpenAI from 'openai'
+import { OpenAIStreamError } from '#core/ai/openai/stream'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import {
   setRequestStatus,
   setRequestInputTokens,
   updateRequestTokens,
 } from '#core/utils/requestStatus'
+
+export type OpenAIStreamDegradedCompletion = OpenAI.ChatCompletion & {
+  __streamDegraded?: true
+  __streamDegradationReason?: string
+}
 
 function messageReducer(
   previous: OpenAI.ChatCompletionMessage,
@@ -58,6 +64,25 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+function hasUsableAssistantOutput(
+  message: OpenAI.ChatCompletionMessage,
+): boolean {
+  const record = message as unknown as Record<string, unknown>
+  return (
+    (typeof message.content === 'string' && message.content.length > 0) ||
+    (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) ||
+    (typeof record.reasoning === 'string' && record.reasoning.length > 0) ||
+    (typeof record.reasoning_content === 'string' &&
+      record.reasoning_content.length > 0)
+  )
+}
+
+export function isOpenAIStreamDegradedResponse(
+  response: OpenAI.ChatCompletion,
+): response is OpenAIStreamDegradedCompletion {
+  return (response as OpenAIStreamDegradedCompletion).__streamDegraded === true
+}
+
 export async function handleMessageStream(
   stream: ChatCompletionStream,
   signal?: AbortSignal,
@@ -68,6 +93,9 @@ export async function handleMessageStream(
   let errorCount = 0
   let hasMarkedStreaming = false
   let outputTokenCount = 0
+  let finishReason: OpenAI.ChatCompletion.Choice['finish_reason'] | null = null
+  let degradationReason: string | null = null
+  let lastChunkError: unknown = null
 
   debugLogger.api('OPENAI_STREAM_START', {
     streamStartTime: String(streamStartTime),
@@ -140,8 +168,11 @@ export async function handleMessageStream(
         if (chunk?.usage?.completion_tokens) {
           updateRequestTokens(chunk.usage.completion_tokens)
         }
+        const chunkFinishReason = chunk?.choices?.[0]?.finish_reason
+        if (chunkFinishReason) finishReason = chunkFinishReason
       } catch (chunkError) {
         errorCount++
+        lastChunkError = chunkError
         debugLogger.error('OPENAI_STREAM_CHUNK_ERROR', {
           chunkNumber: String(chunkCount),
           errorMessage:
@@ -159,6 +190,24 @@ export async function handleMessageStream(
 
     throwIfAborted(signal)
 
+    if (errorCount > 0 && !hasUsableAssistantOutput(message)) {
+      throw new OpenAIStreamError(
+        'unexpected_error',
+        `OpenAI stream chunk processing failed before any assistant content: ${
+          lastChunkError instanceof Error
+            ? lastChunkError.message
+            : String(lastChunkError ?? 'unknown error')
+        }`,
+      )
+    }
+
+    if (chunkCount === 0 || !hasUsableAssistantOutput(message)) {
+      throw new OpenAIStreamError(
+        'empty_response',
+        'OpenAI stream completed without assistant content or tool calls',
+      )
+    }
+
     debugLogger.api('OPENAI_STREAM_COMPLETE', {
       totalChunks: String(chunkCount),
       errorCount: String(errorCount),
@@ -167,21 +216,48 @@ export async function handleMessageStream(
       finalMessageId: id || 'undefined',
     })
   } catch (streamError) {
-    debugLogger.error('OPENAI_STREAM_FATAL_ERROR', {
-      totalChunks: String(chunkCount),
-      errorCount: String(errorCount),
-      errorMessage:
-        streamError instanceof Error
-          ? streamError.message
-          : String(streamError),
-      errorType:
-        streamError instanceof Error
-          ? streamError.constructor.name
-          : typeof streamError,
-    })
-    throw streamError
+    if (
+      !(
+        streamError instanceof Error &&
+        streamError.message === 'Request was cancelled'
+      ) &&
+      hasUsableAssistantOutput(message)
+    ) {
+      degradationReason =
+        streamError instanceof OpenAIStreamError
+          ? streamError.reason
+          : streamError instanceof Error
+            ? streamError.message
+            : String(streamError)
+      debugLogger.warn('OPENAI_STREAM_DEGRADED_PARTIAL', {
+        reason: degradationReason,
+        chunkCount: String(chunkCount),
+      })
+    } else {
+      debugLogger.error('OPENAI_STREAM_FATAL_ERROR', {
+        totalChunks: String(chunkCount),
+        errorCount: String(errorCount),
+        errorMessage:
+          streamError instanceof Error
+            ? streamError.message
+            : String(streamError),
+        errorType:
+          streamError instanceof Error
+            ? streamError.constructor.name
+            : typeof streamError,
+      })
+      throw streamError
+    }
   }
-  return {
+
+  if (errorCount > 0 && !degradationReason) {
+    degradationReason =
+      lastChunkError instanceof Error
+        ? lastChunkError.message
+        : 'chunk_processing_error'
+  }
+
+  const completion: OpenAIStreamDegradedCompletion = {
     id,
     created,
     model,
@@ -190,10 +266,17 @@ export async function handleMessageStream(
       {
         index: 0,
         message,
-        finish_reason: 'stop',
+        finish_reason: finishReason ?? (degradationReason ? 'length' : 'stop'),
         logprobs: undefined,
       },
     ],
     usage,
   }
+
+  if (degradationReason) {
+    completion.__streamDegraded = true
+    completion.__streamDegradationReason = degradationReason
+  }
+
+  return completion
 }

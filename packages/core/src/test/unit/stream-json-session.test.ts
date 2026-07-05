@@ -3,7 +3,11 @@ import { createInterface } from 'node:readline'
 import { PassThrough } from 'node:stream'
 import { KodeAgentStructuredStdio } from '#protocol/utils/kodeAgentStructuredStdio'
 import { runKodeAgentStreamJsonSession } from '#protocol/utils/kodeAgentStreamJsonSession'
-import { createAssistantMessage, createUserMessage } from '#core/utils/messages'
+import {
+  createAssistantAPIErrorMessage,
+  createAssistantMessage,
+  createUserMessage,
+} from '#core/utils/messages'
 import type { Message } from '#core/query'
 import type { ToolUseContext } from '#core/tooling/Tool'
 
@@ -221,6 +225,89 @@ describe('stream-json persistent session', () => {
     stdin.end()
     await sessionPromise
     expect(queryCalls).toBe(1)
+
+    rlOut.close()
+    stdout.end()
+  })
+
+  test('API error assistant messages degrade result subtype without blocking the session', async () => {
+    const stdin = new PassThrough()
+    const stdout = new PassThrough()
+    const rlOut = createInterface({ input: stdout })
+    const nextLine = makeLineReader(rlOut)
+
+    const structured = new KodeAgentStructuredStdio(stdin, stdout)
+    structured.start()
+
+    let queryCalls = 0
+    const query = async function* (): AsyncGenerator<Message, void> {
+      queryCalls += 1
+      if (queryCalls === 1) {
+        yield createAssistantAPIErrorMessage('API Error: provider unavailable')
+        return
+      }
+      yield createAssistantMessage(`turn:${queryCalls}`)
+    }
+
+    const canUseTool = async () => ({ result: true })
+    const toolUseContextBase = { messageId: undefined, readFileTimestamps: {} }
+
+    const sessionPromise = runKodeAgentStreamJsonSession<
+      Message,
+      ToolUseContext
+    >({
+      structured,
+      query,
+      makeUserMessage: content => {
+        const text =
+          typeof content === 'string' ? content : JSON.stringify(content)
+        return createUserMessage(text)
+      },
+      writeSdkLine: obj => {
+        stdout.write(JSON.stringify(obj) + '\n')
+      },
+      sessionId: 'sess_test',
+      systemPrompt: [],
+      context: {},
+      canUseTool,
+      toolUseContextBase,
+      replayUserMessages: false,
+      getTotalCostUsd: () => 0,
+    })
+
+    stdin.write(
+      JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'hi' },
+      }) + '\n',
+    )
+
+    const assistant = JSON.parse(await nextLine())
+    expect(assistant.type).toBe('assistant')
+
+    const result = JSON.parse(await nextLine())
+    expect(result.type).toBe('result')
+    expect(result.subtype).toBe('error_during_execution')
+    expect(result.is_error).toBe(true)
+
+    stdin.write(
+      JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'again' },
+      }) + '\n',
+    )
+
+    const assistant2 = JSON.parse(await nextLine())
+    expect(assistant2.type).toBe('assistant')
+
+    const result2 = JSON.parse(await nextLine())
+    expect(result2.type).toBe('result')
+    expect(result2.subtype).toBe('success')
+    expect(result2.is_error).toBe(false)
+
+    stdin.end()
+    await sessionPromise
+    expect(queryCalls).toBe(2)
 
     rlOut.close()
     stdout.end()

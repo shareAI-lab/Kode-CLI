@@ -47,6 +47,14 @@ function extractAssistantUsage(message: unknown): unknown {
   return msg?.usage
 }
 
+function isApiErrorAssistantMessage(message: unknown): boolean {
+  return (
+    isRecord(message) &&
+    message.type === 'assistant' &&
+    message.isApiErrorMessage === true
+  )
+}
+
 export async function runKodeAgentStreamJsonSession<
   M extends MessageWithUuid,
   C extends { abortController: AbortController },
@@ -179,11 +187,13 @@ export async function runKodeAgentStreamJsonSession<
       totalCostUsd >= args.maxBudgetUsd
 
     const maxTurnsExceeded = queryError instanceof MaxTurnsExceededError
+    const hasApiErrorAssistant = isApiErrorAssistantMessage(lastAssistant)
 
     let structuredOutput: Record<string, unknown> | undefined
     if (
       args.jsonSchema &&
       !queryError &&
+      !hasApiErrorAssistant &&
       !budgetExceeded &&
       !maxTurnsExceeded
     ) {
@@ -230,7 +240,14 @@ export async function runKodeAgentStreamJsonSession<
     const isError =
       !budgetExceeded &&
       !maxTurnsExceeded &&
-      (Boolean(queryError) || turnAbortController.signal.aborted)
+      (Boolean(queryError) ||
+        turnAbortController.signal.aborted ||
+        hasApiErrorAssistant)
+    const shouldReturnDegradedApiError =
+      !queryError &&
+      !budgetExceeded &&
+      !maxTurnsExceeded &&
+      hasApiErrorAssistant
 
     args.writeSdkLine(
       makeSdkResultMessage({
@@ -252,7 +269,9 @@ export async function runKodeAgentStreamJsonSession<
           ? 'error_max_turns'
           : budgetExceeded
             ? 'error_max_budget_usd'
-            : undefined,
+            : shouldReturnDegradedApiError
+              ? 'error_during_execution'
+              : undefined,
         uuid: randomUUID(),
       }),
     )

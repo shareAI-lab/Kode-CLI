@@ -3,6 +3,52 @@ import type { Response } from 'undici'
 
 import { debug as debugLogger } from '#core/utils/debugLogger'
 
+export type StreamDegradationReason =
+  | 'read_error'
+  | 'json_parse_error'
+  | 'provider_error'
+  | 'unexpected_error'
+  | 'empty_response'
+
+export class OpenAIStreamError extends Error {
+  readonly reason: StreamDegradationReason
+
+  constructor(reason: StreamDegradationReason, message: string) {
+    super(message)
+    this.name = 'OpenAIStreamError'
+    this.reason = reason
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function trimForLog(value: string): string {
+  return value.length <= 500 ? value : `${value.slice(0, 500)}...`
+}
+
+function extractStreamErrorMessage(value: unknown): string | null {
+  const record = asRecord(value)
+  if (!record || !('error' in record)) return null
+
+  const error = record.error
+  if (typeof error === 'string' && error.trim()) return error.trim()
+
+  const errorRecord = asRecord(error)
+  if (!errorRecord) return 'OpenAI stream returned an error payload'
+
+  const message = errorRecord.message
+  if (typeof message === 'string' && message.trim()) return message.trim()
+
+  try {
+    return JSON.stringify(errorRecord)
+  } catch {
+    return 'OpenAI stream returned an error payload'
+  }
+}
+
 export function createStreamProcessor(
   stream: NonNullable<Response['body']>,
   signal?: AbortSignal,
@@ -24,7 +70,12 @@ export function createStreamProcessor(
           debugLogger.warn('OPENAI_STREAM_READ_ERROR', {
             error: e instanceof Error ? e.message : String(e),
           })
-          break
+          throw new OpenAIStreamError(
+            'read_error',
+            `OpenAI stream read failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          )
         }
 
         const { done, value } = readResult
@@ -47,12 +98,25 @@ export function createStreamProcessor(
             const data = line.slice(6).trim()
             if (data) {
               try {
-                yield JSON.parse(data) as OpenAI.ChatCompletionChunk
+                const parsed = JSON.parse(data)
+                const errorMessage = extractStreamErrorMessage(parsed)
+                if (errorMessage) {
+                  throw new OpenAIStreamError(
+                    'provider_error',
+                    `OpenAI stream error: ${errorMessage}`,
+                  )
+                }
+                yield parsed as OpenAI.ChatCompletionChunk
               } catch (e) {
+                if (e instanceof OpenAIStreamError) throw e
                 debugLogger.warn('OPENAI_STREAM_JSON_PARSE_ERROR', {
-                  data,
+                  data: trimForLog(data),
                   error: e instanceof Error ? e.message : String(e),
                 })
+                throw new OpenAIStreamError(
+                  'json_parse_error',
+                  `OpenAI stream emitted malformed JSON: ${trimForLog(data)}`,
+                )
               }
             }
           }
@@ -68,19 +132,39 @@ export function createStreamProcessor(
           const data = line.slice(6).trim()
           if (!data) continue
           try {
-            yield JSON.parse(data) as OpenAI.ChatCompletionChunk
+            const parsed = JSON.parse(data)
+            const errorMessage = extractStreamErrorMessage(parsed)
+            if (errorMessage) {
+              throw new OpenAIStreamError(
+                'provider_error',
+                `OpenAI stream error: ${errorMessage}`,
+              )
+            }
+            yield parsed as OpenAI.ChatCompletionChunk
           } catch (e) {
+            if (e instanceof OpenAIStreamError) throw e
             debugLogger.warn('OPENAI_STREAM_FINAL_JSON_PARSE_ERROR', {
-              data,
+              data: trimForLog(data),
               error: e instanceof Error ? e.message : String(e),
             })
+            throw new OpenAIStreamError(
+              'json_parse_error',
+              `OpenAI stream emitted malformed JSON: ${trimForLog(data)}`,
+            )
           }
         }
       }
     } catch (e) {
+      if (e instanceof OpenAIStreamError) throw e
       debugLogger.warn('OPENAI_STREAM_UNEXPECTED_ERROR', {
         error: e instanceof Error ? e.message : String(e),
       })
+      throw new OpenAIStreamError(
+        'unexpected_error',
+        `OpenAI stream failed unexpectedly: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      )
     } finally {
       try {
         reader.releaseLock()

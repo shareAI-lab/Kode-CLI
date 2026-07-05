@@ -59,6 +59,10 @@ type MakeSdkResultMessageFn = (args: {
   uuid?: string
 }) => unknown
 
+function isApiErrorAssistantMessage(message: Message | null): boolean {
+  return message?.type === 'assistant' && message.isApiErrorMessage === true
+}
+
 export async function runSingleTurnPrint(args: {
   runTurn: RunTurnFn
   kodeMessageToSdkMessage: KodeMessageToSdkMessageFn
@@ -154,9 +158,16 @@ export async function runSingleTurnPrint(args: {
         : queryError
           ? String(queryError)
           : ''
+  const hasApiErrorAssistant = isApiErrorAssistantMessage(lastAssistant)
 
   let structuredOutput: Record<string, unknown> | undefined
-  if (args.jsonSchema && !queryError && !budgetExceeded && !maxTurnsExceeded) {
+  if (
+    args.jsonSchema &&
+    !queryError &&
+    !hasApiErrorAssistant &&
+    !budgetExceeded &&
+    !maxTurnsExceeded
+  ) {
     try {
       const raw = typeof textFromAssistant === 'string' ? textFromAssistant : ''
       const fenced = raw.trim()
@@ -200,6 +211,11 @@ export async function runSingleTurnPrint(args: {
   const shouldReturnBudgetExceeded =
     !shouldReturnMaxTurnsExceeded &&
     (budgetExceeded || queryError instanceof MaxBudgetUsdExceededError)
+  const shouldReturnDegradedApiError =
+    !queryError &&
+    !shouldReturnBudgetExceeded &&
+    !shouldReturnMaxTurnsExceeded &&
+    hasApiErrorAssistant
 
   const resultNumTurns = (() => {
     if (
@@ -229,12 +245,14 @@ export async function runSingleTurnPrint(args: {
     isError:
       shouldReturnBudgetExceeded || shouldReturnMaxTurnsExceeded
         ? false
-        : Boolean(queryError),
+        : Boolean(queryError) || shouldReturnDegradedApiError,
     subtype: shouldReturnMaxTurnsExceeded
       ? 'error_max_turns'
       : shouldReturnBudgetExceeded
         ? 'error_max_budget_usd'
-        : undefined,
+        : shouldReturnDegradedApiError
+          ? 'error_during_execution'
+          : undefined,
     uuid: randomUUID(),
   })
 

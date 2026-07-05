@@ -41,7 +41,7 @@ import {
   convertOpenAIResponseToAnthropic,
 } from './conversion'
 import { buildOpenAIChatCompletionCreateParams, isGPT5Model } from './params'
-import { handleMessageStream } from './stream'
+import { handleMessageStream, isOpenAIStreamDegradedResponse } from './stream'
 import { buildAssistantMessageFromUnifiedResponse } from './unifiedResponse'
 import { getMaxTokensFromProfile, normalizeUsage } from './usage'
 
@@ -56,6 +56,25 @@ function containsCommittedToolResult(
   messages: OpenAI.ChatCompletionMessageParam[],
 ): boolean {
   return messages.some(message => message.role === 'tool')
+}
+
+function createAssistantMessageFromOpenAIResponse(args: {
+  response: OpenAI.ChatCompletion
+  tools: Tool[]
+  start: number
+}): AssistantMessage {
+  const message = convertOpenAIResponseToAnthropic(args.response, args.tools)
+  const assistantMsg: AssistantMessage = {
+    type: 'assistant',
+    message,
+    costUSD: 0,
+    durationMs: Date.now() - args.start,
+    uuid: randomUUID() as UUID,
+  }
+  if (isOpenAIStreamDegradedResponse(args.response)) {
+    assistantMsg.isApiErrorMessage = true
+  }
+  return assistantMsg
 }
 
 export async function queryOpenAI(
@@ -296,14 +315,11 @@ export async function queryOpenAI(
             finalResponse = s
           }
 
-          const message = convertOpenAIResponseToAnthropic(finalResponse, tools)
-          const assistantMsg: AssistantMessage = {
-            type: 'assistant',
-            message,
-            costUSD: 0,
-            durationMs: Date.now() - start,
-            uuid: randomUUID() as UUID,
-          }
+          const assistantMsg = createAssistantMessageFromOpenAIResponse({
+            response: finalResponse,
+            tools,
+            start,
+          })
           return {
             assistantMessage: assistantMsg,
             rawResponse: finalResponse,
@@ -349,14 +365,11 @@ export async function queryOpenAI(
         } else {
           finalResponse = s
         }
-        const message = convertOpenAIResponseToAnthropic(finalResponse, tools)
-        const assistantMsg: AssistantMessage = {
-          type: 'assistant',
-          message,
-          costUSD: 0,
-          durationMs: Date.now() - start,
-          uuid: randomUUID() as UUID,
-        }
+        const assistantMsg = createAssistantMessageFromOpenAIResponse({
+          response: finalResponse,
+          tools,
+          start,
+        })
         return {
           assistantMessage: assistantMsg,
           rawResponse: finalResponse,

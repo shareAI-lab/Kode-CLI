@@ -61,10 +61,15 @@ describe('messages normalization + reordering parity', () => {
     expect(content[2]).toMatchObject({ type: 'text', text: 'meta' })
   })
 
-  test('normalizeMessagesForAPI filters synthetic api error assistant messages', () => {
+  test('normalizeMessagesForAPI filters api error assistant messages', () => {
+    const degraded = createAssistantMessage('partial response')
+    degraded.isApiErrorMessage = true
+    degraded.message.model = 'gpt-4'
+
     const out = normalizeMessagesForAPI([
       createUserMessage('hi'),
       createAssistantAPIErrorMessage('oops'),
+      degraded,
       createAssistantMessage('ok'),
     ])
     expect(out.map(m => m.type)).toEqual(['user', 'assistant'])
