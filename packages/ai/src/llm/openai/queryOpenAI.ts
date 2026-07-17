@@ -6,28 +6,34 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import type { AssistantMessage, UserMessage } from '#core/query'
-import type { ModelProfile } from '#core/utils/config'
-import { getGlobalConfig, MODEL_COSTS } from '#core/utils/config'
-import { getModelManager } from '#core/utils/model'
+import { MODEL_COSTS } from '#config'
 import {
   debug as debugLogger,
   getCurrentRequest,
   logLLMInteraction,
   logSystemPromptConstruction,
 } from '../../internal/debug'
-import { logError } from '#core/utils/log'
-import { addToTotalCost } from '#core/cost-tracker'
-import { normalizeContentFromAPI } from '#core/utils/messages'
-import { getCLISyspromptPrefix } from '#core/constants/prompts'
-import { getReasoningEffort } from '#core/utils/thinking'
-import { generateKodeContext } from '#core/ai/llm/kodeContext'
-import { MAIN_QUERY_TEMPERATURE } from '../../internal/constants'
+import {
+  addAiTotalCost,
+  getAiMainModelProfile,
+  getAiStream,
+  logAiError,
+  type AiModelProfileLike,
+} from '../../internal/runtimeConfig'
+import { normalizeContentFromAPI } from '../../internal/content'
+import {
+  CLI_SYSPROMPT_PREFIX,
+  MAIN_QUERY_TEMPERATURE,
+} from '../../internal/constants'
 import {
   PROMPT_CACHING_ENABLED,
   splitSysPromptPrefix,
-} from '#core/ai/llm/systemPromptUtils'
-import { withRetry } from '#core/ai/llm/retry'
-import { getAssistantMessageFromError } from '#core/ai/llm/errors'
+} from '../../internal/systemPromptUtils'
+import { withRetry } from '../../internal/retry'
+import { getAssistantMessageFromError } from '../../internal/errors'
+import { resolveReasoningEffort } from '../../internal/reasoningEffort'
+// Adapter system still lives in core; keep a single factory import until
+// Responses adapters move into @kode/ai with the rest of the provider stack.
 import { ModelAdapterFactory } from '#core/ai/modelAdapterFactory'
 import {
   getCompletionWithProfile,
@@ -86,17 +92,20 @@ export async function queryOpenAI(
     temperature?: number
     maxTokens?: number
     stopSequences?: string[]
-    modelProfile?: ModelProfile | null
+    /** Prefer passing the resolved profile; falls back to host binding. */
+    modelProfile?: AiModelProfileLike | null
+    /** Per-call stream override; falls back to host binding (default true). */
+    stream?: boolean
     toolUseContext?: ToolUseContext
     requestHeadersProfile?: RequestHeadersProfile
     cliSyspromptPrefix?: string
   },
 ): Promise<AssistantMessage> {
-  const config = getGlobalConfig()
+  const streamEnabled = options?.stream ?? getAiStream()
   const toolUseContext = options?.toolUseContext
 
   const modelProfile =
-    options?.modelProfile ?? getModelManager().getModel('main')
+    options?.modelProfile ?? getAiMainModelProfile()
   let model: string
 
   // 🔍 Debug: 记录模型配置详情
@@ -118,14 +127,14 @@ export async function queryOpenAI(
     requestId: getCurrentRequest()?.id,
   })
 
-  if (modelProfile) {
+  if (modelProfile?.modelName) {
     model = modelProfile.modelName
   } else {
     model = options?.model || modelProfile?.modelName || ''
   }
   // Prepend system prompt block for easy API identification
   if (options?.prependCLISysprompt) {
-    const prefix = options.cliSyspromptPrefix ?? getCLISyspromptPrefix()
+    const prefix = options.cliSyspromptPrefix ?? CLI_SYSPROMPT_PREFIX
     // Some OpenAI-like providers need the entire system prompt as a single block.
     systemPrompt = [[prefix, ...systemPrompt].join('\n')]
   }
@@ -176,8 +185,10 @@ export async function queryOpenAI(
   // 记录系统提示构建过程 (OpenAI path)
   logSystemPromptConstruction({
     basePrompt: systemPrompt.join('\n'),
-    kodeContext: generateKodeContext() || '',
-    reminders: [], // 这里可以从 generateSystemReminders 获取
+    // Project docs context is host-owned; empty here keeps transport free of
+    // context package coupling while hosts can still log richer prompts.
+    kodeContext: '',
+    reminders: [],
     finalPrompt: systemPrompt.join('\n'),
   })
 
@@ -207,20 +218,20 @@ export async function queryOpenAI(
     const USE_NEW_ADAPTER_SYSTEM = process.env.USE_NEW_ADAPTERS !== 'false'
 
     if (USE_NEW_ADAPTER_SYSTEM) {
+      // Core factory still expects full ModelProfile; host-bound profiles are
+      // structural supersets of what adapters read at runtime.
+      const adapterProfile = modelProfile as any
       const shouldUseResponses =
-        ModelAdapterFactory.shouldUseResponsesAPI(modelProfile)
+        ModelAdapterFactory.shouldUseResponsesAPI(adapterProfile)
 
       // Only use new adapters for Responses API models
       // Chat Completions models use legacy path for stability
       if (shouldUseResponses) {
-        const adapter = ModelAdapterFactory.createAdapter(modelProfile)
-        const reasoningEffort = await getReasoningEffort(
+        const adapter = ModelAdapterFactory.createAdapter(adapterProfile)
+        const reasoningEffort = resolveReasoningEffort({
           modelProfile,
-          messages,
-          {
-            thinkingTokens: maxThinkingTokens,
-          },
-        )
+          thinkingTokens: maxThinkingTokens,
+        })
 
         // Determine verbosity based on model name
         // Most GPT-5 codex models only support 'medium', so default to that unless we detect 'high' in the name
@@ -239,7 +250,7 @@ export async function queryOpenAI(
           tools,
           maxTokens:
             options?.maxTokens ?? getMaxTokensFromProfile(modelProfile),
-          stream: config.stream,
+          stream: streamEnabled,
           reasoningEffort: reasoningEffort ?? undefined,
           temperature:
             options?.temperature ??
@@ -271,7 +282,7 @@ export async function queryOpenAI(
           const { callGPT5ResponsesAPI } = await import('@kode/ai/openai')
 
           const response = await callGPT5ResponsesAPI(
-            modelProfile,
+            modelProfile as any,
             adapterContext.request,
             signal,
             options?.requestHeadersProfile,
@@ -309,10 +320,11 @@ export async function queryOpenAI(
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
-          stream: config.stream,
+          stream: streamEnabled,
           toolSchemas: toolSchemas,
           stopSequences: options?.stopSequences,
-          reasoningEffort: await getReasoningEffort(modelProfile, messages, {
+          reasoningEffort: resolveReasoningEffort({
+            modelProfile,
             thinkingTokens: maxThinkingTokens,
           }),
         })
@@ -321,7 +333,7 @@ export async function queryOpenAI(
           ? getGPT5CompletionWithProfile
           : getCompletionWithProfile
         const s = await completionFunction(
-          modelProfile,
+          modelProfile as any,
           opts,
           0,
           providerMaxAttempts,
@@ -352,7 +364,7 @@ export async function queryOpenAI(
       { signal, maxRetries: hasCommittedToolResult ? 0 : undefined },
     )
   } catch (error) {
-    logError(error)
+    logAiError(error)
     return getAssistantMessageFromError(error)
   }
 
@@ -382,7 +394,7 @@ export async function queryOpenAI(
     (cacheCreationInputTokens / 1_000_000) *
       sonnetCosts.promptCacheWritePerMillionTokens
 
-  addToTotalCost(costUSD, durationMsIncludingRetries)
+  addAiTotalCost(costUSD, durationMsIncludingRetries)
 
   logLLMInteraction({
     systemPrompt: systemPrompt.join('\n'),

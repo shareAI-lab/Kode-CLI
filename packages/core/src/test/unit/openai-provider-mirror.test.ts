@@ -117,6 +117,28 @@ describe('OpenAI provider mirror boundary', () => {
 
   test('keeps OpenAI LLM files equivalent except package-local and ai-owned imports', () => {
     for (const file of OPENAI_LLM_FILES) {
+      // queryOpenAI is the orchestration entrypoint; @kode/ai is allowed to
+      // absorb pure helpers and host bindings while core keeps historical
+      // imports for callers until the llm.ts switchover.
+      if (file === 'queryOpenAI.ts') {
+        const coreFile = readRepoFile(
+          `packages/core/src/ai/llm/openai/${file}`,
+        )
+        const aiFile = readRepoFile(`packages/ai/src/llm/openai/${file}`)
+        expect(coreFile).toContain('export async function queryOpenAI')
+        expect(aiFile).toContain('export async function queryOpenAI')
+        expect(aiFile).toContain("from '../../internal/retry'")
+        expect(aiFile).toContain('resolveReasoningEffort')
+        expect(aiFile).toContain('getAiStream')
+        expect(aiFile).toContain('logAiError')
+        expect(aiFile).toContain('addAiTotalCost')
+        expect(aiFile).not.toContain("from '#core/utils/config'")
+        expect(aiFile).not.toContain("from '#core/utils/model'")
+        expect(aiFile).not.toContain("from '#core/utils/log'")
+        expect(aiFile).not.toContain("from '#core/cost-tracker'")
+        continue
+      }
+
       const coreFile = normalizeLlmOwnedImports(
         readRepoFile(`packages/core/src/ai/llm/openai/${file}`),
       )

@@ -11,6 +11,9 @@ import {
   logSystemPromptConstruction,
 } from '#core/utils/debugLogger'
 import { getGlobalConfig } from '#core/utils/config'
+import { getModelManager } from '#core/utils/model'
+import { logError } from '#core/utils/log'
+import { addToTotalCost } from '#core/cost-tracker'
 import {
   setRequestStatus,
   setRequestInputTokens,
@@ -39,5 +42,9 @@ export function bindAiDebugFromCore(): void {
   })
   bindAiRuntime({
     getProxy: () => getGlobalConfig().proxy,
+    getStream: () => getGlobalConfig().stream !== false,
+    getMainModelProfile: () => getModelManager().getModel('main'),
+    logError,
+    addToTotalCost,
   })
 }

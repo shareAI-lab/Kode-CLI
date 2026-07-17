@@ -86,7 +86,8 @@ export async function getReasoningEffort(
         : reasoningEffort === 'low'
           ? 0
           : null
-  if (!maxEffort) {
+  // `low` maps to 0 — must not treat it as missing with a falsy check.
+  if (maxEffort === null) {
     return null
   }
 
