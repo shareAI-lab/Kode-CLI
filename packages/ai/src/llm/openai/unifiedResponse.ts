@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
-import type { AssistantMessage } from '#core/query'
+import type { AiAssistantMessage as AssistantMessage } from '../../internal/messageTypes'
 import { createAnthropicUsage } from '@kode/protocol/anthropic'
 
 export function buildAssistantMessageFromUnifiedResponse(

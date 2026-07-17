@@ -1,8 +1,11 @@
 import OpenAI from 'openai'
 import { nanoid } from 'nanoid'
 import type { Tool } from '@kode/tool-interface/Tool'
-import type { AssistantMessage, UserMessage } from '#core/query'
-import { convertAnthropicMessagesToOpenAIMessages as convertAnthropicMessagesToOpenAIMessagesUtil } from '#core/utils/openaiMessageConversion'
+import type {
+  AiAssistantMessage as AssistantMessage,
+  AiUserMessage as UserMessage,
+} from '../../internal/messageTypes'
+import { convertAnthropicMessagesToOpenAIMessages as convertAnthropicMessagesToOpenAIMessagesUtil } from '../../internal/openaiMessageConversion'
 import { API_ERROR_MESSAGE_PREFIX } from '../../internal/constants'
 import { isOpenAIStreamDegradedResponse } from './stream'
 import { normalizeUsage } from './usage'

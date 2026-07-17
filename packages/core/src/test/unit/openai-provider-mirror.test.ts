@@ -117,9 +117,8 @@ describe('OpenAI provider mirror boundary', () => {
 
   test('keeps OpenAI LLM files equivalent except package-local and ai-owned imports', () => {
     for (const file of OPENAI_LLM_FILES) {
-      // queryOpenAI is the orchestration entrypoint; @kode/ai is allowed to
-      // absorb pure helpers and host bindings while core keeps historical
-      // imports for callers until the llm.ts switchover.
+      // Orchestration/conversion own their #core drain path; core mirrors keep
+      // historical imports until llm.ts switches callers over.
       if (file === 'queryOpenAI.ts') {
         const coreFile = readRepoFile(
           `packages/core/src/ai/llm/openai/${file}`,
@@ -136,6 +135,38 @@ describe('OpenAI provider mirror boundary', () => {
         expect(aiFile).not.toContain("from '#core/utils/model'")
         expect(aiFile).not.toContain("from '#core/utils/log'")
         expect(aiFile).not.toContain("from '#core/cost-tracker'")
+        expect(aiFile).not.toContain("from '#core/query'")
+        expect(aiFile).not.toContain("from '#core/types/modelCapabilities'")
+        expect(aiFile).not.toContain("from '#core/ai/modelAdapterFactory'")
+        expect(aiFile).toContain('getAiAdapterFactory')
+        continue
+      }
+
+      if (file === 'conversion.ts' || file === 'unifiedResponse.ts') {
+        const coreFile = readRepoFile(
+          `packages/core/src/ai/llm/openai/${file}`,
+        )
+        const aiFile = readRepoFile(`packages/ai/src/llm/openai/${file}`)
+        expect(coreFile).toContain(
+          file === 'conversion.ts'
+            ? 'convertOpenAIResponseToAnthropic'
+            : 'buildAssistantMessageFromUnifiedResponse',
+        )
+        expect(aiFile).toContain(
+          file === 'conversion.ts'
+            ? 'convertOpenAIResponseToAnthropic'
+            : 'buildAssistantMessageFromUnifiedResponse',
+        )
+        expect(aiFile).toContain("from '../../internal/messageTypes'")
+        expect(aiFile).not.toContain("from '#core/query'")
+        if (file === 'conversion.ts') {
+          expect(aiFile).toContain(
+            "from '../../internal/openaiMessageConversion'",
+          )
+          expect(aiFile).not.toContain(
+            "from '#core/utils/openaiMessageConversion'",
+          )
+        }
         continue
       }
 

@@ -5,7 +5,11 @@ import type { UUID } from 'crypto'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
-import type { AssistantMessage, UserMessage } from '#core/query'
+import type {
+  AiAssistantMessage as AssistantMessage,
+  AiUserMessage as UserMessage,
+  UnifiedRequestParams,
+} from '../../internal/messageTypes'
 import { MODEL_COSTS } from '#config'
 import {
   debug as debugLogger,
@@ -32,14 +36,14 @@ import {
 import { withRetry } from '../../internal/retry'
 import { getAssistantMessageFromError } from '../../internal/errors'
 import { resolveReasoningEffort } from '../../internal/reasoningEffort'
-// Adapter system still lives in core; keep a single factory import until
-// Responses adapters move into @kode/ai with the rest of the provider stack.
-import { ModelAdapterFactory } from '#core/ai/modelAdapterFactory'
+import {
+  getAiAdapterFactory,
+  type AiModelAdapter,
+} from '../../internal/adapterFactory'
 import {
   getCompletionWithProfile,
   getGPT5CompletionWithProfile,
 } from '@kode/ai/openai'
-import type { UnifiedRequestParams } from '#core/types/modelCapabilities'
 import type { RequestHeadersProfile } from '../../internal/restrictedClientCompat'
 import type { AssistantStreamUpdateOptions } from '@kode/tool-interface/assistantStreamUpdate'
 
@@ -195,7 +199,7 @@ export async function queryOpenAI(
   let start = Date.now()
 
   type AdapterExecutionContext = {
-    adapter: ReturnType<typeof ModelAdapterFactory.createAdapter>
+    adapter: AiModelAdapter
     request: any
   }
 
@@ -216,18 +220,19 @@ export async function queryOpenAI(
     })
 
     const USE_NEW_ADAPTER_SYSTEM = process.env.USE_NEW_ADAPTERS !== 'false'
+    const adapterFactory = getAiAdapterFactory()
 
-    if (USE_NEW_ADAPTER_SYSTEM) {
-      // Core factory still expects full ModelProfile; host-bound profiles are
-      // structural supersets of what adapters read at runtime.
+    if (USE_NEW_ADAPTER_SYSTEM && adapterFactory) {
+      // Host-bound factory (core adapters today). Unbound hosts stay on
+      // Chat Completions for stability without a hard #core import.
       const adapterProfile = modelProfile as any
       const shouldUseResponses =
-        ModelAdapterFactory.shouldUseResponsesAPI(adapterProfile)
+        adapterFactory.shouldUseResponsesAPI(adapterProfile)
 
       // Only use new adapters for Responses API models
       // Chat Completions models use legacy path for stability
       if (shouldUseResponses) {
-        const adapter = ModelAdapterFactory.createAdapter(adapterProfile)
+        const adapter = adapterFactory.createAdapter(adapterProfile)
         const reasoningEffort = resolveReasoningEffort({
           modelProfile,
           thinkingTokens: maxThinkingTokens,

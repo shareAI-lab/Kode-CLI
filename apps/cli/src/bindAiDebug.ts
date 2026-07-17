@@ -1,4 +1,5 @@
 import {
+  bindAiAdapterFactory,
   bindAiDebug,
   bindAiRequestStatus,
   bindAiRuntime,
@@ -14,6 +15,7 @@ import { getGlobalConfig } from '#core/utils/config'
 import { getModelManager } from '#core/utils/model'
 import { logError } from '#core/utils/log'
 import { addToTotalCost } from '#core/cost-tracker'
+import { ModelAdapterFactory } from '#core/ai/modelAdapterFactory'
 import {
   setRequestStatus,
   setRequestInputTokens,
@@ -46,5 +48,11 @@ export function bindAiDebugFromCore(): void {
     getMainModelProfile: () => getModelManager().getModel('main'),
     logError,
     addToTotalCost,
+  })
+  bindAiAdapterFactory({
+    shouldUseResponsesAPI: profile =>
+      ModelAdapterFactory.shouldUseResponsesAPI(profile as any),
+    createAdapter: profile =>
+      ModelAdapterFactory.createAdapter(profile as any),
   })
 }

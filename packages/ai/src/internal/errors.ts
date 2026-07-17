@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
 
 import { createAnthropicUsage } from '@kode/protocol/anthropic'
-import type { AssistantMessage } from '#core/query'
+import type { AiAssistantMessage as AssistantMessage } from './messageTypes'
 
 import {
   API_ERROR_MESSAGE_PREFIX,

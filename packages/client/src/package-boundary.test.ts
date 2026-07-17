@@ -47,4 +47,12 @@ describe('package boundary contracts', () => {
     expect(deps.has('@kode/engine')).toBe(false)
     expect(deps.has('@kode/ai')).toBe(false)
   })
+
+  test('packages/ai package.json does not depend on core or engine', () => {
+    const deps = new Set(workspaceDeps('packages/ai/package.json'))
+    expect(deps.has('@kode/core')).toBe(false)
+    expect(deps.has('@kode/engine')).toBe(false)
+    expect(deps.has('@kode/config')).toBe(true)
+    expect(deps.has('@kode/protocol')).toBe(true)
+  })
 })

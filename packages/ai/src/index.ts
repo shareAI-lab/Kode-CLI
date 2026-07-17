@@ -7,3 +7,8 @@ export {
   type AiRuntimeBindings,
   type AiModelProfileLike,
 } from './internal/runtimeConfig'
+export {
+  bindAiAdapterFactory,
+  type AiAdapterFactory,
+  type AiModelAdapter,
+} from './internal/adapterFactory'
