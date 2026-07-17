@@ -44,22 +44,60 @@ function normalizeCoreProviderImports(source: string): string {
     )
 }
 
+/**
+ * @kode/ai owns a host-agnostic debug/providers surface. Core mirrors keep the
+ * historical #core imports; normalize those when comparing file bodies.
+ */
+function normalizeAiOwnedImports(source: string): string {
+  return source
+    .replaceAll(
+      "from '#core/utils/debugLogger'",
+      "from '../internal/debug'",
+    )
+    .replaceAll(
+      "from '#core/constants/models/providers'",
+      "from '../internal/providers'",
+    )
+    .replaceAll(
+      "from '../../internal/debug'",
+      "from '../internal/debug'",
+    )
+}
+
+function normalizeLlmOwnedImports(source: string): string {
+  return normalizeCoreProviderImports(source)
+    .replaceAll(
+      "from '#core/utils/debugLogger'",
+      "from '../../internal/debug'",
+    )
+    .replaceAll(
+      "from '#core/ai/llm/constants'",
+      "from '../../internal/constants'",
+    )
+}
+
 describe('OpenAI provider mirror boundary', () => {
-  test('keeps core and @kode/ai OpenAI provider files byte-identical', () => {
+  test('keeps core and @kode/ai OpenAI provider files equivalent except ai-owned imports', () => {
     for (const file of OPENAI_PROVIDER_FILES) {
-      const coreFile = readRepoFile(`packages/core/src/ai/openai/${file}`)
-      const aiFile = readRepoFile(`packages/ai/src/openai/${file}`)
+      const coreFile = normalizeAiOwnedImports(
+        readRepoFile(`packages/core/src/ai/openai/${file}`),
+      )
+      const aiFile = normalizeAiOwnedImports(
+        readRepoFile(`packages/ai/src/openai/${file}`),
+      )
 
       expect(coreFile, file).toBe(aiFile)
     }
   })
 
-  test('keeps OpenAI LLM files equivalent except package-local imports', () => {
+  test('keeps OpenAI LLM files equivalent except package-local and ai-owned imports', () => {
     for (const file of OPENAI_LLM_FILES) {
-      const coreFile = normalizeCoreProviderImports(
+      const coreFile = normalizeLlmOwnedImports(
         readRepoFile(`packages/core/src/ai/llm/openai/${file}`),
       )
-      const aiFile = readRepoFile(`packages/ai/src/llm/openai/${file}`)
+      const aiFile = normalizeLlmOwnedImports(
+        readRepoFile(`packages/ai/src/llm/openai/${file}`),
+      )
 
       expect(coreFile, file).toBe(aiFile)
     }

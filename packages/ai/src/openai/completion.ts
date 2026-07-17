@@ -8,8 +8,8 @@ import {
   buildCompatHeaders,
   type RequestHeadersProfile,
 } from '#core/ai/llm/restrictedClientCompat'
-import { debug as debugLogger, logAPIError } from '#core/utils/debugLogger'
-import { providers } from '#core/constants/models/providers'
+import { debug as debugLogger, logAPIError } from '../internal/debug'
+import { providers } from '../internal/providers'
 
 import { tryWithEndpointFallback } from './endpointFallback'
 import { maybeFixModelError, applyModelErrorFixes } from './modelErrors'

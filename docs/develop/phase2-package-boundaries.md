@@ -88,8 +88,9 @@ Phase 2 commits should stay independently revertible:
 
 ## Remaining Debt
 
-- `packages/ai` still imports `#core` for config, logging, model helpers, and
-  message types.
+- `packages/ai` still imports `#core` for config, model helpers, message
+  types, and the heavy `queryOpenAI` orchestration path. Provider transport
+  logging/providers/constants are now ai-owned with host `bindAiDebug`.
 - `packages/tools` still has compatibility imports from `#core` and two
   production imports from `@kode/engine/orchestrator` for agent tools.
 - `packages/engine` still depends on shared services in `#core`.

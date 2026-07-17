@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import type { Tool } from '@kode/tool-interface/Tool'
 import type { AssistantMessage, UserMessage } from '#core/query'
 import { convertAnthropicMessagesToOpenAIMessages as convertAnthropicMessagesToOpenAIMessagesUtil } from '#core/utils/openaiMessageConversion'
-import { API_ERROR_MESSAGE_PREFIX } from '#core/ai/llm/constants'
+import { API_ERROR_MESSAGE_PREFIX } from '../../internal/constants'
 import { isOpenAIStreamDegradedResponse } from './stream'
 import { normalizeUsage } from './usage'
 

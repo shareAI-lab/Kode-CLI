@@ -1,6 +1,6 @@
 import type OpenAI from 'openai'
 
-import { debug as debugLogger } from '#core/utils/debugLogger'
+import { debug as debugLogger } from '../internal/debug'
 
 export interface ModelFeatures {
   usesMaxCompletionTokens: boolean

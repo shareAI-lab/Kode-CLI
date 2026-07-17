@@ -5,7 +5,7 @@ import {
   emitAssistantStreamUpdate,
   type AssistantStreamUpdateOptions,
 } from '@kode/tool-interface/assistantStreamUpdate'
-import { debug as debugLogger } from '#core/utils/debugLogger'
+import { debug as debugLogger } from '../../internal/debug'
 import {
   setRequestStatus,
   setRequestInputTokens,

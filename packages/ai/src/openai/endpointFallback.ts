@@ -3,7 +3,7 @@ import type { ProxyAgent } from 'undici'
 import { fetch } from 'undici'
 import type { Response } from 'undici'
 
-import { debug as debugLogger } from '#core/utils/debugLogger'
+import { debug as debugLogger } from '../internal/debug'
 
 /**
  * Try different endpoints for OpenAI-compatible providers.

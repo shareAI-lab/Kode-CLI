@@ -3,7 +3,7 @@ import type OpenAI from 'openai'
 import {
   debug as debugLogger,
   getCurrentRequest,
-} from '#core/utils/debugLogger'
+} from '../internal/debug'
 
 import { getModelFeatures } from './modelFeatures'
 import { getCompletionWithProfile } from './completion'

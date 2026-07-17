@@ -1,7 +1,7 @@
 import type OpenAI from 'openai'
 
 import { setSessionState, getSessionState } from '#core/utils/sessionState'
-import { debug as debugLogger } from '#core/utils/debugLogger'
+import { debug as debugLogger } from '../internal/debug'
 
 enum ModelErrorType {
   MaxLength = '1024',

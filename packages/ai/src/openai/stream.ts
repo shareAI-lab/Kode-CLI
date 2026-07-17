@@ -1,7 +1,7 @@
 import type OpenAI from 'openai'
 import type { Response } from 'undici'
 
-import { debug as debugLogger } from '#core/utils/debugLogger'
+import { debug as debugLogger } from '../internal/debug'
 
 export type StreamDegradationReason =
   | 'read_error'

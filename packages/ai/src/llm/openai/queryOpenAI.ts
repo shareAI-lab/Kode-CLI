@@ -14,14 +14,14 @@ import {
   getCurrentRequest,
   logLLMInteraction,
   logSystemPromptConstruction,
-} from '#core/utils/debugLogger'
+} from '../../internal/debug'
 import { logError } from '#core/utils/log'
 import { addToTotalCost } from '#core/cost-tracker'
 import { normalizeContentFromAPI } from '#core/utils/messages'
 import { getCLISyspromptPrefix } from '#core/constants/prompts'
 import { getReasoningEffort } from '#core/utils/thinking'
 import { generateKodeContext } from '#core/ai/llm/kodeContext'
-import { MAIN_QUERY_TEMPERATURE } from '#core/ai/llm/constants'
+import { MAIN_QUERY_TEMPERATURE } from '../../internal/constants'
 import {
   PROMPT_CACHING_ENABLED,
   splitSysPromptPrefix,

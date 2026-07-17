@@ -117,6 +117,10 @@ async function main(): Promise<void> {
     return
   }
 
+  // Attach core diagnostics before loading provider transport modules.
+  const { bindAiDebugFromCore } = await import('./bindAiDebug.ts')
+  bindAiDebugFromCore()
+
   await import('./entrypoints/cli.ts')
 }
 
