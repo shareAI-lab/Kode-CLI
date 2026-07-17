@@ -176,6 +176,7 @@
       "name": "@kode/ai",
       "version": "0.0.0",
       "dependencies": {
+        "@kode/config": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/protocol": "workspace:*",
         "@kode/tool-interface": "workspace:*",

@@ -1,7 +1,8 @@
 import type OpenAI from 'openai'
 
-import { setSessionState, getSessionState } from '#core/utils/sessionState'
 import { debug as debugLogger } from '../internal/debug'
+
+const modelErrorMemory = new Map<string, string>()
 
 enum ModelErrorType {
   MaxLength = '1024',
@@ -25,9 +26,7 @@ function hasModelError(
   model: string,
   type: ModelErrorType,
 ): boolean {
-  return !!getSessionState('modelErrors')[
-    getModelErrorKey(baseURL, model, type)
-  ]
+  return modelErrorMemory.has(getModelErrorKey(baseURL, model, type))
 }
 
 function setModelError(
@@ -36,9 +35,7 @@ function setModelError(
   type: ModelErrorType,
   error: string,
 ) {
-  setSessionState('modelErrors', {
-    [getModelErrorKey(baseURL, model, type)]: error,
-  })
+  modelErrorMemory.set(getModelErrorKey(baseURL, model, type), error)
 }
 
 type ErrorDetector = (errMsg: string) => boolean

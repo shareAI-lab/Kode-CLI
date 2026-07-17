@@ -1,11 +1,11 @@
 import type { ProxyAgent, Response } from 'undici'
 import { ProxyAgent as ProxyAgentCtor, fetch } from 'undici'
 
-import { getGlobalConfig } from '#core/utils/config'
+import { getAiProxy } from '../internal/runtimeConfig'
 import {
   buildCompatHeaders,
   type RequestHeadersProfile,
-} from '#core/ai/llm/restrictedClientCompat'
+} from '../internal/restrictedClientCompat'
 
 /**
  * Call GPT-5 Responses API with proper parameter handling.
@@ -22,8 +22,8 @@ export async function callGPT5ResponsesAPI(
   const baseURL = profile?.baseURL || 'https://api.openai.com/v1'
   const apiKey = profile?.apiKey
 
-  const proxy: ProxyAgent | undefined = getGlobalConfig().proxy
-    ? new ProxyAgentCtor(getGlobalConfig().proxy)
+  const proxy: ProxyAgent | undefined = getAiProxy()
+    ? new ProxyAgentCtor(getAiProxy())
     : undefined
 
   const headers: Record<string, string> = {

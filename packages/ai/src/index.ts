@@ -1,3 +1,5 @@
 export * from './openai'
 export * from './llm/openai'
 export { bindAiDebug } from './internal/debug'
+export { bindAiRequestStatus } from './internal/requestStatus'
+export { bindAiRuntime } from './internal/runtimeConfig'

@@ -34,7 +34,7 @@ import {
   getGPT5CompletionWithProfile,
 } from '@kode/ai/openai'
 import type { UnifiedRequestParams } from '#core/types/modelCapabilities'
-import type { RequestHeadersProfile } from '#core/ai/llm/restrictedClientCompat'
+import type { RequestHeadersProfile } from '../../internal/restrictedClientCompat'
 import type { AssistantStreamUpdateOptions } from '@kode/tool-interface/assistantStreamUpdate'
 
 import {

@@ -3,11 +3,11 @@ import type { ProxyAgent } from 'undici'
 import { ProxyAgent as ProxyAgentCtor, fetch } from 'undici'
 import type { Response } from 'undici'
 
-import { getGlobalConfig } from '#core/utils/config'
+import { getAiProxy } from '../internal/runtimeConfig'
 import {
   buildCompatHeaders,
   type RequestHeadersProfile,
-} from '#core/ai/llm/restrictedClientCompat'
+} from '../internal/restrictedClientCompat'
 import { debug as debugLogger, logAPIError } from '../internal/debug'
 import { providers } from '../internal/providers'
 
@@ -126,8 +126,8 @@ function endpointForProvider(provider: string): string {
 }
 
 function createProxy(): ProxyAgent | undefined {
-  return getGlobalConfig().proxy
-    ? new ProxyAgentCtor(getGlobalConfig().proxy)
+  return getAiProxy()
+    ? new ProxyAgentCtor(getAiProxy())
     : undefined
 }
 

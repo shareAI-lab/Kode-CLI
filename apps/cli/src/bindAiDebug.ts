@@ -1,4 +1,8 @@
-import { bindAiDebug } from '@kode/ai'
+import {
+  bindAiDebug,
+  bindAiRequestStatus,
+  bindAiRuntime,
+} from '@kode/ai'
 import {
   debug,
   getCurrentRequest,
@@ -6,10 +10,16 @@ import {
   logLLMInteraction,
   logSystemPromptConstruction,
 } from '#core/utils/debugLogger'
+import { getGlobalConfig } from '#core/utils/config'
+import {
+  setRequestStatus,
+  setRequestInputTokens,
+  updateRequestTokens,
+} from '#core/utils/requestStatus'
 
 /**
- * Attach core diagnostics to @kode/ai so provider transport keeps full logs
- * without packages/ai hard-depending on core logger modules.
+ * Attach core diagnostics and runtime knobs to @kode/ai so provider transport
+ * keeps full logs/status without hard-depending on those core modules.
  */
 export function bindAiDebugFromCore(): void {
   bindAiDebug({
@@ -21,5 +31,13 @@ export function bindAiDebugFromCore(): void {
     logAPIError,
     logLLMInteraction,
     logSystemPromptConstruction,
+  })
+  bindAiRequestStatus({
+    setRequestStatus,
+    setRequestInputTokens,
+    updateRequestTokens,
+  })
+  bindAiRuntime({
+    getProxy: () => getGlobalConfig().proxy,
   })
 }

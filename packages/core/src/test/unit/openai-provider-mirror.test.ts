@@ -59,6 +59,23 @@ function normalizeAiOwnedImports(source: string): string {
       "from '../internal/providers'",
     )
     .replaceAll(
+      "from '#core/ai/llm/restrictedClientCompat'",
+      "from '../internal/restrictedClientCompat'",
+    )
+    .replaceAll(
+      "from '#core/utils/config'",
+      "from '../internal/runtimeConfig'",
+    )
+    .replaceAll('getGlobalConfig().proxy', 'getAiProxy()')
+    .replaceAll(
+      "import { getGlobalConfig } from '../internal/runtimeConfig'",
+      "import { getAiProxy } from '../internal/runtimeConfig'",
+    )
+    .replaceAll(
+      "import('#core/ai/llm/restrictedClientCompat')",
+      "import('../internal/restrictedClientCompat')",
+    )
+    .replaceAll(
       "from '../../internal/debug'",
       "from '../internal/debug'",
     )
@@ -73,6 +90,14 @@ function normalizeLlmOwnedImports(source: string): string {
     .replaceAll(
       "from '#core/ai/llm/constants'",
       "from '../../internal/constants'",
+    )
+    .replaceAll(
+      "from '#core/ai/llm/restrictedClientCompat'",
+      "from '../../internal/restrictedClientCompat'",
+    )
+    .replaceAll(
+      "from '#core/utils/requestStatus'",
+      "from '../../internal/requestStatus'",
     )
 }
 

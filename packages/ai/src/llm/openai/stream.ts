@@ -10,7 +10,7 @@ import {
   setRequestStatus,
   setRequestInputTokens,
   updateRequestTokens,
-} from '#core/utils/requestStatus'
+} from '../../internal/requestStatus'
 
 export type OpenAIStreamDegradedCompletion = OpenAI.ChatCompletion & {
   __streamDegraded?: true
