@@ -22,8 +22,9 @@ export async function callGPT5ResponsesAPI(
   const baseURL = profile?.baseURL || 'https://api.openai.com/v1'
   const apiKey = profile?.apiKey
 
-  const proxy: ProxyAgent | undefined = getGlobalConfig().proxy
-    ? new ProxyAgentCtor(getGlobalConfig().proxy)
+  const proxyUrl = getGlobalConfig().proxy
+  const proxy: ProxyAgent | undefined = proxyUrl
+    ? new ProxyAgentCtor(proxyUrl)
     : undefined
 
   const headers: Record<string, string> = {

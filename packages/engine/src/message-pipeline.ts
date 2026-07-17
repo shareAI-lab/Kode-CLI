@@ -674,7 +674,9 @@ async function* messagePipelineCore(
             toolUseContext,
             getBinaryFeedbackResponse,
             {
-              ...hookState,
+              // Fresh goal continuation must not inherit stop-hook counters.
+              stopHookActive: false,
+              stopHookAttempts: 0,
               thinkingOnlyAttempts: 0,
             },
           )
@@ -735,8 +737,8 @@ async function* messagePipelineCore(
       return
     }
 
-    // Recursive query
-
+    // Recursive query after tools: reset per-turn recovery counters so a
+    // previous stop-hook or thinking-only streak cannot leak into the next turn.
     try {
       yield* await messagePipelineCore(
         [...messages, assistantMessage, ...toolMessagesForNextTurn],
@@ -746,7 +748,8 @@ async function* messagePipelineCore(
         toolUseContext,
         getBinaryFeedbackResponse,
         {
-          ...hookState,
+          stopHookActive: false,
+          stopHookAttempts: 0,
           thinkingOnlyAttempts: 0,
         },
       )

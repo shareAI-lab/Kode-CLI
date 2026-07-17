@@ -126,9 +126,8 @@ function endpointForProvider(provider: string): string {
 }
 
 function createProxy(): ProxyAgent | undefined {
-  return getGlobalConfig().proxy
-    ? new ProxyAgentCtor(getGlobalConfig().proxy)
-    : undefined
+  const proxy = getGlobalConfig().proxy
+  return proxy ? new ProxyAgentCtor(proxy) : undefined
 }
 
 function createHeaders(

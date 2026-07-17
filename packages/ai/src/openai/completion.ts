@@ -126,9 +126,8 @@ function endpointForProvider(provider: string): string {
 }
 
 function createProxy(): ProxyAgent | undefined {
-  return getAiProxy()
-    ? new ProxyAgentCtor(getAiProxy())
-    : undefined
+  const proxy = getAiProxy()
+  return proxy ? new ProxyAgentCtor(proxy) : undefined
 }
 
 function createHeaders(

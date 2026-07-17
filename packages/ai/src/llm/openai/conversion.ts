@@ -76,18 +76,31 @@ export function convertOpenAIResponseToAnthropic(
   if (!streamDegraded) {
     for (const toolCall of toolCalls) {
       if (!isRecord(toolCall)) continue
-      if (toolCall.type !== 'function') continue
+      // Some OpenAI-compatible providers omit `type` after stream merge while
+      // still providing a function payload. Treat that as a function call.
+      const toolCallType =
+        typeof toolCall.type === 'string' ? toolCall.type : 'function'
+      if (toolCallType !== 'function') continue
       const tool = toolCall.function
       if (!isRecord(tool)) continue
-      const toolName = typeof tool.name === 'string' ? tool.name : ''
+      const toolName = typeof tool.name === 'string' ? tool.name.trim() : ''
       if (!toolName) continue
       const toolArguments =
         typeof tool.arguments === 'string' ? tool.arguments : ''
-      let toolArgs = {}
-      try {
-        toolArgs = toolArguments ? JSON.parse(toolArguments) : {}
-      } catch (e) {
-        // Invalid JSON in tool arguments
+      let toolArgs: Record<string, unknown> = {}
+      if (toolArguments.trim()) {
+        try {
+          const parsed = JSON.parse(toolArguments)
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            // Non-object arguments cannot be executed safely.
+            continue
+          }
+          toolArgs = parsed as Record<string, unknown>
+        } catch {
+          // Incomplete/invalid JSON must not become an empty-object tool call
+          // (that path silently runs tools with wrong input and stalls loops).
+          continue
+        }
       }
 
       contentBlocks.push({

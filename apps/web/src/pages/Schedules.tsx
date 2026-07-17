@@ -99,6 +99,15 @@ export function SchedulesPage(props: {
     void refresh()
   }, [refresh])
 
+  // Prefer an explicit selection; when the page opens with sessions but no
+  // active chat session, attach the most recent one so operators can act.
+  React.useEffect(() => {
+    if (props.sessionId) return
+    const first = props.sessions?.[0]
+    if (!first || !props.onSelectSession) return
+    props.onSelectSession(first.sessionId)
+  }, [props.sessionId, props.sessions, props.onSelectSession])
+
   const onCreate = async () => {
     if (!hasGoalScheduleControls(props.client) || !props.sessionId) return
     if (!objective.trim()) {
