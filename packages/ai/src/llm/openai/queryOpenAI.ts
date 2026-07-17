@@ -223,8 +223,8 @@ export async function queryOpenAI(
     const adapterFactory = getAiAdapterFactory()
 
     if (USE_NEW_ADAPTER_SYSTEM && adapterFactory) {
-      // Host-bound factory (core adapters today). Unbound hosts stay on
-      // Chat Completions for stability without a hard #core import.
+      // Default factory is the in-package ModelAdapterFactory; hosts may
+      // override or unbind (null => Chat Completions only).
       const adapterProfile = modelProfile as any
       const shouldUseResponses =
         adapterFactory.shouldUseResponsesAPI(adapterProfile)

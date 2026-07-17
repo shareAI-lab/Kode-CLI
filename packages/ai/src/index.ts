@@ -1,5 +1,6 @@
 export * from './openai'
 export * from './llm/openai'
+export * from './adapters'
 export { bindAiDebug } from './internal/debug'
 export { bindAiRequestStatus } from './internal/requestStatus'
 export {
@@ -12,3 +13,7 @@ export {
   type AiAdapterFactory,
   type AiModelAdapter,
 } from './internal/adapterFactory'
+export {
+  getModelCapabilities,
+  inferModelCapabilities,
+} from './internal/modelCapabilities'

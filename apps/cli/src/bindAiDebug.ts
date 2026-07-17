@@ -1,5 +1,4 @@
 import {
-  bindAiAdapterFactory,
   bindAiDebug,
   bindAiRequestStatus,
   bindAiRuntime,
@@ -15,7 +14,6 @@ import { getGlobalConfig } from '#core/utils/config'
 import { getModelManager } from '#core/utils/model'
 import { logError } from '#core/utils/log'
 import { addToTotalCost } from '#core/cost-tracker'
-import { ModelAdapterFactory } from '#core/ai/modelAdapterFactory'
 import {
   setRequestStatus,
   setRequestInputTokens,
@@ -25,6 +23,9 @@ import {
 /**
  * Attach core diagnostics and runtime knobs to @kode/ai so provider transport
  * keeps full logs/status without hard-depending on those core modules.
+ *
+ * Adapter factory defaults to the in-package ModelAdapterFactory; no host bind
+ * is required for the Responses API path.
  */
 export function bindAiDebugFromCore(): void {
   bindAiDebug({
@@ -48,11 +49,5 @@ export function bindAiDebugFromCore(): void {
     getMainModelProfile: () => getModelManager().getModel('main'),
     logError,
     addToTotalCost,
-  })
-  bindAiAdapterFactory({
-    shouldUseResponsesAPI: profile =>
-      ModelAdapterFactory.shouldUseResponsesAPI(profile as any),
-    createAdapter: profile =>
-      ModelAdapterFactory.createAdapter(profile as any),
   })
 }
