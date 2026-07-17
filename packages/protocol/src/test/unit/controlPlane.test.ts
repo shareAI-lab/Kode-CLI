@@ -5,6 +5,9 @@ import {
   DaemonAgentDeleteResponseSchema,
   DaemonAgentDetailResponseSchema,
   DaemonAgentUpdateRequestSchema,
+  DaemonGoalScheduleListResponseSchema,
+  DaemonGoalScheduleMutationResponseSchema,
+  DaemonGoalScheduleSummarySchema,
 } from '../../controlPlane'
 
 const agent = {
@@ -80,6 +83,60 @@ describe('daemon Agent control-plane schemas', () => {
       DaemonAgentDeleteResponseSchema.safeParse({
         deleted: true,
         leaked: 'unexpected',
+      }).success,
+    ).toBe(false)
+  })
+})
+
+describe('daemon goal schedule control-plane schemas', () => {
+  const schedule = {
+    id: 'schedule-goal-1',
+    goalId: 'goal-1',
+    kind: 'interval' as const,
+    status: 'scheduled',
+    revision: 1,
+    nextRunAt: 1_000,
+    createdAt: 1,
+    updatedAt: 2,
+    objective: 'Watch CI',
+    everyMs: 60_000,
+    anchorAt: 1_000,
+  }
+
+  test('accepts list and mutation envelopes without private paths', () => {
+    expect(DaemonGoalScheduleSummarySchema.safeParse(schedule).success).toBe(
+      true,
+    )
+    expect(
+      DaemonGoalScheduleListResponseSchema.safeParse({
+        schedules: [schedule],
+      }).success,
+    ).toBe(true)
+    expect(
+      DaemonGoalScheduleMutationResponseSchema.safeParse({
+        ok: true,
+        schedule,
+      }).success,
+    ).toBe(true)
+  })
+
+  test('rejects unknown fields and invalid kinds', () => {
+    expect(
+      DaemonGoalScheduleSummarySchema.safeParse({
+        ...schedule,
+        storagePath: '/private/goals',
+      }).success,
+    ).toBe(false)
+    expect(
+      DaemonGoalScheduleSummarySchema.safeParse({
+        ...schedule,
+        kind: 'cron',
+      }).success,
+    ).toBe(false)
+    expect(
+      DaemonGoalScheduleMutationResponseSchema.safeParse({
+        ok: false,
+        schedule,
       }).success,
     ).toBe(false)
   })

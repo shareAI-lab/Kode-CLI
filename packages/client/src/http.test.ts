@@ -1057,6 +1057,28 @@ describe('HttpClient', () => {
     )
   })
 
+  test('surfaces daemon JSON errors for goal schedule mutations', async () => {
+    const client = new HttpClient({
+      baseUrl: 'http://localhost:32123',
+      token: 'token',
+      workspaceId: 'workspace-a',
+      webSocketImpl: FakeWebSocket,
+      fetchImpl: async () =>
+        Response.json(
+          { ok: false, error: 'Revision conflict' },
+          { status: 409 },
+        ),
+    })
+
+    await expect(
+      client.transitionGoalSchedule('schedule-1', {
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        expectedRevision: 2,
+        action: 'pause',
+      }),
+    ).rejects.toThrow(/Revision conflict/)
+  })
+
   test('uses the daemon task and permission control contracts over authenticated HTTP', async () => {
     const task: DaemonTask = {
       id: 'shell-1',

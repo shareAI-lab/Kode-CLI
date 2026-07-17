@@ -409,6 +409,23 @@ function safeJsonParse(text: string): unknown {
   }
 }
 
+async function httpErrorMessage(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const text = await response.text()
+    const json = safeJsonParse(text)
+    if (isRecord(json) && typeof json.error === 'string' && json.error.trim()) {
+      return `${fallback}: ${json.error.trim()}`
+    }
+    if (text.trim()) return `${fallback}: ${text.trim().slice(0, 200)}`
+  } catch {
+    // Fall through to status-only message.
+  }
+  return fallback
+}
+
 export class HttpClient
   implements
     SessionAwareKodeClient,
@@ -1045,7 +1062,12 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to list goal schedules (${response.status})`)
+      throw new Error(
+        await httpErrorMessage(
+          response,
+          `Failed to list goal schedules (${response.status})`,
+        ),
+      )
     }
     const parsed = DaemonGoalScheduleListResponseSchema.safeParse(
       await response.json(),
@@ -1077,7 +1099,12 @@ export class HttpClient
       },
     )
     if (!response.ok) {
-      throw new Error(`Failed to create goal schedule (${response.status})`)
+      throw new Error(
+        await httpErrorMessage(
+          response,
+          `Failed to create goal schedule (${response.status})`,
+        ),
+      )
     }
     const parsed = DaemonGoalScheduleMutationResponseSchema.safeParse(
       await response.json(),
@@ -1129,7 +1156,10 @@ export class HttpClient
     )
     if (!response.ok) {
       throw new Error(
-        `Failed to ${request.action} goal schedule (${response.status})`,
+        await httpErrorMessage(
+          response,
+          `Failed to ${request.action} goal schedule (${response.status})`,
+        ),
       )
     }
     const parsed = DaemonGoalScheduleMutationResponseSchema.safeParse(
