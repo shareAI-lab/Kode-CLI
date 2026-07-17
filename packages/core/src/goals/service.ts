@@ -9,7 +9,10 @@ import {
   type ClaimDueSchedulesInput,
   type ClaimedSchedule,
   type Clock,
+  type ControlPlaneGoalScheduleTransitionInput,
+  type ControlPlaneGoalScheduleTransitionResult,
   type CreateGoalInput,
+  type CreateScheduledGoalControlPlaneInput,
   type Goal,
   type GoalLease,
   type GoalServiceOptions,
@@ -283,6 +286,168 @@ export class GoalService {
     const created = this.storage.createGoal(goal)
     this.emit({ goal: created, type: 'created', at: now, to: created.status })
     return created
+  }
+
+  /**
+   * Creates a durable, not-yet-claimed Goal for the daemon HTTP control plane.
+   * Returns null when a GoalRun is already active for this workspace/session.
+   */
+  createScheduledForControlPlane(
+    input: CreateScheduledGoalControlPlaneInput,
+  ): Goal | null {
+    const cwd = resolve(cleanText(input.cwd, 'Goal cwd'))
+    const sessionId = cleanText(input.sessionId, 'Goal sessionId')
+    const objective = cleanText(input.objective, 'Goal objective')
+    const acceptanceCriteria = cleanCriteria(input.acceptanceCriteria)
+    const now = this.now()
+    const schedule: ScheduleInput =
+      input.schedule.kind === 'once'
+        ? {
+            kind: 'once',
+            prompt: objective,
+            ...(input.schedule.runAt !== undefined
+              ? { runAt: input.schedule.runAt }
+              : {}),
+          }
+        : {
+            kind: 'interval',
+            prompt: objective,
+            everyMs: input.schedule.everyMs,
+            // Match /loop: defer the first cadence unless the caller supplies
+            // an explicit anchor. Immediate due would race the create response.
+            anchorAt:
+              input.schedule.anchorAt !== undefined
+                ? input.schedule.anchorAt
+                : now + Math.max(1, Math.floor(input.schedule.everyMs)),
+          }
+
+    return this.storage.withScopeLock({ cwd, sessionId }, () => {
+      if (this.findActiveGoal({ cwd, sessionId })) return null
+      return this.createGoal({
+        cwd,
+        sessionId,
+        objective,
+        acceptanceCriteria,
+        schedule,
+      })
+    })
+  }
+
+  /**
+   * Safely changes an inactive, session-bound Goal schedule from the daemon
+   * control plane. Rejects goals with a lease or active run so HTTP writes
+   * cannot orphan a live turn.
+   */
+  transitionScheduleForControlPlane(
+    input: ControlPlaneGoalScheduleTransitionInput,
+  ): ControlPlaneGoalScheduleTransitionResult {
+    const cwd = resolve(cleanText(input.cwd, 'Goal cwd'))
+    const sessionId = cleanText(input.sessionId, 'Goal sessionId')
+    const scheduleId = cleanText(input.scheduleId, 'Schedule ID')
+    if (
+      !Number.isSafeInteger(input.expectedRevision) ||
+      input.expectedRevision < 1 ||
+      !['pause', 'resume', 'cancel'].includes(input.action)
+    ) {
+      return { ok: false, reason: 'invalid_request' }
+    }
+
+    const now = this.now(input.now)
+    const message = input.reason?.trim()
+    return this.storage.withScopeLock({ cwd, sessionId }, () => {
+      const selected = this.storage
+        .listGoals()
+        .find(
+          goal =>
+            goal.cwd === cwd &&
+            goal.sessionId === sessionId &&
+            goal.schedule.id === scheduleId,
+        )
+      if (!selected) return { ok: false, reason: 'not_found' }
+
+      let failure:
+        | Exclude<
+            ControlPlaneGoalScheduleTransitionResult,
+            { ok: true }
+          >['reason']
+        | null = null
+      const changed = this.storage.mutateGoal<{
+        event: 'paused' | 'released' | 'cancelled'
+        message?: string
+      }>(selected.id, current => {
+        if (
+          current.cwd !== cwd ||
+          current.sessionId !== sessionId ||
+          current.schedule.id !== scheduleId
+        ) {
+          failure = 'not_found'
+          return null
+        }
+        if (current.revision !== input.expectedRevision) {
+          failure = 'revision_conflict'
+          return null
+        }
+        if (
+          current.lease ||
+          current.activeRun ||
+          current.status === 'running' ||
+          current.status === 'awaiting_approval'
+        ) {
+          failure = 'active_run'
+          return null
+        }
+
+        if (input.action === 'pause') {
+          if (current.status !== 'scheduled') {
+            failure = 'invalid_state'
+            return null
+          }
+          const goal = this.revise(current, now, {
+            status: 'paused',
+            pausedReason: message || 'Paused by control plane.',
+          })
+          return { goal, result: { event: 'paused' as const, message } }
+        }
+
+        if (input.action === 'resume') {
+          if (current.status !== 'paused') {
+            failure = 'invalid_state'
+            return null
+          }
+          const schedule: Schedule = { ...current.schedule }
+          if (schedule.nextRunAt === null || schedule.nextRunAt <= now) {
+            schedule.retryAt = now
+          }
+          const goal = this.revise(current, now, {
+            status: 'scheduled',
+            schedule,
+            pausedReason: undefined,
+          })
+          return { goal, result: { event: 'released' as const, message } }
+        }
+
+        if (current.status !== 'scheduled' && current.status !== 'paused') {
+          failure = 'invalid_state'
+          return null
+        }
+        const goal = this.revise(current, now, {
+          status: 'cancelled',
+          pausedReason: message || 'Cancelled by control plane.',
+        })
+        return { goal, result: { event: 'cancelled' as const, message } }
+      })
+      if (!changed) return { ok: false, reason: failure ?? 'not_found' }
+
+      this.emit({
+        goal: changed.goal,
+        type: changed.result.event,
+        at: now,
+        from: changed.before.status,
+        to: changed.goal.status,
+        message: changed.result.message,
+      })
+      return { ok: true, goal: changed.goal }
+    })
   }
 
   /**

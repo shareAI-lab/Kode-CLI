@@ -14,6 +14,7 @@ const plan = {
   name: 'plan',
   description: 'Enable plan mode or view the current session plan',
   argumentHint: '[open]',
+  aliases: ['pl'],
   isEnabled: true,
   isHidden: false,
   async call(onDone, context, args = '') {

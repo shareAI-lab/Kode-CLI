@@ -991,6 +991,72 @@ describe('HttpClient', () => {
     ])
   })
 
+  test('lists, creates, and transitions goal schedules over authenticated HTTP', async () => {
+    const schedule = {
+      id: 'schedule-local-loop',
+      goalId: 'local-loop',
+      kind: 'interval' as const,
+      status: 'scheduled',
+      revision: 1,
+      nextRunAt: 100,
+      createdAt: 1,
+      updatedAt: 2,
+      objective: 'Watch CI',
+      everyMs: 60_000,
+      anchorAt: 100,
+    }
+    const paused = { ...schedule, status: 'paused', revision: 2 }
+    const calls: Array<{ url: string; method?: string; body?: string }> = []
+    const client = new HttpClient({
+      baseUrl: 'http://localhost:32123',
+      token: 'token',
+      workspaceId: 'workspace-a',
+      webSocketImpl: FakeWebSocket,
+      fetchImpl: async (input, init) => {
+        const url = new URL(String(input))
+        calls.push({
+          url: url.toString(),
+          method: init?.method,
+          body: init?.body,
+        })
+        if (url.pathname === '/api/goal-schedules' && !init?.method) {
+          return Response.json({ schedules: [schedule] })
+        }
+        if (url.pathname === '/api/goal-schedules' && init?.method === 'POST') {
+          return Response.json({ ok: true, schedule }, { status: 201 })
+        }
+        if (url.pathname.endsWith('/actions') && init?.method === 'POST') {
+          return Response.json({ ok: true, schedule: paused })
+        }
+        return new Response('not found', { status: 404 })
+      },
+    })
+
+    await expect(
+      client.listGoalSchedules({
+        sessionId: '11111111-1111-4111-8111-111111111111',
+      }),
+    ).resolves.toEqual([schedule])
+    await expect(
+      client.createGoalSchedule({
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        objective: 'Watch CI',
+        schedule: { kind: 'interval', everyMs: 60_000 },
+      }),
+    ).resolves.toEqual(schedule)
+    await expect(
+      client.transitionGoalSchedule(schedule.id, {
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        expectedRevision: 1,
+        action: 'pause',
+        reason: 'hold',
+      }),
+    ).resolves.toEqual(paused)
+    expect(calls.some(call => call.url.includes('/api/goal-schedules'))).toBe(
+      true,
+    )
+  })
+
   test('uses the daemon task and permission control contracts over authenticated HTTP', async () => {
     const task: DaemonTask = {
       id: 'shell-1',

@@ -7,6 +7,7 @@ import { SUBAGENT_DISALLOWED_TOOL_NAMES } from '@kode/agent'
 
 import { maybeServeWebui } from '../server/webui'
 import { routeChat } from './chat'
+import { routeGoalSchedules } from './goalSchedules'
 import { routePermission } from './permission'
 import { routeSession } from './session'
 import { routeTask } from './task'
@@ -182,6 +183,12 @@ export function createRoutes(args: {
         taskService,
       })
       if (taskResponse) return taskResponse
+
+      const goalSchedulesResponse = await routeGoalSchedules(req, {
+        cwd: args.cwd,
+        listWorkspaces: args.listWorkspaces,
+      })
+      if (goalSchedulesResponse) return goalSchedulesResponse
 
       const permissionResponse = await routePermission(req, {
         cwd: args.cwd,

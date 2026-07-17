@@ -6,6 +6,7 @@ describe('App terminal chrome', () => {
   test('keeps the default web navigation to implemented views', () => {
     expect(__appForTests.terminalViews).toEqual([
       { value: 'chat', label: 'Chat' },
+      { value: 'schedules', label: 'Schedules' },
       { value: 'settings', label: 'Settings' },
     ])
   })

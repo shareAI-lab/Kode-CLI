@@ -7,6 +7,7 @@ import type {
   DaemonAgentMutationResponse,
   DaemonAgentSource,
   DaemonAgentUpdateRequest,
+  DaemonGoalScheduleSummary,
   DaemonManagedAgent,
   DaemonPermissionSnapshot,
   DaemonPermissionUpdate,
@@ -25,6 +26,8 @@ import {
   DaemonAgentMutationResponseSchema,
   DaemonAgentSourceSchema,
   DaemonAgentUpdateRequestSchema,
+  DaemonGoalScheduleListResponseSchema,
+  DaemonGoalScheduleMutationResponseSchema,
   DaemonPermissionSnapshotResponseSchema,
   DaemonPermissionUpdateResponseSchema,
   DaemonPermissionUpdateSchema,
@@ -45,6 +48,9 @@ import type {
   SessionAwareKodeClient,
   SessionControlKodeClient,
   SessionMetadataUpdate,
+  GoalScheduleActionRequest,
+  GoalScheduleControlKodeClient,
+  GoalScheduleCreateRequest,
   TaskControlKodeClient,
   TaskOutputOptions,
   TaskQueryOptions,
@@ -408,6 +414,7 @@ export class HttpClient
     SessionAwareKodeClient,
     SessionControlKodeClient,
     TaskControlKodeClient,
+    GoalScheduleControlKodeClient,
     PermissionControlKodeClient,
     AgentControlKodeClient
 {
@@ -1027,6 +1034,111 @@ export class HttpClient
     const parsed = DaemonTaskListResponseSchema.safeParse(await response.json())
     if (!parsed.success) throw new Error('Invalid tasks response')
     return (parsed.data as unknown as { tasks: DaemonTask[] }).tasks
+  }
+
+  async listGoalSchedules(
+    options: TaskQueryOptions = {},
+  ): Promise<DaemonGoalScheduleSummary[]> {
+    const url = this.toApiUrl('/api/goal-schedules')
+    appendOptionalSessionId(url, options.sessionId)
+    const response = await this.getFetchImpl()(url, {
+      headers: { authorization: `Bearer ${this.options.token}` },
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to list goal schedules (${response.status})`)
+    }
+    const parsed = DaemonGoalScheduleListResponseSchema.safeParse(
+      await response.json(),
+    )
+    if (!parsed.success) throw new Error('Invalid goal schedules response')
+    return parsed.data.schedules
+  }
+
+  async createGoalSchedule(
+    request: GoalScheduleCreateRequest,
+  ): Promise<DaemonGoalScheduleSummary> {
+    const sessionId = request.sessionId.trim()
+    if (!isUuid(sessionId)) throw new Error('Invalid session id')
+    const objective = request.objective.trim()
+    if (!objective) throw new Error('Objective is required')
+    const response = await this.getFetchImpl()(
+      this.toApiUrl('/api/goal-schedules'),
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.options.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId,
+          objective,
+          schedule: request.schedule,
+        }),
+      },
+    )
+    if (!response.ok) {
+      throw new Error(`Failed to create goal schedule (${response.status})`)
+    }
+    const parsed = DaemonGoalScheduleMutationResponseSchema.safeParse(
+      await response.json(),
+    )
+    if (!parsed.success) {
+      throw new Error('Invalid create goal schedule response')
+    }
+    return parsed.data.schedule
+  }
+
+  async transitionGoalSchedule(
+    scheduleId: string,
+    request: GoalScheduleActionRequest,
+  ): Promise<DaemonGoalScheduleSummary> {
+    const id = scheduleId.trim()
+    if (!id) throw new Error('Invalid schedule id')
+    const sessionId = request.sessionId.trim()
+    if (!isUuid(sessionId)) throw new Error('Invalid session id')
+    if (
+      !Number.isSafeInteger(request.expectedRevision) ||
+      request.expectedRevision < 1
+    ) {
+      throw new Error('Invalid expected revision')
+    }
+    if (
+      request.action !== 'pause' &&
+      request.action !== 'resume' &&
+      request.action !== 'cancel'
+    ) {
+      throw new Error('Invalid schedule action')
+    }
+    const response = await this.getFetchImpl()(
+      this.toApiUrl(`/api/goal-schedules/${encodeURIComponent(id)}/actions`),
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.options.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId,
+          expectedRevision: request.expectedRevision,
+          action: request.action,
+          ...(request.reason?.trim()
+            ? { reason: request.reason.trim() }
+            : {}),
+        }),
+      },
+    )
+    if (!response.ok) {
+      throw new Error(
+        `Failed to ${request.action} goal schedule (${response.status})`,
+      )
+    }
+    const parsed = DaemonGoalScheduleMutationResponseSchema.safeParse(
+      await response.json(),
+    )
+    if (!parsed.success) {
+      throw new Error('Invalid goal schedule action response')
+    }
+    return parsed.data.schedule
   }
 
   async getTask(

@@ -134,6 +134,60 @@ export type CreateGoalInput = {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * The deliberately small schedule shape accepted by the daemon control plane.
+ * Routing identity, prompt text, loop settings, metadata and GoalRun fencing
+ * are server-owned and therefore intentionally absent here.
+ */
+export type ControlPlaneGoalScheduleInput =
+  | {
+      kind: 'once'
+      runAt?: number
+    }
+  | {
+      kind: 'interval'
+      everyMs: number
+      anchorAt?: number
+    }
+
+export type CreateScheduledGoalControlPlaneInput = {
+  cwd: string
+  sessionId: string
+  objective: string
+  acceptanceCriteria?: string[]
+  schedule: ControlPlaneGoalScheduleInput
+}
+
+/**
+ * Durable schedule state changes exposed to the daemon control plane. These
+ * actions intentionally cannot start work or alter a prompt, workspace,
+ * session, loop, or workflow definition.
+ */
+export type ControlPlaneGoalScheduleAction = 'pause' | 'resume' | 'cancel'
+
+export type ControlPlaneGoalScheduleTransitionInput = {
+  cwd: string
+  sessionId: string
+  scheduleId: string
+  expectedRevision: number
+  action: ControlPlaneGoalScheduleAction
+  reason?: string
+  /** Test/embedded-runtime override. HTTP callers never supply this. */
+  now?: number
+}
+
+export type ControlPlaneGoalScheduleTransitionResult =
+  | { ok: true; goal: Goal }
+  | {
+      ok: false
+      reason:
+        | 'not_found'
+        | 'revision_conflict'
+        | 'active_run'
+        | 'invalid_state'
+        | 'invalid_request'
+    }
+
 export type GoalEventType =
   | 'created'
   | 'claimed'

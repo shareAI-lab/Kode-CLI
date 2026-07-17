@@ -5,44 +5,16 @@ import { getCwd } from '#core/utils/state'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 
 import { formatGoalStatus } from './goal'
+import {
+  createIntervalGoal,
+  parseEveryInterval,
+  parseLoopCreateArgs,
+} from './goalSchedule'
+
+export { parseEveryInterval, parseLoopCreateArgs }
 
 const USAGE =
   'Usage: /loop [start] <objective> --every 30s|5m|1h | /loop status [goal-id] | /loop cancel <goal-id>'
-
-const INTERVAL_FACTORS: Record<'s' | 'm' | 'h', number> = {
-  s: 1_000,
-  m: 60_000,
-  h: 3_600_000,
-}
-
-export function parseEveryInterval(value: string): number | null {
-  const match = value.trim().match(/^(\d+)([smh])$/i)
-  if (!match?.[1] || !match[2]) return null
-  const count = Number.parseInt(match[1], 10)
-  const unit = match[2].toLowerCase() as keyof typeof INTERVAL_FACTORS
-  if (!Number.isFinite(count) || count <= 0) return null
-  const milliseconds = count * INTERVAL_FACTORS[unit]
-  return Number.isSafeInteger(milliseconds) ? milliseconds : null
-}
-
-export function parseLoopCreateArgs(
-  raw: string,
-): { objective: string; everyMs: number } | { error: string } {
-  const match = raw.match(/(?:^|\s)--every(?:\s+|=)(\d+[smh])(?=\s|$)/i)
-  if (!match?.[1]) {
-    return { error: 'Missing --every interval (for example: --every 5m).' }
-  }
-  const everyMs = parseEveryInterval(match[1])
-  if (!everyMs) {
-    return {
-      error:
-        'Invalid --every interval. Use a positive value such as 30s, 5m, or 1h.',
-    }
-  }
-  const objective = raw.replace(match[0], ' ').trim()
-  if (!objective) return { error: 'A loop objective is required.' }
-  return { objective, everyMs }
-}
 
 function currentScope(): { cwd: string; sessionId: string } {
   return { cwd: getCwd(), sessionId: getKodeAgentSessionId() }
@@ -120,18 +92,12 @@ const loop = {
       if ('error' in parsed) return `${USAGE}\n${parsed.error}`
       const { cwd, sessionId } = currentScope()
       const now = Date.now()
-      const created = new GoalService().createGoal({
+      const created = createIntervalGoal({
         cwd,
         sessionId,
         objective: parsed.objective,
-        schedule: {
-          kind: 'interval',
-          prompt: parsed.objective,
-          everyMs: parsed.everyMs,
-          // A recurring loop starts on its next cadence; use /goal for an
-          // immediate session-active loop.
-          anchorAt: now + parsed.everyMs,
-        },
+        everyMs: parsed.everyMs,
+        now,
       })
       return [
         `Loop created: ${created.id}`,

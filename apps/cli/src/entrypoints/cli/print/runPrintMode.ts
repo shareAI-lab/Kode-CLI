@@ -8,6 +8,11 @@ import type { Message } from '#core/query'
 import type { Tool } from '#core/tooling/Tool'
 import type { ask as askImpl } from '#cli-utils/ask'
 
+import {
+  finishHeadlessRun,
+  startHeadlessRun,
+} from './headlessRunTelemetry'
+
 export type RunPrintModeArgs = {
   prompt: string | undefined
   stdinContent: string
@@ -213,6 +218,16 @@ export async function runPrintMode({
 
   if (normalizedOutputFormat === 'text') {
     addToHistory(inputPrompt)
+    const headlessRun = startHeadlessRun({
+      cwd,
+      inputFormat: normalizedInputFormat,
+      outputFormat: normalizedOutputFormat,
+      promptChars: inputPrompt.length,
+      toolCount: toolsForPrint.length,
+      model,
+      maxTurns,
+      maxBudgetUsd,
+    })
     try {
       const { resultText: response, totalCost } = await ask({
         commands,
@@ -239,10 +254,17 @@ export async function runPrintMode({
         totalCost >= maxBudgetUsd
 
       if (budgetExceeded) {
+        finishHeadlessRun(headlessRun, {
+          resultSubtype: 'error_max_budget_usd',
+          totalCostUsd: totalCost,
+        })
         process.stdout.write(`Error: Exceeded USD budget (${maxBudgetUsd})\n`)
         process.exit(0)
       }
 
+      finishHeadlessRun(headlessRun, {
+        totalCostUsd: totalCost,
+      })
       process.stdout.write(`${response}\n`)
       process.exit(0)
     } catch (error) {
@@ -251,16 +273,30 @@ export async function runPrintMode({
       const { MaxTurnsExceededError } = await import('#core/errors/maxTurns')
       if (error instanceof MaxBudgetUsdExceededError) {
         const budget = maxBudgetUsd ?? error.maxBudgetUsd
+        finishHeadlessRun(headlessRun, {
+          resultSubtype: 'error_max_budget_usd',
+          error,
+        })
         process.stdout.write(`Error: Exceeded USD budget (${budget})\n`)
         process.exit(0)
       }
       if (error instanceof MaxTurnsExceededError) {
+        finishHeadlessRun(headlessRun, {
+          resultSubtype: 'error_max_turns',
+          error,
+          numTurns: error.turnCount,
+        })
         process.stdout.write(
           `Error: Reached max turns limit (${error.maxTurns})\n`,
         )
         process.exit(0)
       }
 
+      finishHeadlessRun(headlessRun, {
+        isError: true,
+        resultSubtype: 'error_during_execution',
+        error,
+      })
       process.stdout.write('Execution error\n')
       process.exit(1)
     }

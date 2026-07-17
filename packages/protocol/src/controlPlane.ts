@@ -392,3 +392,44 @@ export const DaemonAgentMutationResponseSchema = z
 export type DaemonAgentMutationResponse = z.infer<
   typeof DaemonAgentMutationResponseSchema
 >
+
+/** Durable goal schedule summaries exposed by the daemon HTTP control plane. */
+export const DaemonGoalScheduleKindSchema = z.enum(['once', 'interval'])
+export type DaemonGoalScheduleKind = z.infer<typeof DaemonGoalScheduleKindSchema>
+
+export const DaemonGoalScheduleSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    goalId: z.string().min(1),
+    kind: DaemonGoalScheduleKindSchema,
+    status: z.string().min(1),
+    revision: z.number().int().positive(),
+    nextRunAt: z.number().int().nullable(),
+    createdAt: z.number().int().nonnegative(),
+    updatedAt: z.number().int().nonnegative(),
+    objective: z.string(),
+    runAt: z.number().int().optional(),
+    everyMs: z.number().int().positive().optional(),
+    anchorAt: z.number().int().optional(),
+  })
+  .strict()
+export type DaemonGoalScheduleSummary = z.infer<
+  typeof DaemonGoalScheduleSummarySchema
+>
+
+export const DaemonGoalScheduleListResponseSchema = z
+  .object({ schedules: z.array(DaemonGoalScheduleSummarySchema) })
+  .strict()
+export type DaemonGoalScheduleListResponse = z.infer<
+  typeof DaemonGoalScheduleListResponseSchema
+>
+
+export const DaemonGoalScheduleMutationResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    schedule: DaemonGoalScheduleSummarySchema,
+  })
+  .strict()
+export type DaemonGoalScheduleMutationResponse = z.infer<
+  typeof DaemonGoalScheduleMutationResponseSchema
+>

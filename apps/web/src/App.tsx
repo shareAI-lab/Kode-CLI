@@ -1,5 +1,5 @@
 import React from 'react'
-import { Menu, MessagesSquare, Settings } from 'lucide-react'
+import { CalendarClock, Menu, MessagesSquare, Settings } from 'lucide-react'
 
 import { useChat } from './hooks/useChat'
 import { useRuntimeClient } from './hooks/useRuntimeClient'
@@ -19,9 +19,10 @@ import {
 } from './lib/token'
 import { ChatPage } from './pages/Chat'
 import { ConnectPage } from './pages/Connect'
+import { SchedulesPage } from './pages/Schedules'
 import { SettingsPage } from './pages/Settings'
 
-type View = 'chat' | 'settings'
+type View = 'chat' | 'schedules' | 'settings'
 
 const TERMINAL_VIEWS: readonly {
   value: View
@@ -29,6 +30,7 @@ const TERMINAL_VIEWS: readonly {
   icon: typeof MessagesSquare
 }[] = [
   { value: 'chat', label: 'Chat', icon: MessagesSquare },
+  { value: 'schedules', label: 'Schedules', icon: CalendarClock },
   { value: 'settings', label: 'Settings', icon: Settings },
 ]
 
@@ -219,6 +221,11 @@ export default function App() {
                   clearToken()
                   setToken('')
                 }}
+              />
+            ) : view === 'schedules' ? (
+              <SchedulesPage
+                client={client}
+                sessionId={chat.selectedSessionId}
               />
             ) : (
               <ChatPage

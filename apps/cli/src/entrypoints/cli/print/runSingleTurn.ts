@@ -4,6 +4,10 @@ import type { QueryToolUseContext } from '@kode/engine'
 import { MaxBudgetUsdExceededError } from '#core/errors/maxBudgetUsd'
 import { MaxTurnsExceededError } from '#core/errors/maxTurns'
 import { randomUUID } from 'crypto'
+import {
+  finishHeadlessRun,
+  type HeadlessRunTracker,
+} from './headlessRunTelemetry'
 import { beginPrintModeSignalAbortHandling } from './signalState'
 
 const PRINT_MODE_ABORT_SIGNALS: NodeJS.Signals[] = [
@@ -82,6 +86,7 @@ export async function runSingleTurnPrint(args: {
   maxBudgetUsd?: number
   jsonSchema: Record<string, unknown> | null
   verbose: boolean | undefined
+  headlessRun?: HeadlessRunTracker | null
 }): Promise<void> {
   let lastAssistant: Message | null = null
   let queryError: unknown = null
@@ -227,6 +232,23 @@ export async function runSingleTurnPrint(args: {
     return Math.max(numTurns, 1)
   })()
 
+  const isError =
+    shouldReturnBudgetExceeded || shouldReturnMaxTurnsExceeded
+      ? false
+      : Boolean(queryError) || shouldReturnDegradedApiError
+  // SDK result subtype vocabulary (keep historical success/limit semantics).
+  const resultSubtype = shouldReturnMaxTurnsExceeded
+    ? 'error_max_turns'
+    : shouldReturnBudgetExceeded
+      ? 'error_max_budget_usd'
+      : shouldReturnDegradedApiError
+        ? 'error_during_execution'
+        : undefined
+  // Durable telemetry uses structured error subtypes whenever the run failed.
+  const telemetrySubtype =
+    resultSubtype ??
+    (isError || queryError ? 'error_during_execution' : undefined)
+
   const resultMsg = args.makeSdkResultMessage({
     sessionId: args.sessionId,
     result:
@@ -242,18 +264,19 @@ export async function runSingleTurnPrint(args: {
     totalCostUsd,
     durationMs,
     durationApiMs: args.getTotalApiDurationMs(),
-    isError:
-      shouldReturnBudgetExceeded || shouldReturnMaxTurnsExceeded
-        ? false
-        : Boolean(queryError) || shouldReturnDegradedApiError,
-    subtype: shouldReturnMaxTurnsExceeded
-      ? 'error_max_turns'
-      : shouldReturnBudgetExceeded
-        ? 'error_max_budget_usd'
-        : shouldReturnDegradedApiError
-          ? 'error_during_execution'
-          : undefined,
+    isError,
+    subtype: resultSubtype,
     uuid: randomUUID(),
+  })
+
+  finishHeadlessRun(args.headlessRun, {
+    isError: Boolean(telemetrySubtype),
+    resultSubtype: telemetrySubtype,
+    error: queryError ?? (shouldReturnDegradedApiError ? text : undefined),
+    numTurns: resultNumTurns,
+    totalCostUsd,
+    durationMs,
+    durationApiMs: args.getTotalApiDurationMs(),
   })
 
   if (args.outputFormat === 'stream-json') {

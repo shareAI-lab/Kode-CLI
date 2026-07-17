@@ -265,7 +265,11 @@ describe('createRoutes health endpoint', () => {
 
   test('keeps task and permission control routes behind the daemon token gate', async () => {
     const routes = createTestRoutes({ authorized: false })
-    for (const path of ['/api/tasks', '/api/permissions']) {
+    for (const path of [
+      '/api/tasks',
+      '/api/permissions',
+      '/api/goal-schedules',
+    ]) {
       const response = await routes.fetch(
         new Request(`http://localhost${path}`),
         {

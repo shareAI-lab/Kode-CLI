@@ -9,6 +9,7 @@ import type {
   CreateDurableRunArgs,
   DurableRun,
   DurableRunStatus,
+  DurableRunTelemetry,
   ReconciledDurableRun,
 } from './types'
 
@@ -61,6 +62,7 @@ export function finishDurableRun(args: {
   id: string
   status: Extract<DurableRunStatus, 'completed' | 'failed' | 'cancelled'>
   error?: string
+  telemetry?: DurableRunTelemetry
   storageRoot?: string
   now?: number
 }): DurableRun | null {
@@ -77,6 +79,7 @@ export function finishDurableRun(args: {
               ...current,
               status: args.status,
               ...(args.error ? { error: args.error } : {}),
+              ...(args.telemetry ? { telemetry: args.telemetry } : {}),
               updatedAt: now,
               heartbeatAt: now,
               finishedAt: now,

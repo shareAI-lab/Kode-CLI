@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import figures from 'figures'
 import type { Command } from '#cli-commands'
+import { isPrimaryCommandName } from '#cli-commands/discovery'
 import { PRODUCT_COMMAND, PRODUCT_NAME } from '#core/constants/product'
 import { CACHE_PATHS, DATE } from '#core/logging/log/paths'
 import { MACRO } from '#core/constants/macros'
@@ -68,6 +69,13 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   const builtInCommands = filteredCommands.filter(
     cmd => !isCustomCommandWithScope(cmd),
   )
+  // Keep the default help list focused on primary commands; full catalog stays
+  // available via command search / palette.
+  const primaryBuiltIns = builtInCommands.filter(cmd =>
+    isPrimaryCommandName(cmd.name),
+  )
+  const commandsForHelp =
+    primaryBuiltIns.length > 0 ? primaryBuiltIns : builtInCommands
 
   const dirs = getCustomCommandDirectories()
 
@@ -133,10 +141,15 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push('')
 
   lines.push('Commands')
-  for (const cmd of builtInCommands) {
+  for (const cmd of commandsForHelp) {
     const argumentHint = cmd.argumentHint ? ` ${cmd.argumentHint}` : ''
     lines.push(
       `- /${cmd.userFacingName()}${argumentHint} — ${cmd.description}${formatCommandAliases(cmd)}`,
+    )
+  }
+  if (commandsForHelp.length < builtInCommands.length) {
+    lines.push(
+      `- … and ${builtInCommands.length - commandsForHelp.length} more (command palette / search)`,
     )
   }
 

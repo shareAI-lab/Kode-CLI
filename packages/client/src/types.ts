@@ -7,6 +7,7 @@ import type {
   DaemonAgentMutationResponse,
   DaemonAgentSource,
   DaemonAgentUpdateRequest,
+  DaemonGoalScheduleSummary,
   DaemonManagedAgent,
   DaemonPermissionSnapshot,
   DaemonPermissionUpdate,
@@ -16,6 +17,8 @@ import type {
   DaemonTaskOutputResponse,
   Session,
 } from '@kode/protocol'
+
+export type { DaemonGoalScheduleSummary }
 
 export type ToolPermissionDecision = 'allow_once' | 'allow_always' | 'deny'
 
@@ -193,6 +196,34 @@ export interface TaskControlKodeClient {
     taskId: string,
     options?: TaskQueryOptions,
   ): Promise<DaemonTaskCancelResponse>
+}
+
+export type GoalScheduleCreateRequest = {
+  sessionId: string
+  objective: string
+  schedule:
+    | { kind: 'once'; runAt?: number }
+    | { kind: 'interval'; everyMs: number; anchorAt?: number }
+}
+
+export type GoalScheduleActionRequest = {
+  sessionId: string
+  expectedRevision: number
+  action: 'pause' | 'resume' | 'cancel'
+  reason?: string
+}
+
+export interface GoalScheduleControlKodeClient {
+  listGoalSchedules(
+    options?: TaskQueryOptions,
+  ): Promise<DaemonGoalScheduleSummary[]>
+  createGoalSchedule(
+    request: GoalScheduleCreateRequest,
+  ): Promise<DaemonGoalScheduleSummary>
+  transitionGoalSchedule(
+    scheduleId: string,
+    request: GoalScheduleActionRequest,
+  ): Promise<DaemonGoalScheduleSummary>
 }
 
 /** Daemon-only permission snapshots and explicitly-audited updates. */

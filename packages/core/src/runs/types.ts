@@ -14,6 +14,43 @@ export type DurableRunProcessIdentity = {
   startToken: string
 }
 
+export type DurableRunFailureKind =
+  | 'configuration'
+  | 'budget_limit'
+  | 'turn_limit'
+  | 'cancelled'
+  | 'permission'
+  | 'provider'
+  | 'execution'
+
+export type DurableRunFailure = {
+  kind: DurableRunFailureKind
+  message: string
+  retryable: boolean
+  recommendedAction: string
+}
+
+/**
+ * Optional structured telemetry attached when a durable run finishes.
+ * Headless agent runs use this; shell/task runs may omit it.
+ */
+export type DurableRunTelemetry = {
+  mode: 'headless'
+  inputFormat: string
+  outputFormat: string
+  promptChars: number
+  toolCount: number
+  model?: string
+  maxTurns?: number
+  maxBudgetUsd?: number
+  numTurns?: number
+  totalCostUsd?: number
+  durationMs?: number
+  durationApiMs?: number
+  resultSubtype?: string
+  failure?: DurableRunFailure
+}
+
 export type DurableRun = {
   version: 1
   id: string
@@ -31,6 +68,7 @@ export type DurableRun = {
   heartbeatAt: number
   finishedAt?: number
   error?: string
+  telemetry?: DurableRunTelemetry
 }
 
 export type CreateDurableRunArgs = {
