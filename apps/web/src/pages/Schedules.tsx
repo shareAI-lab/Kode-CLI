@@ -6,6 +6,7 @@ import type {
   GoalScheduleControlKodeClient,
   KodeClient,
 } from '@kode/client'
+import type { Session } from '@kode/protocol'
 
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
@@ -43,9 +44,21 @@ export function parseEveryIntervalMs(value: string): number | null {
   return Number.isSafeInteger(ms) ? ms : null
 }
 
+function sessionLabel(session: Session): string {
+  return (
+    session.customTitle?.trim() ||
+    session.slug?.trim() ||
+    session.summary?.trim() ||
+    session.sessionId
+  )
+}
+
 export function SchedulesPage(props: {
   client: KodeClient | null
   sessionId: string | null
+  sessions?: Session[]
+  onSelectSession?: (sessionId: string) => void
+  onNewSession?: () => void
 }) {
   const [schedules, setSchedules] = React.useState<DaemonGoalScheduleSummary[]>(
     [],
@@ -164,12 +177,46 @@ export function SchedulesPage(props: {
             stay on the normal permission path.
           </div>
 
-          {!props.sessionId ? (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
-              Open or create a chat session first, then return here to manage
-              schedules for that session.
+          <div className="grid gap-2">
+            <div className="text-sm font-medium">Session</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="h-9 min-w-[12rem] flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                value={props.sessionId ?? ''}
+                disabled={!props.sessions?.length}
+                onChange={e => {
+                  const next = e.target.value
+                  if (next) props.onSelectSession?.(next)
+                }}
+              >
+                <option value="" disabled>
+                  {props.sessions?.length
+                    ? 'Select a session'
+                    : 'No sessions yet'}
+                </option>
+                {(props.sessions ?? []).map(session => (
+                  <option key={session.sessionId} value={session.sessionId}>
+                    {sessionLabel(session)}
+                  </option>
+                ))}
+              </select>
+              {props.onNewSession ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => props.onNewSession?.()}
+                >
+                  New session
+                </Button>
+              ) : null}
             </div>
-          ) : null}
+            {!props.sessionId ? (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                Select an existing session or create a new one to attach
+                schedules.
+              </div>
+            ) : null}
+          </div>
 
           {error ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

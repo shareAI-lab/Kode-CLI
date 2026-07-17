@@ -226,6 +226,13 @@ export default function App() {
               <SchedulesPage
                 client={client}
                 sessionId={chat.selectedSessionId}
+                sessions={chat.sessions}
+                onSelectSession={id => {
+                  void chat.selectSession(id)
+                }}
+                onNewSession={() => {
+                  chat.startNewSession()
+                }}
               />
             ) : (
               <ChatPage
