@@ -8,6 +8,21 @@ export function isMiMoModel(modelName: string): boolean {
   return modelName.toLowerCase().startsWith('mimo-')
 }
 
+/**
+ * MiMo defaults to on-device/server thinking that counts against
+ * max_completion_tokens. Enable only when the caller explicitly asks for
+ * medium/high effort and is not in a tool-capable turn (tool_calls get
+ * incomplete under thinking).
+ */
+export function shouldDisableMiMoThinking(args: {
+  toolSchemasLength: number
+  reasoningEffort?: string | null
+}): boolean {
+  if (args.toolSchemasLength > 0) return true
+  const effort = args.reasoningEffort
+  return effort !== 'medium' && effort !== 'high'
+}
+
 export function buildOpenAIChatCompletionCreateParams(args: {
   model: string
   maxTokens: number
@@ -42,17 +57,22 @@ export function buildOpenAIChatCompletionCreateParams(args: {
   if (args.toolSchemas.length > 0) {
     opts.tools = args.toolSchemas
     opts.tool_choice = 'auto'
-    if (isMiMo) {
-      // MiMo documents incomplete tool_calls in reasoning_content when
-      // thinking is enabled. Disable it for tool-capable turns so the model
-      // returns standard OpenAI-compatible tool_calls.
-      ;(
-        opts as OpenAI.ChatCompletionCreateParams & {
-          thinking?: { type: 'disabled' }
-        }
-      ).thinking = { type: 'disabled' }
-    }
   }
+
+  if (
+    isMiMo &&
+    shouldDisableMiMoThinking({
+      toolSchemasLength: args.toolSchemas.length,
+      reasoningEffort: args.reasoningEffort,
+    })
+  ) {
+    ;(
+      opts as OpenAI.ChatCompletionCreateParams & {
+        thinking?: { type: 'disabled' }
+      }
+    ).thinking = { type: 'disabled' }
+  }
+
   if (args.reasoningEffort) {
     opts.reasoning_effort = args.reasoningEffort
   }

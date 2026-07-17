@@ -57,6 +57,32 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
     })
   })
 
+  test('MiMo disables thinking by default (low/unset effort) to protect completion budget', () => {
+    const plain = buildOpenAIChatCompletionCreateParams({
+      model: 'mimo-v2.5-pro',
+      maxTokens: 64,
+      messages: [{ role: 'user', content: 'hi' }],
+      temperature: 0,
+      stream: false,
+      toolSchemas: [],
+      reasoningEffort: 'low',
+    })
+    expect((plain as { thinking?: unknown }).thinking).toEqual({
+      type: 'disabled',
+    })
+
+    const high = buildOpenAIChatCompletionCreateParams({
+      model: 'mimo-v2.5-pro',
+      maxTokens: 512,
+      messages: [{ role: 'user', content: 'hi' }],
+      temperature: 0,
+      stream: false,
+      toolSchemas: [],
+      reasoningEffort: 'high',
+    })
+    expect((high as { thinking?: unknown }).thinking).toBeUndefined()
+  })
+
   test('stream/tools/stop/reasoning flags are wired', () => {
     const params = buildOpenAIChatCompletionCreateParams({
       model: 'gpt-5',
