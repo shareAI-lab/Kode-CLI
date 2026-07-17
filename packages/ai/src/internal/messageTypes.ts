@@ -41,21 +41,9 @@ export type AiAssistantMessage = {
   [key: string]: unknown
 }
 
-export type UnifiedRequestParams = {
-  messages: any[]
-  systemPrompt: string[]
-  tools?: any[]
-  maxTokens: number
-  stream?: boolean
-  previousResponseId?: string
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  reasoning?: {
-    enable: boolean
-    effort: 'low' | 'medium' | 'high' | 'none' | 'minimal'
-    summary: 'auto' | 'concise' | 'detailed' | 'none'
-  }
-  verbosity?: 'low' | 'medium' | 'high'
-  temperature?: number
-  allowedTools?: string[]
-  stopSequences?: string[]
-}
+export type {
+  UnifiedRequestParams,
+  UnifiedResponse,
+  ModelCapabilities,
+  ReasoningStreamingContext,
+} from './modelCapabilityTypes'
