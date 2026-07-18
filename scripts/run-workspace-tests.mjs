@@ -23,6 +23,10 @@ function positiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
 }
 
+function isEnabledEnvironmentFlag(value) {
+  return value !== undefined && value !== '0' && value !== 'false'
+}
+
 function normalizeRequestedFile(filePath) {
   const resolved = path.resolve(repoRoot, filePath)
   const relative = path.relative(repoRoot, resolved).replaceAll(path.sep, '/')
@@ -57,7 +61,7 @@ async function runTestFile(relative, fileTimeoutMs) {
   const startedAt = performance.now()
   const child = Bun.spawn([process.execPath, 'test', `./${relative}`], {
     cwd: repoRoot,
-    env: process.env,
+    env: testEnvironment,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -102,12 +106,22 @@ const testFiles =
 
 if (testFiles.length === 0) throw new Error('No workspace test files found')
 
+const isCI =
+  isEnabledEnvironmentFlag(process.env.CI) ||
+  isEnabledEnvironmentFlag(process.env.CONTINUOUS_INTEGRATION)
+const testEnvironment = { ...process.env }
+if (isCI) {
+  // Ink buffers non-static frames until unmount in CI. The test harnesses read
+  // intermediate frames, so opt Ink out while keeping CI truthiness for code
+  // under test and CI-specific test skips.
+  testEnvironment.CI = 'false'
+  testEnvironment.CONTINUOUS_INTEGRATION = 'false'
+}
+
+const defaultConcurrency = isCI ? 1 : Math.min(4, availableParallelism())
 const concurrency = Math.min(
   testFiles.length,
-  positiveInteger(
-    process.env.KODE_TEST_CONCURRENCY,
-    Math.min(4, availableParallelism()),
-  ),
+  positiveInteger(process.env.KODE_TEST_CONCURRENCY, defaultConcurrency),
 )
 const fileTimeoutMs = positiveInteger(
   process.env.KODE_TEST_FILE_TIMEOUT_MS,
