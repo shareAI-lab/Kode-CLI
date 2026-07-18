@@ -10,8 +10,127 @@ export type GeneratedAgent = {
 
 const MAX_JSON_SIZE = 100_000 // 100KB
 const MAX_FIELD_LENGTH = 10_000
+const DEFAULT_AGENT_GENERATION_TIMEOUT_MS = 90_000
 const INVALID_GENERATED_AGENT_JSON_MESSAGE =
   'Failed to generate agent draft: model returned invalid JSON. Please try again with a more specific description.'
+
+function getAgentGenerationTimeoutMessage(timeoutMs: number): string {
+  const seconds = Math.ceil(timeoutMs / 1_000)
+  return `Agent generation timed out after ${seconds} ${seconds === 1 ? 'second' : 'seconds'}. Please try again or choose a faster model.`
+}
+
+export const AGENT_GENERATION_TIMEOUT_MESSAGE =
+  getAgentGenerationTimeoutMessage(DEFAULT_AGENT_GENERATION_TIMEOUT_MS)
+
+export type AgentGenerationOptions = {
+  existingIdentifiers?: string[]
+  signal?: AbortSignal
+  /**
+   * Primarily useful for callers that need a stricter deadline than the
+   * interactive wizard. Invalid values fall back to the safe default.
+   */
+  timeoutMs?: number
+}
+
+type AgentGenerationQuery = typeof import('#core/ai/llm').queryModel
+
+let agentGenerationQueryForTests: AgentGenerationQuery | null = null
+
+export function __setAgentGenerationQueryForTests(
+  query: AgentGenerationQuery | null,
+): void {
+  agentGenerationQueryForTests = query
+}
+
+async function getAgentGenerationQuery(): Promise<AgentGenerationQuery> {
+  if (agentGenerationQueryForTests) return agentGenerationQueryForTests
+  const { queryModel } = await import('#core/ai/llm')
+  return queryModel
+}
+
+class AgentGenerationTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(getAgentGenerationTimeoutMessage(timeoutMs))
+    this.name = 'AgentGenerationTimeoutError'
+  }
+}
+
+function getAgentGenerationTimeoutMs(timeoutMs?: number): number {
+  return typeof timeoutMs === 'number' &&
+    Number.isFinite(timeoutMs) &&
+    timeoutMs > 0
+    ? timeoutMs
+    : DEFAULT_AGENT_GENERATION_TIMEOUT_MS
+}
+
+function createGenerationAbortSignal(parent?: AbortSignal): {
+  signal: AbortSignal
+  abort: () => void
+  dispose: () => void
+} {
+  const controller = new AbortController()
+  const abort = () => {
+    if (!controller.signal.aborted) controller.abort()
+  }
+
+  if (parent?.aborted) {
+    abort()
+    return { signal: controller.signal, abort, dispose: () => {} }
+  }
+
+  parent?.addEventListener('abort', abort, { once: true })
+  return {
+    signal: controller.signal,
+    abort,
+    dispose: () => parent?.removeEventListener('abort', abort),
+  }
+}
+
+async function withAgentGenerationTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  options?: Pick<AgentGenerationOptions, 'signal' | 'timeoutMs'>,
+): Promise<T> {
+  const request = createGenerationAbortSignal(options?.signal)
+  const timeoutMs = getAgentGenerationTimeoutMs(options?.timeoutMs)
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  let removeCancellationListener: (() => void) | undefined
+
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      request.abort()
+      reject(new AgentGenerationTimeoutError(timeoutMs))
+    }, timeoutMs)
+  })
+  const cancellation = options?.signal
+    ? new Promise<never>((_resolve, reject) => {
+        const rejectCancellation = () =>
+          reject(new Error('Agent generation cancelled'))
+
+        if (options.signal?.aborted) {
+          rejectCancellation()
+          return
+        }
+
+        options.signal.addEventListener('abort', rejectCancellation, {
+          once: true,
+        })
+        removeCancellationListener = () =>
+          options.signal?.removeEventListener('abort', rejectCancellation)
+      })
+    : undefined
+
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => operation(request.signal)),
+      deadline,
+      ...(cancellation ? [cancellation] : []),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+    removeCancellationListener?.()
+    request.dispose()
+  }
+}
 
 const DEFAULT_AGENT_GENERATION_SYSTEM_PROMPT = `You are an elite AI agent architect specializing in crafting high-performance agent configurations. Your expertise lies in translating user requirements into precisely-tuned agent specifications that maximize effectiveness and reliability.
 
@@ -89,6 +208,32 @@ Remember: The agents you create should be autonomous experts capable of handling
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
+}
+
+function extractGeneratedAgentResponseText(response: {
+  isApiErrorMessage?: boolean
+  message?: { content?: unknown }
+}): string {
+  const content = response.message?.content
+  let responseText = ''
+  if (typeof content === 'string') {
+    responseText = content
+  } else if (Array.isArray(content)) {
+    const textBlock = content.find(block => {
+      const record = asRecord(block)
+      return record?.type === 'text' && typeof record.text === 'string'
+    })
+    const record = asRecord(textBlock)
+    responseText = record && typeof record.text === 'string' ? record.text : ''
+  }
+
+  if (response.isApiErrorMessage) {
+    throw new Error(
+      responseText || 'Agent generation failed due to a model API error.',
+    )
+  }
+
+  return responseText
 }
 
 function extractBalancedJsonObjects(text: string): string[] {
@@ -237,9 +382,9 @@ export const __parseGeneratedAgentResponseForTests = parseGeneratedAgentResponse
 
 export async function generateAgentWithModel(
   prompt: string,
-  options?: { existingIdentifiers?: string[]; signal?: AbortSignal },
+  options?: AgentGenerationOptions,
 ): Promise<GeneratedAgent> {
-  const { queryModel } = await import('#core/ai/llm')
+  const queryModel = await getAgentGenerationQuery()
 
   const existing = (options?.existingIdentifiers ?? []).filter(Boolean)
   const existingClause =
@@ -251,26 +396,18 @@ export async function generateAgentWithModel(
 
   try {
     const messages = [createUserMessage(userPrompt)]
-    const response = await queryModel(
-      'main',
-      messages,
-      [DEFAULT_AGENT_GENERATION_SYSTEM_PROMPT],
-      options?.signal,
+    const response = await withAgentGenerationTimeout(
+      signal =>
+        queryModel(
+          'main',
+          messages,
+          [DEFAULT_AGENT_GENERATION_SYSTEM_PROMPT],
+          signal,
+        ),
+      options,
     )
 
-    let responseText = ''
-    const content = response.message?.content as unknown
-    if (typeof content === 'string') {
-      responseText = content
-    } else if (Array.isArray(content)) {
-      const textBlock = content.find(block => {
-        const record = asRecord(block)
-        return record?.type === 'text' && typeof record.text === 'string'
-      })
-      const record = asRecord(textBlock)
-      responseText =
-        record && typeof record.text === 'string' ? record.text : ''
-    }
+    const responseText = extractGeneratedAgentResponseText(response)
 
     if (!responseText) {
       throw new Error('No text content in model response')
@@ -288,7 +425,7 @@ export async function generateAgentWithModel(
 
 export async function generateAgentDraft(
   prompt: string,
-  options?: { existingIdentifiers?: string[]; signal?: AbortSignal },
+  options?: AgentGenerationOptions,
 ): Promise<GeneratedAgent> {
   return generateAgentWithModel(prompt, options)
 }

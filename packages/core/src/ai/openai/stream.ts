@@ -90,8 +90,7 @@ export function createStreamProcessor(
           buffer = buffer.substring(lineEnd + 1)
 
           if (line === 'data: [DONE]') {
-            lineEnd = buffer.indexOf('\n')
-            continue
+            return
           }
 
           if (line.startsWith('data: ')) {

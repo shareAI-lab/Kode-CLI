@@ -1,10 +1,20 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+
 import {
   __parseGeneratedAgentResponseForTests,
+  __setAgentGenerationQueryForTests,
+  generateAgentWithModel,
   generateAgentFileContent,
   validateAgentConfig,
   validateAgentType,
 } from './generation'
+
+type AgentGenerationQuery = Exclude<
+  Parameters<typeof __setAgentGenerationQueryForTests>[0],
+  null
+>
+
+let queryModelImpl: AgentGenerationQuery
 
 const generatedAgent = {
   identifier: 'code-reviewer',
@@ -14,6 +24,25 @@ const generatedAgent = {
 }
 
 describe('agents/generation', () => {
+  beforeEach(() => {
+    queryModelImpl = (async () =>
+      ({
+        message: {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(generatedAgent),
+            },
+          ],
+        },
+      }) as Awaited<ReturnType<AgentGenerationQuery>>) as AgentGenerationQuery
+    __setAgentGenerationQueryForTests(queryModelImpl)
+  })
+
+  afterEach(() => {
+    __setAgentGenerationQueryForTests(null)
+  })
+
   test('parseGeneratedAgentResponse accepts raw JSON', () => {
     expect(
       __parseGeneratedAgentResponseForTests(JSON.stringify(generatedAgent)),
@@ -128,5 +157,64 @@ describe('agents/generation', () => {
     expect(longDescription.warnings).toContain(
       'No tools selected - agent will have very limited capabilities',
     )
+  })
+
+  test('surfaces model API errors without reporting invalid JSON', async () => {
+    queryModelImpl = (async () =>
+      ({
+        isApiErrorMessage: true,
+        message: {
+          content: [
+            {
+              type: 'text',
+              text: 'API Error: provider unavailable',
+            },
+          ],
+        },
+      }) as Awaited<ReturnType<AgentGenerationQuery>>) as AgentGenerationQuery
+    __setAgentGenerationQueryForTests(queryModelImpl)
+
+    await expect(
+      generateAgentWithModel('review recent changes'),
+    ).rejects.toThrow('API Error: provider unavailable')
+  })
+
+  test('does not time out a prompt model response', async () => {
+    await expect(
+      generateAgentWithModel('review recent changes', { timeoutMs: 5 }),
+    ).resolves.toEqual(generatedAgent)
+  })
+
+  test('aborts and rejects a stalled model request at its deadline', async () => {
+    let requestSignal: AbortSignal | undefined
+    queryModelImpl = (async (_model, _messages, _systemPrompt, signal) => {
+      requestSignal = signal
+      return await new Promise<Awaited<ReturnType<AgentGenerationQuery>>>(
+        () => {},
+      )
+    }) as AgentGenerationQuery
+    __setAgentGenerationQueryForTests(queryModelImpl)
+
+    await expect(
+      generateAgentWithModel('review recent changes', { timeoutMs: 5 }),
+    ).rejects.toThrow('Agent generation timed out after 1 second')
+    expect(requestSignal?.aborted).toBe(true)
+  })
+
+  test('rejects promptly when the caller cancels a stalled request', async () => {
+    const controller = new AbortController()
+    queryModelImpl = (async () =>
+      await new Promise<Awaited<ReturnType<AgentGenerationQuery>>>(
+        () => {},
+      )) as AgentGenerationQuery
+    __setAgentGenerationQueryForTests(queryModelImpl)
+
+    const generation = generateAgentWithModel('review recent changes', {
+      signal: controller.signal,
+      timeoutMs: 1_000,
+    })
+    controller.abort()
+
+    await expect(generation).rejects.toThrow('Agent generation cancelled')
   })
 })

@@ -33,6 +33,28 @@ function sseBody(lines: string[]): ReadableStream<Uint8Array> {
   })
 }
 
+function openSseBody(lines: string[]): {
+  body: ReadableStream<Uint8Array>
+  close: () => void
+} {
+  const encoder = new TextEncoder()
+  let streamController: ReadableStreamDefaultController<Uint8Array> | null =
+    null
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller
+      for (const line of lines) {
+        controller.enqueue(encoder.encode(`${line}\n`))
+      }
+    },
+  })
+
+  return {
+    body,
+    close: () => streamController?.close(),
+  }
+}
+
 describe('OpenAI stream cancellation', () => {
   test('rejects when signal is aborted before reading stream chunks', async () => {
     const controller = new AbortController()
@@ -337,5 +359,31 @@ describe('OpenAI response conversion', () => {
     )
 
     expect(message.content.some(block => block.type === 'tool_use')).toBe(false)
+  })
+})
+
+describe('OpenAI stream completion', () => {
+  test('completes on [DONE] even when the transport remains open', async () => {
+    const validChunk = JSON.stringify(chunk({ content: 'done' }))
+    const { body, close } = openSseBody([`data: ${validChunk}`, 'data: [DONE]'])
+    let timeout: ReturnType<typeof setTimeout> | undefined
+
+    try {
+      const result = await Promise.race([
+        handleMessageStream(createStreamProcessor(body as any) as any),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('stream did not finish after [DONE]')),
+            500,
+          )
+        }),
+      ])
+
+      expect(result.choices[0]?.message.content).toBe('done')
+      expect(result.choices[0]?.finish_reason).toBe('stop')
+    } finally {
+      if (timeout) clearTimeout(timeout)
+      close()
+    }
   })
 })
