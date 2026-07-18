@@ -10,7 +10,7 @@ import type {
   AiUserMessage as UserMessage,
   UnifiedRequestParams,
 } from '../../internal/messageTypes'
-import { MODEL_COSTS } from '#config'
+import { MODEL_COSTS, resolveModelCostTier } from '#config'
 import {
   debug as debugLogger,
   getCurrentRequest,
@@ -54,7 +54,11 @@ import {
 import { buildOpenAIChatCompletionCreateParams, isGPT5Model } from './params'
 import { handleMessageStream, isOpenAIStreamDegradedResponse } from './stream'
 import { buildAssistantMessageFromUnifiedResponse } from './unifiedResponse'
-import { getMaxTokensFromProfile, normalizeUsage } from './usage'
+import {
+  estimateCostUSD,
+  getMaxTokensFromProfile,
+  normalizeUsage,
+} from './usage'
 
 export { buildOpenAIChatCompletionCreateParams, isGPT5Model } from './params'
 
@@ -108,8 +112,7 @@ export async function queryOpenAI(
   const streamEnabled = options?.stream ?? getAiStream()
   const toolUseContext = options?.toolUseContext
 
-  const modelProfile =
-    options?.modelProfile ?? getAiMainModelProfile()
+  const modelProfile = options?.modelProfile ?? getAiMainModelProfile()
   let model: string
 
   // 🔍 Debug: 记录模型配置详情
@@ -328,6 +331,10 @@ export async function queryOpenAI(
           stream: streamEnabled,
           toolSchemas: toolSchemas,
           stopSequences: options?.stopSequences,
+          provider:
+            typeof modelProfile?.provider === 'string'
+              ? modelProfile.provider
+              : null,
           reasoningEffort: resolveReasoningEffort({
             modelProfile,
             thinkingTokens: maxThinkingTokens,
@@ -390,14 +397,14 @@ export async function queryOpenAI(
   const cacheCreationInputTokens =
     normalizedUsage.cache_creation_input_tokens ?? 0
 
-  const sonnetCosts = MODEL_COSTS.sonnet
-  const costUSD =
-    (inputTokens / 1_000_000) * sonnetCosts.inputPerMillionTokens +
-    (outputTokens / 1_000_000) * sonnetCosts.outputPerMillionTokens +
-    (cacheReadInputTokens / 1_000_000) *
-      sonnetCosts.promptCacheReadPerMillionTokens +
-    (cacheCreationInputTokens / 1_000_000) *
-      sonnetCosts.promptCacheWritePerMillionTokens
+  const costTier = MODEL_COSTS[resolveModelCostTier(model)]
+  const costUSD = estimateCostUSD({
+    inputTokens,
+    outputTokens,
+    cacheReadInputTokens,
+    cacheCreationInputTokens,
+    rates: costTier,
+  })
 
   addAiTotalCost(costUSD, durationMsIncludingRetries)
 
@@ -408,6 +415,8 @@ export async function queryOpenAI(
     usage: {
       inputTokens,
       outputTokens,
+      cacheReadInputTokens,
+      cacheCreationInputTokens,
     },
     timing: {
       start,

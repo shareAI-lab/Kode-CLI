@@ -46,10 +46,19 @@ export function normalizeAnthropicUsage(usage?: unknown): AnthropicUsage {
   }
 
   const source = usage as Record<string, unknown>
-  const inputTokens = numberValue(
-    source.input_tokens,
-    source.prompt_tokens,
-    source.inputTokens,
+  const deepseekCacheHitTokens = numberValue(
+    source.prompt_cache_hit_tokens,
+    source.promptCacheHitTokens,
+  )
+  const deepseekCacheMissTokens = numberValue(
+    source.prompt_cache_miss_tokens,
+    source.promptCacheMissTokens,
+  )
+  const hasDeepseekCacheUsage = hasNumberValue(
+    source.prompt_cache_hit_tokens,
+    source.promptCacheHitTokens,
+    source.prompt_cache_miss_tokens,
+    source.promptCacheMissTokens,
   )
   const outputTokens = numberValue(
     source.output_tokens,
@@ -58,13 +67,33 @@ export function normalizeAnthropicUsage(usage?: unknown): AnthropicUsage {
   )
   const cacheReadInputTokens = numberValue(
     source.cache_read_input_tokens,
+    // DeepSeek disk cache
+    hasDeepseekCacheUsage ? deepseekCacheHitTokens : undefined,
     objectValue(source.prompt_token_details)?.cached_tokens,
+    objectValue(source.prompt_tokens_details)?.cached_tokens,
     source.cacheReadInputTokens,
+  )
+  const hasOpenAICacheUsage = hasNumberValue(
+    objectValue(source.prompt_token_details)?.cached_tokens,
+    objectValue(source.prompt_tokens_details)?.cached_tokens,
   )
   const cacheCreationInputTokens = numberValue(
     source.cache_creation_input_tokens,
     source.cacheCreatedInputTokens,
   )
+  const promptTokens = numberValue(
+    source.input_tokens,
+    source.prompt_tokens,
+    source.inputTokens,
+    hasDeepseekCacheUsage
+      ? deepseekCacheHitTokens + deepseekCacheMissTokens
+      : undefined,
+  )
+  const inputTokens = hasDeepseekCacheUsage
+    ? deepseekCacheMissTokens
+    : hasOpenAICacheUsage
+      ? Math.max(0, promptTokens - cacheReadInputTokens)
+      : promptTokens
 
   return createAnthropicUsage({
     ...(source as Partial<AnthropicUsage>),
@@ -139,4 +168,10 @@ function numberValue(...values: unknown[]): number {
     }
   }
   return 0
+}
+
+function hasNumberValue(...values: unknown[]): boolean {
+  return values.some(
+    value => typeof value === 'number' && Number.isFinite(value),
+  )
 }

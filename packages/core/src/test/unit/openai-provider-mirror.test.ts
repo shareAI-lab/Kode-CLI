@@ -27,6 +27,8 @@ const OPENAI_LLM_FILES = [
   'usage.ts',
 ]
 
+const MIRRORED_LLM_HELPER_FILES = ['modelFamilies.ts', 'prefixCache.ts']
+
 function readRepoFile(path: string): string {
   return readFileSync(join(ROOT_DIR, path), 'utf8')
 }
@@ -50,9 +52,10 @@ function normalizeCoreProviderImports(source: string): string {
  */
 function normalizeAiOwnedImports(source: string): string {
   return source
+    .replaceAll("from '#core/utils/debugLogger'", "from '../internal/debug'")
     .replaceAll(
-      "from '#core/utils/debugLogger'",
-      "from '../internal/debug'",
+      "from '#core/ai/llm/modelFamilies'",
+      "from '../internal/modelFamilies'",
     )
     .replaceAll(
       "from '#core/constants/models/providers'",
@@ -62,10 +65,7 @@ function normalizeAiOwnedImports(source: string): string {
       "from '#core/ai/llm/restrictedClientCompat'",
       "from '../internal/restrictedClientCompat'",
     )
-    .replaceAll(
-      "from '#core/utils/config'",
-      "from '../internal/runtimeConfig'",
-    )
+    .replaceAll("from '#core/utils/config'", "from '../internal/runtimeConfig'")
     .replaceAll('getGlobalConfig().proxy', 'getAiProxy()')
     .replaceAll(
       "import { getGlobalConfig } from '../internal/runtimeConfig'",
@@ -75,18 +75,12 @@ function normalizeAiOwnedImports(source: string): string {
       "import('#core/ai/llm/restrictedClientCompat')",
       "import('../internal/restrictedClientCompat')",
     )
-    .replaceAll(
-      "from '../../internal/debug'",
-      "from '../internal/debug'",
-    )
+    .replaceAll("from '../../internal/debug'", "from '../internal/debug'")
 }
 
 function normalizeLlmOwnedImports(source: string): string {
   return normalizeCoreProviderImports(source)
-    .replaceAll(
-      "from '#core/utils/debugLogger'",
-      "from '../../internal/debug'",
-    )
+    .replaceAll("from '#core/utils/debugLogger'", "from '../../internal/debug'")
     .replaceAll(
       "from '#core/ai/llm/constants'",
       "from '../../internal/constants'",
@@ -99,6 +93,11 @@ function normalizeLlmOwnedImports(source: string): string {
       "from '#core/utils/requestStatus'",
       "from '../../internal/requestStatus'",
     )
+    .replaceAll(
+      "from '../modelFamilies'",
+      "from '../../internal/modelFamilies'",
+    )
+    .replaceAll("from '../prefixCache'", "from '../../internal/prefixCache'")
 }
 
 describe('OpenAI provider mirror boundary', () => {
@@ -120,12 +119,13 @@ describe('OpenAI provider mirror boundary', () => {
       // Orchestration/conversion own their #core drain path; core mirrors keep
       // historical imports until llm.ts switches callers over.
       if (file === 'queryOpenAI.ts') {
-        const coreFile = readRepoFile(
-          `packages/core/src/ai/llm/openai/${file}`,
-        )
+        const coreFile = readRepoFile(`packages/core/src/ai/llm/openai/${file}`)
         const aiFile = readRepoFile(`packages/ai/src/llm/openai/${file}`)
         expect(coreFile).toContain('export async function queryOpenAI')
         expect(aiFile).toContain('export async function queryOpenAI')
+        expect(coreFile).toContain('resolveModelCostTier')
+        expect(coreFile).toContain('estimateCostUSD')
+        expect(coreFile).toContain('cacheReadInputTokens')
         expect(aiFile).toContain("from '../../internal/retry'")
         expect(aiFile).toContain('resolveReasoningEffort')
         expect(aiFile).toContain('getAiStream')
@@ -139,13 +139,13 @@ describe('OpenAI provider mirror boundary', () => {
         expect(aiFile).not.toContain("from '#core/types/modelCapabilities'")
         expect(aiFile).not.toContain("from '#core/ai/modelAdapterFactory'")
         expect(aiFile).toContain('getAiAdapterFactory')
+        expect(aiFile).toContain('resolveModelCostTier')
+        expect(aiFile).toContain('estimateCostUSD')
         continue
       }
 
       if (file === 'conversion.ts' || file === 'unifiedResponse.ts') {
-        const coreFile = readRepoFile(
-          `packages/core/src/ai/llm/openai/${file}`,
-        )
+        const coreFile = readRepoFile(`packages/core/src/ai/llm/openai/${file}`)
         const aiFile = readRepoFile(`packages/ai/src/llm/openai/${file}`)
         expect(coreFile).toContain(
           file === 'conversion.ts'
@@ -176,6 +176,15 @@ describe('OpenAI provider mirror boundary', () => {
       const aiFile = normalizeLlmOwnedImports(
         readRepoFile(`packages/ai/src/llm/openai/${file}`),
       )
+
+      expect(coreFile, file).toBe(aiFile)
+    }
+  })
+
+  test('keeps shared model helper files exactly equivalent', () => {
+    for (const file of MIRRORED_LLM_HELPER_FILES) {
+      const coreFile = readRepoFile(`packages/core/src/ai/llm/${file}`)
+      const aiFile = readRepoFile(`packages/ai/src/internal/${file}`)
 
       expect(coreFile, file).toBe(aiFile)
     }

@@ -1,6 +1,10 @@
 import type OpenAI from 'openai'
 
 import { debug as debugLogger } from '../internal/debug'
+import {
+  detectModelFamily,
+  isDeepSeekReasonerModel,
+} from '../internal/modelFamilies'
 
 export interface ModelFeatures {
   usesMaxCompletionTokens: boolean
@@ -9,14 +13,18 @@ export interface ModelFeatures {
   supportsVerbosityControl?: boolean
   supportsCustomTools?: boolean
   supportsAllowedTools?: boolean
+  /** Strip sampling params (temp/top_p/penalties) — reasoner models. */
+  rejectsSamplingParams?: boolean
+  /** Prefer stable message prefixes for disk/prefix cache. */
+  prefersPrefixCache?: boolean
 }
 
 const MODEL_FEATURES: Record<string, ModelFeatures> = {
-  o1: { usesMaxCompletionTokens: true },
-  'o1-preview': { usesMaxCompletionTokens: true },
-  'o1-mini': { usesMaxCompletionTokens: true },
-  'o1-pro': { usesMaxCompletionTokens: true },
-  'o3-mini': { usesMaxCompletionTokens: true },
+  o1: { usesMaxCompletionTokens: true, rejectsSamplingParams: true },
+  'o1-preview': { usesMaxCompletionTokens: true, rejectsSamplingParams: true },
+  'o1-mini': { usesMaxCompletionTokens: true, rejectsSamplingParams: true },
+  'o1-pro': { usesMaxCompletionTokens: true, rejectsSamplingParams: true },
+  'o3-mini': { usesMaxCompletionTokens: true, rejectsSamplingParams: true },
   'gpt-5': {
     usesMaxCompletionTokens: true,
     supportsResponsesAPI: true,
@@ -47,6 +55,29 @@ const MODEL_FEATURES: Record<string, ModelFeatures> = {
     requiresTemperatureOne: true,
     supportsVerbosityControl: true,
   },
+  'deepseek-reasoner': {
+    usesMaxCompletionTokens: false,
+    rejectsSamplingParams: true,
+    prefersPrefixCache: true,
+  },
+  'deepseek-chat': {
+    usesMaxCompletionTokens: false,
+    prefersPrefixCache: true,
+  },
+  'deepseek-v4-flash': {
+    usesMaxCompletionTokens: false,
+    prefersPrefixCache: true,
+  },
+  'deepseek-v4-pro': {
+    usesMaxCompletionTokens: false,
+    prefersPrefixCache: true,
+  },
+  'mimo-v2.5-pro': {
+    usesMaxCompletionTokens: true,
+  },
+  'mimo-v2.5': {
+    usesMaxCompletionTokens: true,
+  },
 }
 
 export function getModelFeatures(modelName: string): ModelFeatures {
@@ -58,7 +89,10 @@ export function getModelFeatures(modelName: string): ModelFeatures {
     return MODEL_FEATURES[modelName]
   }
 
-  if (modelName.toLowerCase().includes('gpt-5')) {
+  const lower = modelName.toLowerCase()
+  const family = detectModelFamily(modelName)
+
+  if (lower.includes('gpt-5') || family === 'gpt5') {
     return {
       usesMaxCompletionTokens: true,
       supportsResponsesAPI: true,
@@ -66,6 +100,25 @@ export function getModelFeatures(modelName: string): ModelFeatures {
       supportsVerbosityControl: true,
       supportsCustomTools: true,
       supportsAllowedTools: true,
+    }
+  }
+
+  if (family === 'mimo') {
+    return { usesMaxCompletionTokens: true }
+  }
+
+  if (family === 'deepseek') {
+    return {
+      usesMaxCompletionTokens: false,
+      prefersPrefixCache: true,
+      rejectsSamplingParams: isDeepSeekReasonerModel(modelName),
+    }
+  }
+
+  if (family === 'o-series') {
+    return {
+      usesMaxCompletionTokens: true,
+      rejectsSamplingParams: true,
     }
   }
 
@@ -87,6 +140,7 @@ export function applyModelSpecificTransformations(
 
   const features = getModelFeatures(opts.model)
   const isGPT5 = opts.model.toLowerCase().includes('gpt-5')
+  const family = detectModelFamily(opts.model)
 
   if (isGPT5 || features.usesMaxCompletionTokens) {
     if ('max_tokens' in opts && !('max_completion_tokens' in opts)) {
@@ -119,14 +173,19 @@ export function applyModelSpecificTransformations(
         opts.reasoning_effort = 'medium'
       }
     }
-  } else {
-    if (
-      features.usesMaxCompletionTokens &&
-      'max_tokens' in opts &&
-      !('max_completion_tokens' in opts)
-    ) {
-      opts.max_completion_tokens = opts.max_tokens
-      delete opts.max_tokens
-    }
+  }
+
+  // DeepSeek / o-series reasoner: drop sampling knobs the API rejects.
+  if (features.rejectsSamplingParams || isDeepSeekReasonerModel(opts.model)) {
+    delete opts.temperature
+    delete opts.top_p
+    delete opts.frequency_penalty
+    delete opts.presence_penalty
+    delete opts.logprobs
+    delete opts.top_logprobs
+    debugLogger.api('OPENAI_TRANSFORM_STRIP_SAMPLING', {
+      model: opts.model,
+      family,
+    })
   }
 }

@@ -1,7 +1,17 @@
 import OpenAI from 'openai'
 
+import {
+  detectModelFamily,
+  isDeepSeekModel,
+  isDeepSeekReasonerModel,
+  supportsPrefixPromptCache,
+} from '../modelFamilies'
+import { stabilizeMessagesForPrefixCache } from '../prefixCache'
+
 export function isGPT5Model(modelName: string): boolean {
-  return modelName.startsWith('gpt-5')
+  return (
+    modelName.startsWith('gpt-5') || modelName.toLowerCase().includes('gpt-5')
+  )
 }
 
 export function isMiMoModel(modelName: string): boolean {
@@ -9,18 +19,31 @@ export function isMiMoModel(modelName: string): boolean {
 }
 
 /**
- * MiMo defaults to on-device/server thinking that counts against
- * max_completion_tokens. Enable only when the caller explicitly asks for
- * medium/high effort and is not in a tool-capable turn (tool_calls get
- * incomplete under thinking).
+ * MiMo / DeepSeek thinking burns completion budget and can break tool_calls.
+ * Enable only for medium/high effort without tools.
  */
+export function shouldDisableProviderThinking(args: {
+  model: string
+  toolSchemasLength: number
+  reasoningEffort?: string | null
+}): boolean {
+  const family = detectModelFamily(args.model)
+  if (family !== 'mimo' && family !== 'deepseek') return false
+  if (args.toolSchemasLength > 0) return true
+  const effort = args.reasoningEffort
+  return effort !== 'medium' && effort !== 'high'
+}
+
+/** @deprecated use shouldDisableProviderThinking */
 export function shouldDisableMiMoThinking(args: {
   toolSchemasLength: number
   reasoningEffort?: string | null
 }): boolean {
-  if (args.toolSchemasLength > 0) return true
-  const effort = args.reasoningEffort
-  return effort !== 'medium' && effort !== 'high'
+  return shouldDisableProviderThinking({
+    model: 'mimo-v2.5-pro',
+    toolSchemasLength: args.toolSchemasLength,
+    reasoningEffort: args.reasoningEffort,
+  })
 }
 
 export function buildOpenAIChatCompletionCreateParams(args: {
@@ -32,18 +55,33 @@ export function buildOpenAIChatCompletionCreateParams(args: {
   toolSchemas: OpenAI.ChatCompletionTool[]
   stopSequences?: string[]
   reasoningEffort?: any
+  /** Optional provider for cache-prefix heuristics */
+  provider?: string | null
 }): OpenAI.ChatCompletionCreateParams {
   const isGPT5 = isGPT5Model(args.model)
   const isMiMo = isMiMoModel(args.model)
+  const isDeepSeek = isDeepSeekModel(args.model)
+  const isReasoner = isDeepSeekReasonerModel(args.model)
+  const family = detectModelFamily(args.model)
+
+  // DeepSeek + similar: stabilize prefix so disk cache can hit on multi-turn.
+  const messages = supportsPrefixPromptCache(args.model, args.provider)
+    ? stabilizeMessagesForPrefixCache(args.messages)
+    : args.messages
+
+  // GPT-5 / MiMo / o-series prefer max_completion_tokens; DeepSeek still uses
+  // max_tokens (OpenAI-compatible default). Reasoner also uses max_tokens.
+  const usesMaxCompletionTokens = isGPT5 || isMiMo || family === 'o-series'
 
   const opts: OpenAI.ChatCompletionCreateParams = {
     model: args.model,
-    ...(isGPT5 || isMiMo
+    ...(usesMaxCompletionTokens
       ? { max_completion_tokens: args.maxTokens }
       : { max_tokens: args.maxTokens }),
-    messages: args.messages,
+    messages,
     temperature: args.temperature,
   }
+
   if (args.stopSequences && args.stopSequences.length > 0) {
     opts.stop = args.stopSequences
   }
@@ -59,18 +97,39 @@ export function buildOpenAIChatCompletionCreateParams(args: {
     opts.tool_choice = 'auto'
   }
 
-  if (
-    isMiMo &&
-    shouldDisableMiMoThinking({
-      toolSchemasLength: args.toolSchemas.length,
-      reasoningEffort: args.reasoningEffort,
-    })
-  ) {
+  const disableThinking = shouldDisableProviderThinking({
+    model: args.model,
+    toolSchemasLength: args.toolSchemas.length,
+    reasoningEffort: args.reasoningEffort,
+  })
+  const enableDeepSeekThinking =
+    !disableThinking &&
+    isDeepSeek &&
+    (args.reasoningEffort === 'medium' || args.reasoningEffort === 'high')
+
+  if (disableThinking && (isMiMo || isDeepSeek)) {
     ;(
       opts as OpenAI.ChatCompletionCreateParams & {
-        thinking?: { type: 'disabled' }
+        thinking?: { type: 'disabled' | 'enabled' }
       }
     ).thinking = { type: 'disabled' }
+  } else if (enableDeepSeekThinking) {
+    // DeepSeek V4 thinking mode (optional). Tools path never reaches here.
+    ;(
+      opts as OpenAI.ChatCompletionCreateParams & {
+        thinking?: { type: 'disabled' | 'enabled' }
+      }
+    ).thinking = { type: 'enabled' }
+  }
+
+  // DeepSeek thinking and legacy reasoner do not support sampling controls.
+  if (isReasoner || enableDeepSeekThinking) {
+    delete (opts as { temperature?: number }).temperature
+    delete (opts as { top_p?: number }).top_p
+    delete (opts as { frequency_penalty?: number }).frequency_penalty
+    delete (opts as { presence_penalty?: number }).presence_penalty
+    delete (opts as { logprobs?: boolean }).logprobs
+    delete (opts as { top_logprobs?: number }).top_logprobs
   }
 
   if (args.reasoningEffort) {

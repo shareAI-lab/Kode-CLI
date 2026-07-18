@@ -16,7 +16,12 @@ export function logLLMInteraction(context: {
   systemPrompt: string
   messages: any[]
   response: any
-  usage?: { inputTokens: number; outputTokens: number }
+  usage?: {
+    inputTokens: number
+    outputTokens: number
+    cacheReadInputTokens?: number
+    cacheCreationInputTokens?: number
+  }
   timing: { start: number; end: number }
   apiFormat?: 'anthropic' | 'openai'
 }) {
@@ -33,8 +38,18 @@ export function logLLMInteraction(context: {
   terminalLog(`   Duration: ${duration.toFixed(0)}ms`)
 
   if (context.usage) {
+    const cacheDetails = [
+      context.usage.cacheReadInputTokens
+        ? `cache read ${context.usage.cacheReadInputTokens}`
+        : null,
+      context.usage.cacheCreationInputTokens
+        ? `cache write ${context.usage.cacheCreationInputTokens}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(', ')
     terminalLog(
-      `   Token Usage: ${context.usage.inputTokens} → ${context.usage.outputTokens}`,
+      `   Token Usage: ${context.usage.inputTokens} → ${context.usage.outputTokens}${cacheDetails ? ` (${cacheDetails})` : ''}`,
     )
   }
 

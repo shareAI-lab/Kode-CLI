@@ -26,10 +26,25 @@ describe('Anthropic SDK compatibility helpers', () => {
         cacheCreatedInputTokens: 2,
       }),
     ).toMatchObject({
-      input_tokens: 12,
+      input_tokens: 9,
       output_tokens: 7,
       cache_read_input_tokens: 3,
       cache_creation_input_tokens: 2,
+    })
+  })
+
+  test('normalizes DeepSeek cache misses as non-cached input', () => {
+    expect(
+      normalizeAnthropicUsage({
+        prompt_cache_hit_tokens: 900,
+        prompt_cache_miss_tokens: 100,
+        completion_tokens: 20,
+      }),
+    ).toMatchObject({
+      input_tokens: 100,
+      output_tokens: 20,
+      cache_read_input_tokens: 900,
+      cache_creation_input_tokens: 0,
     })
   })
 
