@@ -443,6 +443,22 @@ function PromptQueueAutoDrainHarness({
 
 const harnessManager = createInkHarnessManager()
 
+async function waitForOutput(
+  harness: ReturnType<typeof createInkTestHarness>,
+  expected: string,
+  timeoutMs = 3_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (harness.getOutput().includes(expected)) {
+      await harness.wait(50)
+      return
+    }
+    await harness.wait(20)
+  }
+  throw new Error(`Timed out waiting for prompt input output: ${expected}`)
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -579,18 +595,18 @@ describe('TUI E2E regression (Ink render): PromptInput', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(25)
+    await waitForOutput(h, 'RAW:""')
     h.clearOutput()
 
     h.stdin.write('hi')
-    await h.wait(75)
+    await waitForOutput(h, 'RAW:"hi"')
 
     // Long paste chunks are aggregated on a timer; typing during that window
     // should not be lost or inserted relative to a stale render closure.
     h.stdin.write('a'.repeat(801))
     await h.wait(25)
     h.stdin.write('!')
-    await h.wait(200)
+    await waitForOutput(h, 'RAW:"hi![Pasted text #1]"')
 
     expect(h.getOutput()).toContain('RAW:\"hi![Pasted text #1]\"')
 
