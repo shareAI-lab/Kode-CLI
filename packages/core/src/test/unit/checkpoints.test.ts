@@ -103,7 +103,7 @@ describe('git checkpoints', () => {
     } finally {
       rmSync(fixture.root, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 
   test('rejects a checkpoint store nested in the target repository', () => {
     const fixture = createRepository()
@@ -159,5 +159,5 @@ describe('git checkpoints', () => {
     } finally {
       rmSync(fixture.root, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 })

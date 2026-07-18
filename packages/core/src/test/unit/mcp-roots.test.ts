@@ -27,8 +27,9 @@ describe('MCP client roots', () => {
   })
 
   test('creates file URI roots from the current workspace path', () => {
-    const root = createMcpRootsForCwd('C:\\Users\\test\\project')[0]
-    expect(root?.uri).toBe(pathToFileURL('C:\\Users\\test\\project').toString())
+    const workspacePath = join(tmpdir(), 'kode-mcp-root', 'project')
+    const root = createMcpRootsForCwd(workspacePath)[0]
+    expect(root?.uri).toBe(pathToFileURL(workspacePath).toString())
     expect(root?.name).toBe('project')
   })
 

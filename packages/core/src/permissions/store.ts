@@ -5,6 +5,7 @@ import { logError } from '#core/utils/log'
 import { grantWritePermissionForPath } from '#core/utils/permissions/filesystem'
 import { persistToolPermissionUpdateToDisk } from '#core/utils/permissions/toolPermissionSettings'
 import { applyToolPermissionContextUpdateForConversationKey } from '#core/utils/toolPermissionContextState'
+import { getCwd } from '#core/utils/state'
 
 import { getPermissionKey } from './permissionKey'
 
@@ -45,7 +46,7 @@ export async function savePermission(
       behavior: 'allow' as const,
       rules: [key],
     }
-    persistToolPermissionUpdateToDisk({ update })
+    persistToolPermissionUpdateToDisk({ update, projectDir: getCwd() })
 
     // Keep the in-memory permission context in sync for the current conversation.
     const messageLogName = context?.options?.messageLogName

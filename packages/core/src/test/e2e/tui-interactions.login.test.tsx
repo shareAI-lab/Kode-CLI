@@ -10,11 +10,16 @@ const harnessManager = createInkHarnessManager()
 async function waitForOutput(
   harness: ReturnType<typeof createInkTestHarness>,
   expected: string,
-  timeoutMs = 1_000,
+  timeoutMs = 2_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (harness.getOutput().includes(expected)) return
+    if (harness.getOutput().includes(expected)) {
+      // Ink can write a frame immediately before the matching input effect is
+      // committed. Let that effect settle before the caller sends a key.
+      await harness.wait(50)
+      return
+    }
     await harness.wait(20)
   }
   throw new Error(`Timed out waiting for login output: ${expected}`)
@@ -50,7 +55,7 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(30)
+    await waitForOutput(h, 'Codex is not signed in yet.')
     expect(h.getOutput()).toContain('Codex / ChatGPT')
     expect(h.getOutput()).toContain('OpenAI API key (GPT-5-Codex)')
 
@@ -79,9 +84,9 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(30)
-    h.stdin.write('j')
-    await waitForOutput(h, '> OpenAI API key (GPT-5-Codex)')
+    await waitForOutput(h, 'Codex is already signed in.')
+    h.stdin.write('\u001B[B')
+    await waitForOutput(h, 'Configure an OpenAI model profile')
     h.stdin.write('\r')
     await waitForOutput(h, 'API Key Setup')
 

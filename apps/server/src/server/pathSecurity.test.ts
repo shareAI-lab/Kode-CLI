@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import {
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -40,7 +41,9 @@ describe('pathSecurity', () => {
 
     const target = resolveInProjectRoot(root, 'new/deep/tree/file.txt')
 
-    expect(relativePath(root, target)).toBe('new/deep/tree/file.txt')
+    expect(relativePath(realpathSync(root), target)).toBe(
+      'new/deep/tree/file.txt',
+    )
     expect(toGitPath(root, 'new/deep/tree/file.txt')).toBe(
       'new/deep/tree/file.txt',
     )
@@ -104,7 +107,7 @@ describe('pathSecurity', () => {
 
     const target = resolveInProjectRoot(root, 'internal/new/file.txt')
 
-    expect(relativePath(root, target)).toBe('target/new/file.txt')
+    expect(relativePath(realpathSync(root), target)).toBe('target/new/file.txt')
   })
 
   test('rejects paths whose nearest existing parent is a file', () => {

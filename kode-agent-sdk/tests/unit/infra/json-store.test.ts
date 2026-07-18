@@ -142,6 +142,41 @@ runner
 
     await store.delete('agent');
     expect.toEqual(await store.exists('agent'), false);
+  })
+
+  .test('元信息读取会等待同一 Agent 的在途写入', async () => {
+    const dir = createDir('meta-pending-write');
+    const store = new JSONStore(dir);
+    const mutableStore = store as any;
+    const writeFileSafe = mutableStore.writeFileSafe.bind(store);
+    let releaseWrite!: () => void;
+    const writeGate = new Promise<void>(resolve => {
+      releaseWrite = resolve;
+    });
+
+    mutableStore.writeFileSafe = async (filePath: string, data: string) => {
+      if (filePath.includes('meta.json.tmp.')) await writeGate;
+      await writeFileSafe(filePath, data);
+    };
+
+    const savePromise = store.saveInfo('agent', {
+      agentId: 'agent',
+      templateId: 'pending-template',
+      createdAt: new Date().toISOString(),
+      lineage: [],
+      configVersion: 'test',
+      messageCount: 0,
+      lastSfpIndex: 0,
+      metadata: {},
+    });
+    const loadPromise = store.loadInfo('agent');
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+    releaseWrite();
+    await savePromise;
+
+    const info = await loadPromise;
+    expect.toEqual(info?.templateId, 'pending-template');
   });
 
 export async function run() {

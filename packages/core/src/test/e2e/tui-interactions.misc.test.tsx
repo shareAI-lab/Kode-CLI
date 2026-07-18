@@ -42,6 +42,24 @@ import { join } from 'node:path'
 
 const harnessManager = createInkHarnessManager()
 
+async function waitForCondition(
+  harness: ReturnType<typeof createInkTestHarness>,
+  condition: () => boolean,
+  description: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) {
+      // The matching render can precede the remounted key handler's effect.
+      await harness.wait(50)
+      return
+    }
+    await harness.wait(20)
+  }
+  throw new Error(`Timed out waiting for ${description}`)
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -1444,10 +1462,15 @@ describe('TUI E2E regression (Ink render): Misc', () => {
   test('Select: repeated down-arrow focus is persisted before a keep-alive remount', async () => {
     let focused = ''
     let selected = ''
+    let visibleCommits = 0
 
     function SelectRepeatedKeyRemountHarness(): React.ReactNode {
       const [showSelect, setShowSelect] = useState(true)
       const [focusValue, setFocusValue] = useState<string | undefined>('first')
+
+      useEffect(() => {
+        if (showSelect) visibleCommits += 1
+      }, [showSelect])
 
       useKeypress(
         (_input, key) => {
@@ -1494,7 +1517,11 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     expect(focused).toBe('first')
 
     h.stdin.write('\u001B[B\u001B[B')
-    await h.wait(100)
+    await waitForCondition(
+      h,
+      () => focused === 'third' && visibleCommits >= 2,
+      'third-option focus after keep-alive remount',
+    )
     expect(focused).toBe('third')
 
     h.stdin.write('\r')

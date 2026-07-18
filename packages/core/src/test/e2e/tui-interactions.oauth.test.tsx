@@ -7,6 +7,23 @@ import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
 const harnessManager = createInkHarnessManager()
 
+async function waitForOutput(
+  harness: ReturnType<typeof createInkTestHarness>,
+  expected: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (harness.getOutput().includes(expected)) {
+      // Ink can render the matching frame before its input effect commits.
+      await harness.wait(50)
+      return
+    }
+    await harness.wait(20)
+  }
+  throw new Error(`Timed out waiting for OAuth output: ${expected}`)
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -48,8 +65,9 @@ describe('TUI E2E regression (Ink render): OAuth flow', () => {
       }),
     })
 
+    await waitForOutput(h, 'Press Enter to login')
     h.stdin.write('\r')
-    await h.wait(80)
+    await waitForOutput(h, "Browser didn't open?")
 
     const output = h.getOutput()
     expect(output).toContain("Browser didn't open?")
@@ -72,15 +90,16 @@ describe('TUI E2E regression (Ink render): OAuth flow', () => {
       }),
     })
 
+    await waitForOutput(h, 'Press Enter to login')
     h.stdin.write('\r')
-    await h.wait(80)
+    await waitForOutput(h, 'Paste code here if prompted >')
 
     h.stdin.write('invalid-code\r')
-    await h.wait(50)
+    await waitForOutput(h, 'OAuth error: Invalid code')
     expect(h.getOutput()).toContain('OAuth error: Invalid code')
 
     h.stdin.write('\r')
-    await h.wait(80)
+    await waitForOutput(h, 'Paste code here if prompted >')
 
     const output = h.getOutput()
     expect(output).toContain('Retrying')
@@ -114,8 +133,9 @@ describe('TUI E2E regression (Ink render): OAuth flow', () => {
       },
     })
 
+    await waitForOutput(h, 'Press Enter to login')
     h.stdin.write('\r')
-    await h.wait(120)
+    await waitForOutput(h, 'Login successful')
     expect(h.getOutput()).toContain('Login successful')
     expect(notified).toBe(true)
 

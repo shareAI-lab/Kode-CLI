@@ -35,6 +35,20 @@ async function waitForOutput(
   )
 }
 
+async function typeFilter(
+  harness: ReturnType<typeof createInkTestHarness>,
+  value: string,
+): Promise<void> {
+  await harness.wait(50)
+  let prefix = ''
+  for (const character of value) {
+    harness.stdin.write(character)
+    prefix += character
+    await waitForOutput(harness, `Filter: ${prefix}`)
+    await harness.wait(50)
+  }
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -244,12 +258,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       )
       harnessManager.track(h)
 
-      await h.wait(25)
-      for (const character of 'other') {
-        h.stdin.write(character)
-        await h.wait(25)
-      }
-      await h.wait(100)
+      await waitForOutput(h, 'Current: Code Model')
+      await typeFilter(h, 'other')
 
       expect(h.getOutput()).toContain('Filter: other')
       expect(h.getOutput()).toContain(
@@ -302,14 +312,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       )
       harnessManager.track(h)
 
-      await h.wait(25)
-      expect(h.getOutput()).toContain('Current: Dark')
-
-      for (const character of 'nord') {
-        h.stdin.write(character)
-        await h.wait(25)
-      }
-      await h.wait(50)
+      await waitForOutput(h, 'Current: Dark')
+      await typeFilter(h, 'nord')
 
       expect(h.getOutput()).toContain('Filter: nord')
       expect(h.getOutput()).toContain(
@@ -1122,7 +1126,10 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       expect(resourcesAfterReconnect).toContain('Resources for srv')
       expect(resourcesAfterReconnect).toContain('Project README')
 
-      h.stdin.write('1')
+      // Wait for the resource-list key handler to commit before selecting the
+      // focused resource. Rendering can precede the effect on slower runners.
+      await h.wait(100)
+      h.stdin.write('\r')
       await h.wait(120)
       if (!h.getOutput().includes('Resource name: README.md')) {
         await waitForOutput(h, 'Resource name: README.md')

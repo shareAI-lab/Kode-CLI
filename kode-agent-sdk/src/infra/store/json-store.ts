@@ -56,6 +56,7 @@ export class JSONStore implements Store {
   private eventWriters = new Map<string, ChannelWriters>();
   private walQueue = new Map<string, Promise<void>>();
   private walRecovered = new Set<string>();
+  private infoWriteQueue = new Map<string, Promise<void>>();
 
   constructor(private baseDir: string, private flushIntervalMs = 50) {
     // 启动时主动扫描并恢复所有 WAL
@@ -654,12 +655,37 @@ export class JSONStore implements Store {
   // ========== 元数据管理 ==========
 
   async saveInfo(agentId: string, info: AgentInfo): Promise<void> {
-    await this.writeFileSafe(this.getMetaPath(agentId), JSON.stringify(info, null, 2));
+    const previous = this.infoWriteQueue.get(agentId) || Promise.resolve();
+    const write = async () => {
+      const fs = require('fs');
+      const metaPath = this.getMetaPath(agentId);
+      const tmpPath = `${metaPath}.tmp.${process.pid}.${Date.now()}`;
+
+      try {
+        await this.writeFileSafe(tmpPath, JSON.stringify(info, null, 2));
+        await this.renameSafe(tmpPath, metaPath);
+      } finally {
+        await fs.promises.unlink(tmpPath).catch(() => undefined);
+      }
+    };
+    const next = previous.then(write, write);
+
+    this.infoWriteQueue.set(agentId, next);
+    try {
+      await next;
+    } finally {
+      if (this.infoWriteQueue.get(agentId) === next) {
+        this.infoWriteQueue.delete(agentId);
+      }
+    }
   }
 
   async loadInfo(agentId: string): Promise<AgentInfo | undefined> {
     const fs = require('fs').promises;
     try {
+      const pendingWrite = this.infoWriteQueue.get(agentId);
+      if (pendingWrite) await pendingWrite;
+
       const data = await fs.readFile(this.getMetaPath(agentId), 'utf-8');
       return JSON.parse(data);
     } catch {

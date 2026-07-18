@@ -31,6 +31,9 @@ async function canListenOnLoopback(): Promise<boolean> {
 }
 
 const CAN_LISTEN_ON_LOOPBACK = await canListenOnLoopback()
+// These cases exercise the host HTTP/SOCKS proxies. Linux bridge wiring is a
+// separate concern and would add an unrelated external `socat` dependency.
+const HOST_PROXY_TEST_PLATFORM: NodeJS.Platform = 'darwin'
 
 function createRuntimeConfig(
   overrides?: Partial<SandboxRuntimeConfig>,
@@ -105,6 +108,7 @@ describe('sandbox network infrastructure (compatibility)', () => {
     const ports = await ensureSandboxNetworkInfrastructure({
       runtimeConfig,
       permissionCallback: null,
+      platform: HOST_PROXY_TEST_PLATFORM,
     })
 
     const socket = net.connect(ports.httpProxyPort, '127.0.0.1')
@@ -133,6 +137,7 @@ describe('sandbox network infrastructure (compatibility)', () => {
     const ports = await ensureSandboxNetworkInfrastructure({
       runtimeConfig,
       permissionCallback: null,
+      platform: HOST_PROXY_TEST_PLATFORM,
     })
 
     const socket = net.connect(ports.httpProxyPort, '127.0.0.1')
@@ -162,6 +167,7 @@ describe('sandbox network infrastructure (compatibility)', () => {
     const ports = await ensureSandboxNetworkInfrastructure({
       runtimeConfig,
       permissionCallback: null,
+      platform: HOST_PROXY_TEST_PLATFORM,
     })
 
     const socket = net.connect(ports.httpProxyPort, '127.0.0.1')
