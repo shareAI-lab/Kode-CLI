@@ -33,7 +33,6 @@ describe('OpenAI tool-call conversion safety', () => {
       completionWithToolCalls([
         {
           id: 'call_1',
-          // @ts-expect-error intentional incomplete provider payload
           type: undefined,
           function: {
             name: 'Bash',
