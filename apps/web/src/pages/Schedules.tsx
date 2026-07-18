@@ -17,14 +17,15 @@ import { Badge } from '../components/ui/badge'
 function hasGoalScheduleControls(
   client: KodeClient | null,
 ): client is KodeClient & GoalScheduleControlKodeClient {
+  if (!client) return false
+
   return (
-    Boolean(client) &&
-    typeof (client as GoalScheduleControlKodeClient).listGoalSchedules ===
-      'function' &&
-    typeof (client as GoalScheduleControlKodeClient).createGoalSchedule ===
-      'function' &&
-    typeof (client as GoalScheduleControlKodeClient)
-      .transitionGoalSchedule === 'function'
+    'listGoalSchedules' in client &&
+    typeof client.listGoalSchedules === 'function' &&
+    'createGoalSchedule' in client &&
+    typeof client.createGoalSchedule === 'function' &&
+    'transitionGoalSchedule' in client &&
+    typeof client.transitionGoalSchedule === 'function'
   )
 }
 
@@ -60,6 +61,7 @@ export function SchedulesPage(props: {
   onSelectSession?: (sessionId: string) => void
   onNewSession?: () => void
 }) {
+  const { client, onSelectSession, sessionId, sessions } = props
   const [schedules, setSchedules] = React.useState<DaemonGoalScheduleSummary[]>(
     [],
   )
@@ -71,12 +73,12 @@ export function SchedulesPage(props: {
   const [busyId, setBusyId] = React.useState<string | null>(null)
 
   const refresh = React.useCallback(async () => {
-    if (!hasGoalScheduleControls(props.client)) {
+    if (!hasGoalScheduleControls(client)) {
       setSchedules([])
       setError('Goal schedule controls are unavailable on this client.')
       return
     }
-    if (!props.sessionId) {
+    if (!sessionId) {
       setSchedules([])
       setError(null)
       return
@@ -84,8 +86,8 @@ export function SchedulesPage(props: {
     setLoading(true)
     setError(null)
     try {
-      const next = await props.client.listGoalSchedules({
-        sessionId: props.sessionId,
+      const next = await client.listGoalSchedules({
+        sessionId,
       })
       setSchedules(next)
     } catch (err) {
@@ -93,7 +95,7 @@ export function SchedulesPage(props: {
     } finally {
       setLoading(false)
     }
-  }, [props.client, props.sessionId])
+  }, [client, sessionId])
 
   React.useEffect(() => {
     void refresh()
@@ -102,14 +104,14 @@ export function SchedulesPage(props: {
   // Prefer an explicit selection; when the page opens with sessions but no
   // active chat session, attach the most recent one so operators can act.
   React.useEffect(() => {
-    if (props.sessionId) return
-    const first = props.sessions?.[0]
-    if (!first || !props.onSelectSession) return
-    props.onSelectSession(first.sessionId)
-  }, [props.sessionId, props.sessions, props.onSelectSession])
+    if (sessionId) return
+    const first = sessions?.[0]
+    if (!first || !onSelectSession) return
+    onSelectSession(first.sessionId)
+  }, [onSelectSession, sessionId, sessions])
 
   const onCreate = async () => {
-    if (!hasGoalScheduleControls(props.client) || !props.sessionId) return
+    if (!hasGoalScheduleControls(client) || !sessionId) return
     if (!objective.trim()) {
       setError('Objective is required.')
       return
@@ -129,8 +131,8 @@ export function SchedulesPage(props: {
     setBusyId('create')
     setError(null)
     try {
-      await props.client.createGoalSchedule({
-        sessionId: props.sessionId,
+      await client.createGoalSchedule({
+        sessionId,
         objective: objective.trim(),
         schedule,
       })
@@ -147,12 +149,12 @@ export function SchedulesPage(props: {
     schedule: DaemonGoalScheduleSummary,
     action: 'pause' | 'resume' | 'cancel',
   ) => {
-    if (!hasGoalScheduleControls(props.client) || !props.sessionId) return
+    if (!hasGoalScheduleControls(client) || !sessionId) return
     setBusyId(`${schedule.id}:${action}`)
     setError(null)
     try {
-      await props.client.transitionGoalSchedule(schedule.id, {
-        sessionId: props.sessionId,
+      await client.transitionGoalSchedule(schedule.id, {
+        sessionId,
         expectedRevision: schedule.revision,
         action,
       })
