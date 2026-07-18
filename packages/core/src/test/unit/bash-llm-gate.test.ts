@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   __setLlmModuleLoaderForTests,
   formatBashLlmGateBlockMessage,
@@ -8,6 +11,19 @@ import {
 // Use data-loss commands that actually trigger LLM Gate
 const TRIGGER_COMMAND = 'git reset --hard'
 const TRIGGER_PROMPT = 'Reset git repository'
+
+const originalConfigDir = process.env.KODE_CONFIG_DIR
+const testConfigDir = mkdtempSync(join(tmpdir(), 'kode-bash-llm-gate-'))
+
+beforeAll(() => {
+  process.env.KODE_CONFIG_DIR = testConfigDir
+})
+
+afterAll(() => {
+  if (originalConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
+  else process.env.KODE_CONFIG_DIR = originalConfigDir
+  rmSync(testConfigDir, { recursive: true, force: true })
+})
 
 describe('Bash LLM intent gate', () => {
   test('runs for user bash mode (no bypass)', async () => {

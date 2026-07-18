@@ -11,6 +11,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import {
   getRipgrepPath,
   resetRipgrepPathCacheForTests,
+  setKodeRipgrepPackageLoaderForTests,
 } from '#core/utils/ripgrep'
 
 const ORIGINAL_ENV = { ...process.env }
@@ -37,11 +38,13 @@ function setEnv(next: Record<string, string | undefined>) {
 
 beforeEach(() => {
   restoreEnv()
+  setKodeRipgrepPackageLoaderForTests(null)
   resetRipgrepPathCacheForTests()
 })
 
 afterEach(() => {
   restoreEnv()
+  setKodeRipgrepPackageLoaderForTests(null)
   resetRipgrepPathCacheForTests()
 })
 
@@ -58,6 +61,14 @@ function writeExecutableStub(filePath: string) {
   chmodSync(filePath, 0o755)
 }
 
+function expectSamePath(actual: string, expected: string): void {
+  if (process.platform === 'win32') {
+    expect(actual.toLowerCase()).toBe(expected.toLowerCase())
+    return
+  }
+  expect(actual).toBe(expected)
+}
+
 test('uses KODE_RIPGREP_PATH when set', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kode-rg-path-'))
   try {
@@ -65,7 +76,7 @@ test('uses KODE_RIPGREP_PATH when set', () => {
     writeExecutableStub(fakeRg)
 
     setEnv({ KODE_RIPGREP_PATH: fakeRg })
-    expect(getRipgrepPath()).toBe(fakeRg)
+    expectSamePath(getRipgrepPath(), fakeRg)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -99,7 +110,7 @@ test('prefers bundled ripgrep when available (default)', () => {
       PATH: [pathDir, oldPath].filter(Boolean).join(sep),
     })
 
-    expect(getRipgrepPath()).toBe(vendorRg)
+    expectSamePath(getRipgrepPath(), vendorRg)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -107,35 +118,27 @@ test('prefers bundled ripgrep when available (default)', () => {
 
 test('prefers packaged ripgrep optionalDependency when present (default)', () => {
   const root = mkdtempSync(join(tmpdir(), 'kode-rg-packaged-first-'))
-  const scopeDir = join(process.cwd(), 'node_modules', '@shareai-lab')
-  const pkgName = `kode-ripgrep-${process.platform}-${process.arch}`
-  const pkgDir = join(scopeDir, pkgName)
 
   try {
     const binName = getPlatformExecutableName()
-    const binDir = join(pkgDir, 'bin')
+    const binDir = join(root, 'bin')
     const binPath = join(binDir, binName)
     mkdirSync(binDir, { recursive: true })
     writeExecutableStub(binPath)
 
-    const indexJs = [
-      "const path = require('node:path')",
-      '',
-      'module.exports = {',
-      `  rgPath: path.join(__dirname, 'bin', ${JSON.stringify(binName)}),`,
-      '}',
-      '',
-    ].join('\n')
-    writeFileSync(join(pkgDir, 'index.js'), indexJs)
+    const expectedPackageName = `@shareai-lab/kode-ripgrep-${process.platform}-${process.arch}`
+    setKodeRipgrepPackageLoaderForTests(name => {
+      if (name !== expectedPackageName) throw new Error(`Unexpected: ${name}`)
+      return { rgPath: binPath }
+    })
 
     setEnv({
       KODE_USE_BUILTIN_RIPGREP: '1',
       PATH: '',
     })
 
-    expect(getRipgrepPath()).toBe(binPath)
+    expectSamePath(getRipgrepPath(), binPath)
   } finally {
-    rmSync(pkgDir, { recursive: true, force: true })
     rmSync(root, { recursive: true, force: true })
   }
 })
@@ -169,7 +172,7 @@ test('uses rg found on PATH when builtin is disabled (USE_BUILTIN_RIPGREP=0)', (
       PATH: [pathDir, oldPath].filter(Boolean).join(sep),
     })
 
-    expect(getRipgrepPath()).toBe(pathRg)
+    expectSamePath(getRipgrepPath(), pathRg)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -190,7 +193,7 @@ test('falls back to rg found on PATH when vendor is unavailable', () => {
       PATH: [pathDir, oldPath].filter(Boolean).join(sep),
     })
 
-    expect(getRipgrepPath()).toBe(pathRg)
+    expectSamePath(getRipgrepPath(), pathRg)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

@@ -6,29 +6,15 @@ function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function runHelp(argv: string[]): string {
+function getCommandHelp(commandPath: string[]): string {
   const program = createCliProgram('', undefined)
-  let out = ''
-
-  program.configureOutput({
-    writeOut: str => {
-      out += str
-    },
-    writeErr: str => {
-      out += str
-    },
-  })
-
-  program.exitOverride()
-  try {
-    program.parse(argv, { from: 'user' })
-    throw new Error('expected commander to exit')
-  } catch (err: any) {
-    expect(err.code).toBe('commander.helpDisplayed')
-    expect(err.exitCode).toBe(0)
+  let command: (typeof program.commands)[number] = program
+  for (const name of commandPath) {
+    const child = command.commands.find(item => item.name() === name)
+    expect(child).toBeTruthy()
+    command = child!
   }
-
-  return out.replace(/\r\n/g, '\n')
+  return command.helpInformation().replace(/\r\n/g, '\n')
 }
 
 function findCommandLineIndex(help: string, command: string): number {
@@ -40,7 +26,7 @@ function findCommandLineIndex(help: string, command: string): number {
 
 describe('cli context help', () => {
   test('`kode context --help` contains expected commands in order', () => {
-    const out = runHelp(['context', '--help'])
+    const out = getCommandHelp(['context'])
 
     expect(out).toContain('Usage: kode context')
     expect(out).toContain('Set static context')
@@ -57,7 +43,7 @@ describe('cli context help', () => {
   })
 
   test('`kode context set --help` exposes --cwd', () => {
-    const out = runHelp(['context', 'set', '--help'])
+    const out = getCommandHelp(['context', 'set'])
 
     expect(out).toContain('Usage: kode context set')
     expect(out).toContain('Set a value in context')

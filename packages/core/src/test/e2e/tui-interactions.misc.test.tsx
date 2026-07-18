@@ -2413,9 +2413,12 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     h.rerender(renderHarness(true))
     await h.wait(40)
 
-    expect(h.getOutput()).toContain(
-      `${figures.pointer} ${figures.checkboxOn} All tools`,
-    )
+    const expected = `${figures.pointer} ${figures.checkboxOn} All tools`
+    const deadline = Date.now() + 1_000
+    while (!h.getOutput().includes(expected) && Date.now() < deadline) {
+      await h.wait(20)
+    }
+    expect(h.getOutput()).toContain(expected)
   })
 
   test('KeypressProvider: priority can fall back to default on rerender', async () => {

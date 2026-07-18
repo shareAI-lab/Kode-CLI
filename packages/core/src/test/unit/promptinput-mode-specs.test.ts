@@ -15,7 +15,7 @@ describe('PromptInput mode specs', () => {
       label: 'Chat',
       prefix: '',
       statusText: 'Chat',
-      helperText: '/ commands \u00b7 & bg',
+      helperText: '',
     })
     expect(getPromptModeSpec('background')).toMatchObject({
       label: 'Background shell',

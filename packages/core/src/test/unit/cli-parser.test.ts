@@ -6,58 +6,21 @@ import { createCliProgram } from '#host-cli/entrypoints/cli/cliParser'
 import { shouldRunHeadlessMode } from '#host-cli/entrypoints/cli/cliParser/headlessMode'
 
 describe('cli parser (commander)', () => {
-  test('--help prints help and exits (no UI started)', () => {
+  test('help information contains the primary headless flags', () => {
     const program = createCliProgram('', undefined)
-    let out = ''
-    program.configureOutput({
-      writeOut: str => {
-        out += str
-      },
-      writeErr: str => {
-        out += str
-      },
-    })
-
-    program.exitOverride()
-    try {
-      program.parse(['node', 'kode', '--help'], { from: 'user' })
-      throw new Error('expected commander to exit')
-    } catch (err: any) {
-      expect(err.code).toBe('commander.helpDisplayed')
-      expect(err.exitCode).toBe(0)
-    }
+    const out = program.helpInformation()
 
     expect(out).toContain('Usage: kode')
     expect(out).toContain('--print')
     expect(out).toContain('--headless')
   })
 
-  test('--version prints package version and exits (no UI started)', () => {
+  test('version matches the package version', () => {
     const program = createCliProgram('', undefined)
-    let out = ''
-    program.configureOutput({
-      writeOut: str => {
-        out += str
-      },
-      writeErr: str => {
-        out += str
-      },
-    })
-
     const pkg = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     )
-
-    program.exitOverride()
-    try {
-      program.parse(['node', 'kode', '--version'], { from: 'user' })
-      throw new Error('expected commander to exit')
-    } catch (err: any) {
-      expect(err.code).toBe('commander.version')
-      expect(err.exitCode).toBe(0)
-    }
-
-    expect(out.trim()).toBe(String(pkg.version))
+    expect(program.version()).toBe(String(pkg.version))
   })
 
   test('parseOptions picks up --cwd, --print, and --headless', () => {

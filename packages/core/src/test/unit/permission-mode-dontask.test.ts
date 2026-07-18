@@ -27,16 +27,16 @@ describe('dontAsk PermissionMode type integration', () => {
     const config = MODE_CONFIGS.dontAsk
     expect(config).toBeDefined()
     expect(config.name).toBe('dontAsk')
-    expect(config.label).toBe("DON'T ASK")
+    expect(config.label).toBe("Don't Ask")
     expect(config.color).toBe('red')
-    expect(config.restrictions.requireConfirmation).toBe(false)
+    expect(config.restrictions.requireConfirmation).toBe(true)
     expect(config.restrictions.bypassValidation).toBe(false)
     expect(config.allowedTools).toEqual(['*'])
   })
 
-  test('getNextPermissionMode cycles from dontAsk to default', () => {
-    expect(getNextPermissionMode('dontAsk', true)).toBe('default')
-    expect(getNextPermissionMode('dontAsk', false)).toBe('default')
+  test('getNextPermissionMode cycles from dontAsk to yolo', () => {
+    expect(getNextPermissionMode('dontAsk', true)).toBe('yolo')
+    expect(getNextPermissionMode('dontAsk', false)).toBe('yolo')
   })
 
   test('getPermissionMode returns dontAsk when set', () => {
@@ -98,11 +98,13 @@ describe('dontAsk PermissionMode type integration', () => {
 
     expect(indicator.shouldRender).toBe(true)
     expect(indicator.color).toBe(theme.error)
-    expect(indicator.mainText).toContain("don't ask")
+    expect(indicator.mainText).toBe('Tool permissions: Deny new tools')
   })
 
   test('all PermissionMode values are handled in getNextPermissionMode', () => {
     const modes: PermissionMode[] = [
+      'yolo',
+      'cautious',
       'default',
       'acceptEdits',
       'plan',
@@ -119,6 +121,8 @@ describe('dontAsk PermissionMode type integration', () => {
 
   test('all PermissionMode values have MODE_CONFIGS entries', () => {
     const modes: PermissionMode[] = [
+      'yolo',
+      'cautious',
       'default',
       'acceptEdits',
       'plan',

@@ -55,7 +55,13 @@ export function getAgentKey(
 
 export function isPlanModeEnabled(context?: ToolUseContext): boolean {
   const key = getConversationKey(context)
-  return planModeEnabledByConversationKey.get(key) ?? false
+  return isPlanModeEnabledForConversationKey(key)
+}
+
+export function isPlanModeEnabledForConversationKey(
+  conversationKey: string,
+): boolean {
+  return planModeEnabledByConversationKey.get(conversationKey) ?? false
 }
 
 export function setPlanModeEnabledForConversationKey(

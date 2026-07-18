@@ -61,7 +61,7 @@ describe('EnterPlanModeTool', () => {
     const ctx = makeContext()
 
     expect(isPlanModeEnabled(ctx)).toBe(false)
-    expect(getPermissionMode(ctx)).toBe('default')
+    expect(getPermissionMode(ctx)).toBe('yolo')
 
     expect(EnterPlanModeTool.needsPermissions()).toBe(false)
     expect(EnterPlanModeTool.requiresUserInteraction?.()).toBe(false)

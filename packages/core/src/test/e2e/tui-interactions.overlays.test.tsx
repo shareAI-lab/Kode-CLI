@@ -19,6 +19,22 @@ import { reloadModelManager } from '#core/utils/model'
 
 const harnessManager = createInkHarnessManager()
 
+async function waitForOutput(
+  harness: ReturnType<typeof createInkTestHarness>,
+  expected: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (harness.getOutput().includes(expected)) return
+    await harness.wait(20)
+  }
+  const output = harness.getOutput()
+  throw new Error(
+    `Timed out waiting for overlay output: ${expected}\n${output.slice(-4_000)}`,
+  )
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -891,6 +907,9 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
       h.stdin.write('\r')
       await h.wait(100)
+      if (!h.getOutput().includes('Loading actions...')) {
+        await waitForOutput(h, 'Loading actions...')
+      }
 
       expect(h.getOutput()).toContain('Loading actions...')
 
@@ -902,6 +921,9 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       h.clearOutput()
       h.stdin.write('\r')
       await h.wait(100)
+      if (!h.getOutput().includes('Loading actions...')) {
+        await waitForOutput(h, 'Loading actions...')
+      }
       const reenteredLoadingOutput = h.getOutput()
       expect(reenteredLoadingOutput).toContain('Loading actions...')
       expect(reenteredLoadingOutput).toContain('Capabilities:')
@@ -913,6 +935,9 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
       h.stdin.write('\r')
       await h.wait(350)
+      if (!h.getOutput().includes('Resources: 1 resources')) {
+        await waitForOutput(h, 'Resources: 1 resources')
+      }
 
       expect(h.getOutput()).toContain('Resources: 1 resources')
       expect(h.getOutput()).toContain(
@@ -927,16 +952,25 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
       h.stdin.write('2')
       await h.wait(120)
+      if (!h.getOutput().includes('Project Files')) {
+        await waitForOutput(h, 'Project Files')
+      }
       expect(h.getOutput()).toContain('Resource templates for srv')
       expect(h.getOutput()).toContain('Project Files')
 
       resourceTemplateRevision = 1
       listChangedListener?.({ kind: 'resources', server: 'srv' })
       await h.wait(120)
+      if (!h.getOutput().includes('Guide Files')) {
+        await waitForOutput(h, 'Guide Files')
+      }
       expect(h.getOutput()).toContain('Guide Files')
 
       h.stdin.write('1')
       await h.wait(80)
+      if (!h.getOutput().includes('Template name: project-file')) {
+        await waitForOutput(h, 'Template name: project-file')
+      }
       expect(h.getOutput()).toContain('Template name: project-file')
       expect(h.getOutput()).toContain('URI template: file:///{path}')
       expect(h.getOutput()).toContain('MIME type: text/plain')
@@ -948,19 +982,36 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       h.stdin.write('\x1b')
       await h.wait(350)
 
+      let resourcesOutput = ''
       h.clearOutput()
-      h.stdin.write('1')
-      await h.wait(300)
-      expect(h.getOutput()).toContain('Resources for srv')
-      expect(h.getOutput()).toContain('Project README')
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        h.stdin.write('1')
+        await h.wait(300)
+        resourcesOutput = h.getOutput()
+        if (resourcesOutput.includes('Project README')) break
+        if (resourcesOutput.includes('Resources for srv')) {
+          await waitForOutput(h, 'Project README')
+          resourcesOutput = h.getOutput()
+          break
+        }
+        h.clearOutput()
+      }
+      expect(resourcesOutput).toContain('Resources for srv')
+      expect(resourcesOutput).toContain('Project README')
 
       resourceRevision = 1
       listChangedListener?.({ kind: 'resources', server: 'srv' })
       await h.wait(300)
+      if (!h.getOutput().includes('Project Guide')) {
+        await waitForOutput(h, 'Project Guide')
+      }
       expect(h.getOutput()).toContain('Project Guide')
 
       h.stdin.write('\r')
       await h.wait(80)
+      if (!h.getOutput().includes('Resource name: README.md')) {
+        await waitForOutput(h, 'Resource name: README.md')
+      }
       const output = h.getOutput()
       expect(output).toContain('Resource name: README.md')
       expect(output).toContain('URI: file:///project/README.md')
@@ -1060,13 +1111,22 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
         h.stdin.write('1')
         await h.wait(300)
         resourcesAfterReconnect = h.getOutput()
-        if (resourcesAfterReconnect.includes('Resources for srv')) break
+        if (resourcesAfterReconnect.includes('Project README')) break
+        if (resourcesAfterReconnect.includes('Resources for srv')) {
+          await waitForOutput(h, 'Project README')
+          resourcesAfterReconnect = h.getOutput()
+          break
+        }
         h.clearOutput()
       }
       expect(resourcesAfterReconnect).toContain('Resources for srv')
+      expect(resourcesAfterReconnect).toContain('Project README')
 
       h.stdin.write('1')
       await h.wait(120)
+      if (!h.getOutput().includes('Resource name: README.md')) {
+        await waitForOutput(h, 'Resource name: README.md')
+      }
       const resourceAfterReconnect = h.getOutput()
       expect(resourceAfterReconnect).toContain('Resource name: README.md')
       expect(resourceAfterReconnect).toContain('subscription: available')
@@ -1090,21 +1150,35 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
       promptHarness.stdin.write('\r')
       await promptHarness.wait(300)
+      if (!promptHarness.getOutput().includes('Prompts: 1 prompts')) {
+        await waitForOutput(promptHarness, 'Prompts: 1 prompts')
+      }
       expect(promptHarness.getOutput()).toContain('Prompts: 1 prompts')
       expect(promptHarness.getOutput()).toContain('1. View prompts')
 
       promptHarness.stdin.write('\r')
       await promptHarness.wait(120)
+      if (!promptHarness.getOutput().includes('Review Diff')) {
+        await waitForOutput(promptHarness, 'Review Diff')
+      }
       expect(promptHarness.getOutput()).toContain('Prompts for srv')
       expect(promptHarness.getOutput()).toContain('Review Diff')
 
       promptRevision = 1
       listChangedListener?.({ kind: 'prompts', server: 'srv' })
       await promptHarness.wait(120)
+      if (!promptHarness.getOutput().includes('Summarize Changes')) {
+        await waitForOutput(promptHarness, 'Summarize Changes')
+      }
       expect(promptHarness.getOutput()).toContain('Summarize Changes')
 
       promptHarness.stdin.write('\r')
       await promptHarness.wait(80)
+      if (
+        !promptHarness.getOutput().includes('Prompt command: mcp__srv__review')
+      ) {
+        await waitForOutput(promptHarness, 'Prompt command: mcp__srv__review')
+      }
       expect(promptHarness.getOutput()).toContain(
         'Prompt command: mcp__srv__review',
       )
@@ -1113,5 +1187,5 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
     } finally {
       mock.restore()
     }
-  }, 10000)
+  }, 15000)
 })

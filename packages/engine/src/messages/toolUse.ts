@@ -22,6 +22,11 @@ type ToolUseLikeBlockParam = ToolUseBlockParam & {
   type: 'tool_use' | 'server_tool_use' | 'mcp_tool_use'
 }
 
+type MessageNode = {
+  message: NormalizedMessage
+  next: MessageNode | null
+}
+
 function isToolUseLikeBlockParam(block: any): block is ToolUseLikeBlockParam {
   return (
     block &&
@@ -46,27 +51,57 @@ function isToolUseRequestMessage(
 export function reorderMessages(
   messages: NormalizedMessage[],
 ): NormalizedMessage[] {
-  const ms: NormalizedMessage[] = []
-  const toolUseMessages: ToolUseRequestMessage[] = []
+  let firstNode: MessageNode | null = null
+  let lastNode: MessageNode | null = null
+  const toolUseMessageNodes = new Map<string, MessageNode>()
+  const progressMessageNodes = new Map<string, MessageNode>()
+
+  const getToolUseRequestID = (message: ToolUseRequestMessage): string | null =>
+    message.message.content.find(isToolUseLikeBlockParam)?.id ?? null
+
+  const rememberMessageNode = (node: MessageNode) => {
+    const { message } = node
+    if (message.type === 'progress') {
+      progressMessageNodes.set(message.toolUseID, node)
+      return
+    }
+    if (isToolUseRequestMessage(message)) {
+      const toolUseID = getToolUseRequestID(message)
+      if (toolUseID) toolUseMessageNodes.set(toolUseID, node)
+    }
+  }
+
+  const appendMessage = (message: NormalizedMessage) => {
+    const node: MessageNode = { message, next: null }
+    if (lastNode) {
+      lastNode.next = node
+    } else {
+      firstNode = node
+    }
+    lastNode = node
+    rememberMessageNode(node)
+  }
+
+  const insertMessageAfter = (
+    anchor: MessageNode,
+    message: NormalizedMessage,
+  ) => {
+    const node: MessageNode = { message, next: anchor.next }
+    anchor.next = node
+    if (lastNode === anchor) lastNode = node
+    rememberMessageNode(node)
+  }
 
   for (const message of messages) {
-    if (isToolUseRequestMessage(message)) {
-      toolUseMessages.push(message)
-    }
-
     if (message.type === 'progress') {
-      const existingProgressMessage = ms.find(
-        _ => _.type === 'progress' && _.toolUseID === message.toolUseID,
-      )
-      if (existingProgressMessage) {
-        ms[ms.indexOf(existingProgressMessage)] = message
+      const existingProgressNode = progressMessageNodes.get(message.toolUseID)
+      if (existingProgressNode) {
+        existingProgressNode.message = message
         continue
       }
-      const toolUseMessage = toolUseMessages.find(
-        _ => _.message.content[0]?.id === message.toolUseID,
-      )
-      if (toolUseMessage) {
-        ms.splice(ms.indexOf(toolUseMessage) + 1, 0, message)
+      const toolUseMessageNode = toolUseMessageNodes.get(message.toolUseID)
+      if (toolUseMessageNode) {
+        insertMessageAfter(toolUseMessageNode, message)
         continue
       }
     }
@@ -79,27 +114,27 @@ export function reorderMessages(
       const toolUseID = (message.message.content[0] as ToolResultBlockParam)
         ?.tool_use_id
 
-      const lastProgressMessage = ms.find(
-        _ => _.type === 'progress' && _.toolUseID === toolUseID,
-      )
-      if (lastProgressMessage) {
-        ms.splice(ms.indexOf(lastProgressMessage) + 1, 0, message)
+      const lastProgressNode = progressMessageNodes.get(toolUseID)
+      if (lastProgressNode) {
+        insertMessageAfter(lastProgressNode, message)
         continue
       }
 
-      const toolUseMessage = toolUseMessages.find(
-        _ => _.message.content[0]?.id === toolUseID,
-      )
-      if (toolUseMessage) {
-        ms.splice(ms.indexOf(toolUseMessage) + 1, 0, message)
+      const toolUseMessageNode = toolUseMessageNodes.get(toolUseID)
+      if (toolUseMessageNode) {
+        insertMessageAfter(toolUseMessageNode, message)
         continue
       }
     } else {
-      ms.push(message)
+      appendMessage(message)
     }
   }
 
-  return ms
+  const reorderedMessages: NormalizedMessage[] = []
+  for (let node = firstNode; node; node = node.next) {
+    reorderedMessages.push(node.message)
+  }
+  return reorderedMessages
 }
 
 const getToolResultIDs = memoize(

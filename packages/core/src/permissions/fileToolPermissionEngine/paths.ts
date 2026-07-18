@@ -128,7 +128,9 @@ export function hasSuspiciousWindowsPathPattern(inputPath: string): boolean {
   const p = String(inputPath)
 
   if (p.indexOf(':', 2) !== -1) return true
-  if (/~\d/.test(p)) return true
+  // Windows commonly exposes legitimate 8.3 short paths (for example,
+  // ADMINI~1). Treat them as suspicious only when they appear off Windows.
+  if (process.platform !== 'win32' && /~\d/.test(p)) return true
   if (
     p.startsWith('\\\\?\\') ||
     p.startsWith('\\\\.\\') ||

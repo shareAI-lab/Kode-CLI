@@ -7,6 +7,19 @@ import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
 const harnessManager = createInkHarnessManager()
 
+async function waitForOutput(
+  harness: ReturnType<typeof createInkTestHarness>,
+  expected: string,
+  timeoutMs = 1_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (harness.getOutput().includes(expected)) return
+    await harness.wait(20)
+  }
+  throw new Error(`Timed out waiting for login output: ${expected}`)
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -42,7 +55,7 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     expect(h.getOutput()).toContain('OpenAI API key (GPT-5-Codex)')
 
     h.stdin.write('\r')
-    await h.wait(80)
+    await waitForOutput(h, 'Codex is signed in.')
 
     expect(loginStarted).toBe(true)
     expect(h.getOutput()).toContain('Codex is signed in.')
@@ -68,9 +81,9 @@ describe('TUI E2E regression (Ink render): login selector', () => {
 
     await h.wait(30)
     h.stdin.write('j')
-    await h.wait(20)
+    await waitForOutput(h, '> OpenAI API key (GPT-5-Codex)')
     h.stdin.write('\r')
-    await h.wait(50)
+    await waitForOutput(h, 'API Key Setup')
 
     const output = h.getOutput()
     expect(output).toContain('API Key Setup')

@@ -4,7 +4,8 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import outputStyle from '#cli-commands/builtin/output-style'
 import { processUserInput } from '#ui-ink/utils/processUserInput'
-import { setCwd } from '#core/utils/state'
+import { getCwd, setCwd } from '#core/utils/state'
+import { resetCwdProviderForTesting, setCwdProvider } from '#config/cwd'
 import { clearOutputStyleCache } from '#cli-services/outputStyles'
 import type { ToolUseContext, SetToolJSXFn } from '#core/tooling/Tool'
 import type { Message } from '#core/query'
@@ -65,11 +66,13 @@ describe('/output-style (menu + direct set + help)', () => {
     homeDir = mkdtempSync(join(tmpdir(), 'kode-output-style-home-'))
     process.env.KODE_CONFIG_DIR = join(homeDir, '.kode')
     await setCwd(projectDir)
+    setCwdProvider(getCwd)
   })
 
   afterEach(async () => {
     clearOutputStyleCache()
     await setCwd(runnerCwd)
+    resetCwdProviderForTesting()
     if (originalConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
     else process.env.KODE_CONFIG_DIR = originalConfigDir
     rmSync(projectDir, { recursive: true, force: true })

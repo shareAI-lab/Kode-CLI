@@ -31,6 +31,7 @@ import {
 import {
   enterPlanModeForConversationKey,
   exitPlanModeForConversationKey,
+  isPlanModeEnabledForConversationKey,
   setActivePlanConversationKey,
 } from '#core/utils/planMode'
 import { getGlobalConfig, saveGlobalConfig } from '#core/utils/config'
@@ -201,8 +202,12 @@ export function PermissionProvider({
         conversationKey,
         mode: permissionContext.mode,
       }
-      if (permissionContext.mode === 'plan') {
+      const planModeEnabled =
+        isPlanModeEnabledForConversationKey(conversationKey)
+      if (permissionContext.mode === 'plan' && !planModeEnabled) {
         enterPlanModeForConversationKey(conversationKey)
+      } else if (permissionContext.mode !== 'plan' && planModeEnabled) {
+        exitPlanModeForConversationKey(conversationKey)
       }
       return
     }

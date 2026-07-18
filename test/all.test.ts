@@ -1,37 +1,24 @@
-// Aggregates workspace tests so `bun test` from repo root doesn't accidentally
-// execute non-workspace script-style files (e.g. `kode-agent-sdk/tests/*.test.ts`).
+// Keep direct `bun test` scoped to workspace tests. Each file runs in its own
+// process because Bun module mocks and mutable globals otherwise leak between
+// dynamically imported test modules.
 
-import { resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { expect, test } from 'bun:test'
 
-async function importWorkspaceTests(): Promise<void> {
-  const thisDir = resolve(fileURLToPath(new URL('.', import.meta.url)))
-  const repoRoot = resolve(thisDir, '..')
+test(
+  'workspace test files pass in separate processes',
+  async () => {
+    const child = Bun.spawn(
+      [process.execPath, 'run', 'scripts/run-workspace-tests.mjs'],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        stdin: 'ignore',
+        stdout: 'inherit',
+        stderr: 'inherit',
+      },
+    )
 
-  const patterns = [
-    'apps/**/*.test.ts',
-    'apps/**/*.test.tsx',
-    'apps/**/*.spec.ts',
-    'apps/**/*.spec.tsx',
-    'packages/**/*.test.ts',
-    'packages/**/*.test.tsx',
-    'packages/**/*.spec.ts',
-    'packages/**/*.spec.tsx',
-  ]
-
-  const files = new Set<string>()
-  for (const pattern of patterns) {
-    const glob = new Bun.Glob(pattern)
-    for await (const relPath of glob.scan(repoRoot)) {
-      files.add(relPath)
-    }
-  }
-
-  const sorted = Array.from(files).sort()
-  for (const relPath of sorted) {
-    const absPath = resolve(repoRoot, relPath)
-    await import(pathToFileURL(absPath).href)
-  }
-}
-
-await importWorkspaceTests()
+    expect(await child.exited).toBe(0)
+  },
+  30 * 60 * 1000,
+)

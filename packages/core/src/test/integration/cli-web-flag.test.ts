@@ -25,7 +25,7 @@ describe('CLI --web flag (opt-in)', () => {
 
       expect(res.status).toBe(1)
       expect(String(res.stderr) + String(res.stdout)).toContain(
-        'Error: --web and --print cannot be used together.',
+        'Error: --web cannot be used with --print or --headless.',
       )
     } finally {
       rmSync(configDir, { recursive: true, force: true })

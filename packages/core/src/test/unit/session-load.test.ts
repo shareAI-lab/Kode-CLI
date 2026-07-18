@@ -204,13 +204,13 @@ describe('session loader (projects/*.jsonl)', () => {
         JSON.stringify({
           type: 'user',
           sessionId,
-          uuid: 'u1',
+          uuid: '11111111-1111-4111-8111-111111111111',
           message: { role: 'user', content: 'run ls command' },
         }),
         JSON.stringify({
           type: 'assistant',
           sessionId,
-          uuid: 'a1',
+          uuid: '22222222-2222-4222-8222-222222222222',
           message: {
             id: 'msg1',
             model: 'x',
@@ -234,7 +234,7 @@ describe('session loader (projects/*.jsonl)', () => {
         JSON.stringify({
           type: 'user',
           sessionId,
-          uuid: 'u2',
+          uuid: '33333333-3333-4333-8333-333333333333',
           message: {
             role: 'user',
             content: [
@@ -305,7 +305,7 @@ describe('session loader (projects/*.jsonl)', () => {
         JSON.stringify({
           type: 'user',
           sessionId,
-          uuid: 'u1',
+          uuid: '44444444-4444-4444-8444-444444444444',
           message: {
             role: 'user',
             content: [
@@ -377,7 +377,7 @@ describe('session loader (projects/*.jsonl)', () => {
         JSON.stringify({
           type: 'user',
           sessionId,
-          uuid: 'u1',
+          uuid: '55555555-5555-4555-8555-555555555555',
           message: { role: 'user', content: 'hello' },
           // No toolUseResult field
         }),

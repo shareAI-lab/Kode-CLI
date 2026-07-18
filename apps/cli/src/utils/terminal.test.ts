@@ -40,7 +40,7 @@ function installFakeTty(): void {
   })
   Object.defineProperty(process, 'stdout', {
     configurable: true,
-    value: { isTTY: true },
+    value: { isTTY: true, write: captureWrite },
   })
 }
 

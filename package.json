@@ -96,7 +96,7 @@
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,js,jsx,json,md,css,html}\" \"packages/**/*.{ts,tsx,js,jsx,json,md}\" \"scripts/**/*.{ts,tsx,js,jsx,mjs,cjs,json}\" \"docs/**/*.{md,json}\"",
     "lint": "eslint . --max-warnings 55",
     "lint:fix": "eslint . --fix",
-    "test": "bun test",
+    "test": "bun run scripts/run-workspace-tests.mjs",
     "typecheck": "tsc --noEmit",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build",
     "prepare": "node scripts/install-hooks.mjs",

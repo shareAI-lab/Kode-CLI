@@ -34,8 +34,11 @@ describe('cli interactive renderers', () => {
 
     expect(capturedElement).not.toBeNull()
     if (!capturedElement) throw new Error('expected element to be rendered')
-    expect(capturedElement.type).toBe(FakeRepl)
-    const props = capturedElement.props as {
+    const replElement = React.Children.only(
+      (capturedElement.props as { children: React.ReactNode }).children,
+    ) as React.ReactElement
+    expect(replElement.type).toBe(FakeRepl)
+    const props = replElement.props as {
       initialPrompt?: string
       messageLogName?: string
     }

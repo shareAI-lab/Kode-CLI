@@ -14,6 +14,11 @@ import { BunShell } from '#runtime/shell'
 
 const d = debug('kode:ripgrep')
 
+type KodeRipgrepPackage = { rgPath?: unknown }
+type KodeRipgrepPackageLoader = (name: string) => KodeRipgrepPackage
+
+let kodeRipgrepPackageLoaderForTests: KodeRipgrepPackageLoader | null = null
+
 function getCurrentModuleUrl(): string {
   // CJS builds (for SDK require()) don't have `import.meta.url`.
   // ESM builds don't have `__filename`.
@@ -78,7 +83,9 @@ function getKodeRipgrepPathOrNull(): string | null {
   const req = createRequire(getCurrentModuleUrl())
   for (const name of getKodeRipgrepPackageNames()) {
     try {
-      const mod = req(name) as { rgPath?: unknown }
+      const mod = kodeRipgrepPackageLoaderForTests
+        ? kodeRipgrepPackageLoaderForTests(name)
+        : (req(name) as KodeRipgrepPackage)
       const rgPath = typeof mod?.rgPath === 'string' ? mod.rgPath : null
       if (rgPath && existsSync(rgPath)) {
         d('packaged ripgrep resolved as: %s (%s)', rgPath, name)
@@ -351,4 +358,11 @@ async function codesignRipgrepIfNecessary(rgPath: string) {
 export function resetRipgrepPathCacheForTests(): void {
   clearMemoizeCache(getRipgrepPath)
   alreadyDoneSignCheck = false
+}
+
+export function setKodeRipgrepPackageLoaderForTests(
+  loader: KodeRipgrepPackageLoader | null,
+): void {
+  kodeRipgrepPackageLoaderForTests = loader
+  resetRipgrepPathCacheForTests()
 }

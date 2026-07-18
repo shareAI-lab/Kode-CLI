@@ -6,29 +6,11 @@ function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function runHelp(argv: string[]): string {
+function getCommandHelp(commandName: string): string {
   const program = createCliProgram('', undefined)
-  let out = ''
-
-  program.configureOutput({
-    writeOut: str => {
-      out += str
-    },
-    writeErr: str => {
-      out += str
-    },
-  })
-
-  program.exitOverride()
-  try {
-    program.parse(argv, { from: 'user' })
-    throw new Error('expected commander to exit')
-  } catch (err: any) {
-    expect(err.code).toBe('commander.helpDisplayed')
-    expect(err.exitCode).toBe(0)
-  }
-
-  return out.replace(/\r\n/g, '\n')
+  const command = program.commands.find(item => item.name() === commandName)
+  expect(command).toBeTruthy()
+  return command!.helpInformation().replace(/\r\n/g, '\n')
 }
 
 function findCommandLineIndex(help: string, command: string): number {
@@ -40,7 +22,7 @@ function findCommandLineIndex(help: string, command: string): number {
 
 describe('cli config/models help', () => {
   test('`kode config --help` contains expected commands in order', () => {
-    const out = runHelp(['config', '--help'])
+    const out = getCommandHelp('config')
 
     expect(out).toContain('Usage: kode config')
     expect(out).toContain('Manage configuration')
@@ -55,7 +37,7 @@ describe('cli config/models help', () => {
   })
 
   test('`kode models --help` contains expected commands in order', () => {
-    const out = runHelp(['models', '--help'])
+    const out = getCommandHelp('models')
 
     expect(out).toContain('Usage: kode models')
     expect(out).toContain('Import/export model profiles and pointers (YAML)')
