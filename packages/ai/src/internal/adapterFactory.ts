@@ -12,10 +12,7 @@ import { ModelAdapterFactory } from '../adapters/modelAdapterFactory'
 
 export type AiModelAdapter = {
   createRequest: (params: UnifiedRequestParams) => any
-  parseResponse: (
-    response: any,
-    streamOptions?: any,
-  ) => Promise<any> | any
+  parseResponse: (response: any, streamOptions?: any) => Promise<any> | any
 }
 
 export type AiAdapterFactory = {

@@ -4,10 +4,7 @@
  */
 
 export type SupportedImageMediaType =
-  | 'image/png'
-  | 'image/jpeg'
-  | 'image/gif'
-  | 'image/webp'
+  'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
 
 export const SUPPORTED_IMAGE_MEDIA_TYPES: readonly SupportedImageMediaType[] = [
   'image/png',

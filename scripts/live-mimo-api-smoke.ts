@@ -136,8 +136,12 @@ async function main() {
     getMainModelProfile: () => profile,
   })
 
-  const results: Array<{ name: string; pass: boolean; ms: number; note?: string }> =
-    []
+  const results: Array<{
+    name: string
+    pass: boolean
+    ms: number
+    note?: string
+  }> = []
 
   async function run(
     name: string,
@@ -263,7 +267,10 @@ async function main() {
       ],
     })
     // ensure mimo thinking disabled when tools present
-    if (!(opts as any).thinking || (opts as any).thinking?.type !== 'disabled') {
+    if (
+      !(opts as any).thinking ||
+      (opts as any).thinking?.type !== 'disabled'
+    ) {
       // buildOpenAIChatCompletionCreateParams should set this for mimo
     }
     const res = (await getCompletionWithProfile(

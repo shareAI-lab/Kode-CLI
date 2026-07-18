@@ -1,9 +1,6 @@
 import { redactSensitiveMemoryText } from '#core/memory/redaction'
 
-import type {
-  DurableRunFailureKind,
-  DurableRunTelemetry,
-} from './types'
+import type { DurableRunFailureKind, DurableRunTelemetry } from './types'
 
 const MAX_FAILURE_MESSAGE_LENGTH = 500
 
@@ -40,10 +37,7 @@ function failureKind(resultSubtype?: string): DurableRunFailureKind {
   if (resultSubtype?.startsWith('error_invalid_')) return 'configuration'
   if (resultSubtype === 'error_max_budget_usd') return 'budget_limit'
   if (resultSubtype === 'error_max_turns') return 'turn_limit'
-  if (
-    resultSubtype === 'error_cancelled' ||
-    resultSubtype === 'cancelled'
-  ) {
+  if (resultSubtype === 'error_cancelled' || resultSubtype === 'cancelled') {
     return 'cancelled'
   }
   if (resultSubtype === 'error_permission') return 'permission'

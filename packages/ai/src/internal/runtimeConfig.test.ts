@@ -26,7 +26,10 @@ describe('bindAiRuntime host knobs', () => {
     const costs: Array<[number, number]> = []
     bindAiRuntime({
       getStream: () => false,
-      getMainModelProfile: () => ({ modelName: 'gpt-test', provider: 'openai' }),
+      getMainModelProfile: () => ({
+        modelName: 'gpt-test',
+        provider: 'openai',
+      }),
       logError: error => {
         errors.push(error)
       },

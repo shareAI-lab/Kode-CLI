@@ -10,7 +10,9 @@ export class ModelAdapterFactory {
    * Create appropriate adapter based on model configuration
    */
   static createAdapter(modelProfile: AiModelProfileLike): ModelAPIAdapter {
-    const capabilities = getModelCapabilities(String(modelProfile.modelName ?? ""))
+    const capabilities = getModelCapabilities(
+      String(modelProfile.modelName ?? ''),
+    )
 
     // Determine which API to use
     const apiType = this.determineAPIType(modelProfile, capabilities)
@@ -62,7 +64,9 @@ export class ModelAdapterFactory {
    * Check if model should use Responses API
    */
   static shouldUseResponsesAPI(modelProfile: AiModelProfileLike): boolean {
-    const capabilities = getModelCapabilities(String(modelProfile.modelName ?? ""))
+    const capabilities = getModelCapabilities(
+      String(modelProfile.modelName ?? ''),
+    )
     const apiType = this.determineAPIType(modelProfile, capabilities)
     return apiType === 'responses_api'
   }

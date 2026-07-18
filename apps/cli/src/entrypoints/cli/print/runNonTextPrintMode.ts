@@ -17,10 +17,7 @@ import {
   getCurrentOutputStyleDefinition,
 } from '#cli-services/outputStyles'
 import { createPrintControlRequestHandler } from './controlRequests'
-import {
-  finishHeadlessRun,
-  startHeadlessRun,
-} from './headlessRunTelemetry'
+import { finishHeadlessRun, startHeadlessRun } from './headlessRunTelemetry'
 import { createStdioPermissionPromptCanUseTool } from './permissionPrompt'
 import { runSingleTurnPrint } from './runSingleTurn'
 

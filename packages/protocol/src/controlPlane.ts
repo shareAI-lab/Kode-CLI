@@ -395,7 +395,9 @@ export type DaemonAgentMutationResponse = z.infer<
 
 /** Durable goal schedule summaries exposed by the daemon HTTP control plane. */
 export const DaemonGoalScheduleKindSchema = z.enum(['once', 'interval'])
-export type DaemonGoalScheduleKind = z.infer<typeof DaemonGoalScheduleKindSchema>
+export type DaemonGoalScheduleKind = z.infer<
+  typeof DaemonGoalScheduleKindSchema
+>
 
 export const DaemonGoalScheduleSummarySchema = z
   .object({

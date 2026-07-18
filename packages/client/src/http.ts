@@ -1148,9 +1148,7 @@ export class HttpClient
           sessionId,
           expectedRevision: request.expectedRevision,
           action: request.action,
-          ...(request.reason?.trim()
-            ? { reason: request.reason.trim() }
-            : {}),
+          ...(request.reason?.trim() ? { reason: request.reason.trim() } : {}),
         }),
       },
     )

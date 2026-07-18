@@ -23,7 +23,10 @@ function trimForLog(value: string): string {
  * Handles common streaming logic, SSE parsing, and usage normalization
  */
 export abstract class OpenAIAdapter extends ModelAPIAdapter {
-  constructor(capabilities: ModelCapabilities, modelProfile: AiModelProfileLike) {
+  constructor(
+    capabilities: ModelCapabilities,
+    modelProfile: AiModelProfileLike,
+  ) {
     super(capabilities, modelProfile)
   }
 

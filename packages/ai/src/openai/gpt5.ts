@@ -1,9 +1,6 @@
 import type OpenAI from 'openai'
 
-import {
-  debug as debugLogger,
-  getCurrentRequest,
-} from '../internal/debug'
+import { debug as debugLogger, getCurrentRequest } from '../internal/debug'
 
 import { getModelFeatures } from './modelFeatures'
 import { getCompletionWithProfile } from './completion'

@@ -1,8 +1,4 @@
-import {
-  bindAiDebug,
-  bindAiRequestStatus,
-  bindAiRuntime,
-} from '@kode/ai'
+import { bindAiDebug, bindAiRequestStatus, bindAiRuntime } from '@kode/ai'
 import {
   debug,
   getCurrentRequest,

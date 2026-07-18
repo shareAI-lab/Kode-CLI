@@ -8,10 +8,7 @@ import type { Message } from '#core/query'
 import type { Tool } from '#core/tooling/Tool'
 import type { ask as askImpl } from '#cli-utils/ask'
 
-import {
-  finishHeadlessRun,
-  startHeadlessRun,
-} from './headlessRunTelemetry'
+import { finishHeadlessRun, startHeadlessRun } from './headlessRunTelemetry'
 
 export type RunPrintModeArgs = {
   prompt: string | undefined

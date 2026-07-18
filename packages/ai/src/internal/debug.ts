@@ -54,7 +54,9 @@ let apiErrorLogger: ((context: AiApiErrorContext) => void) | null = null
 let llmInteractionLogger: ((context: unknown) => void) | null = null
 let systemPromptLogger: ((context: unknown) => void) | null = null
 
-export function bindAiDebug(bindings: AiDebugBindings | null | undefined): void {
+export function bindAiDebug(
+  bindings: AiDebugBindings | null | undefined,
+): void {
   if (!bindings) {
     logger = { ...defaultLogger }
     requestProvider = null

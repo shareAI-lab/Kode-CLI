@@ -101,7 +101,10 @@ function responseForTransitionFailure(
     | 'invalid_request',
 ): Response {
   if (reason === 'invalid_request') {
-    return Response.json({ ok: false, error: 'Invalid request' }, { status: 400 })
+    return Response.json(
+      { ok: false, error: 'Invalid request' },
+      { status: 400 },
+    )
   }
   if (reason === 'revision_conflict') {
     return Response.json(
@@ -121,14 +124,18 @@ function responseForTransitionFailure(
       { status: 409 },
     )
   }
-  return Response.json({ ok: false, error: 'Schedule not found' }, { status: 404 })
+  return Response.json(
+    { ok: false, error: 'Schedule not found' },
+    { status: 404 },
+  )
 }
 
 async function readJsonObject(
   req: Request,
   maxBytes: number,
 ): Promise<
-  { ok: true; value: Record<string, unknown> } | { ok: false; response: Response }
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; response: Response }
 > {
   const raw = await req.text()
   if (raw.length > maxBytes) {
