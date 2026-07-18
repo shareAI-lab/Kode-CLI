@@ -26,7 +26,11 @@ async function waitForOutput(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (harness.getOutput().includes(expected)) return
+    if (harness.getOutput().includes(expected)) {
+      // Ink can render a route before that route's key handler effect commits.
+      await harness.wait(50)
+      return
+    }
     await harness.wait(20)
   }
   const output = harness.getOutput()
@@ -45,7 +49,6 @@ async function typeFilter(
     harness.stdin.write(character)
     prefix += character
     await waitForOutput(harness, `Filter: ${prefix}`)
-    await harness.wait(50)
   }
 }
 
@@ -1152,40 +1155,26 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       )
       harnessManager.track(promptHarness)
 
-      await promptHarness.wait(250)
+      await waitForOutput(promptHarness, 'srv')
       expect(promptHarness.getOutput()).toContain('srv')
 
       promptHarness.stdin.write('\r')
-      await promptHarness.wait(300)
-      if (!promptHarness.getOutput().includes('Prompts: 1 prompts')) {
-        await waitForOutput(promptHarness, 'Prompts: 1 prompts')
-      }
+      await waitForOutput(promptHarness, 'Prompts: 1 prompts')
       expect(promptHarness.getOutput()).toContain('Prompts: 1 prompts')
       expect(promptHarness.getOutput()).toContain('1. View prompts')
 
       promptHarness.stdin.write('\r')
-      await promptHarness.wait(120)
-      if (!promptHarness.getOutput().includes('Review Diff')) {
-        await waitForOutput(promptHarness, 'Review Diff')
-      }
+      await waitForOutput(promptHarness, 'Review Diff')
       expect(promptHarness.getOutput()).toContain('Prompts for srv')
       expect(promptHarness.getOutput()).toContain('Review Diff')
 
       promptRevision = 1
       listChangedListener?.({ kind: 'prompts', server: 'srv' })
-      await promptHarness.wait(120)
-      if (!promptHarness.getOutput().includes('Summarize Changes')) {
-        await waitForOutput(promptHarness, 'Summarize Changes')
-      }
+      await waitForOutput(promptHarness, 'Summarize Changes')
       expect(promptHarness.getOutput()).toContain('Summarize Changes')
 
       promptHarness.stdin.write('\r')
-      await promptHarness.wait(80)
-      if (
-        !promptHarness.getOutput().includes('Prompt command: mcp__srv__review')
-      ) {
-        await waitForOutput(promptHarness, 'Prompt command: mcp__srv__review')
-      }
+      await waitForOutput(promptHarness, 'Prompt command: mcp__srv__review')
       expect(promptHarness.getOutput()).toContain(
         'Prompt command: mcp__srv__review',
       )
