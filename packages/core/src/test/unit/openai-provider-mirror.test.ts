@@ -27,7 +27,7 @@ const OPENAI_LLM_FILES = [
   'usage.ts',
 ]
 
-const MIRRORED_LLM_HELPER_FILES = ['modelFamilies.ts', 'prefixCache.ts']
+const MIRRORED_LLM_HELPER_FILES = ['modelFamilies.ts']
 
 function readRepoFile(path: string): string {
   return readFileSync(join(ROOT_DIR, path), 'utf8')
@@ -51,31 +51,42 @@ function normalizeCoreProviderImports(source: string): string {
  * historical #core imports; normalize those when comparing file bodies.
  */
 function normalizeAiOwnedImports(source: string): string {
-  return source
-    .replaceAll("from '#core/utils/debugLogger'", "from '../internal/debug'")
-    .replaceAll(
-      "from '#core/ai/llm/modelFamilies'",
-      "from '../internal/modelFamilies'",
-    )
-    .replaceAll(
-      "from '#core/constants/models/providers'",
-      "from '../internal/providers'",
-    )
-    .replaceAll(
-      "from '#core/ai/llm/restrictedClientCompat'",
-      "from '../internal/restrictedClientCompat'",
-    )
-    .replaceAll("from '#core/utils/config'", "from '../internal/runtimeConfig'")
-    .replaceAll('getGlobalConfig().proxy', 'getAiProxy()')
-    .replaceAll(
-      "import { getGlobalConfig } from '../internal/runtimeConfig'",
-      "import { getAiProxy } from '../internal/runtimeConfig'",
-    )
-    .replaceAll(
-      "import('#core/ai/llm/restrictedClientCompat')",
-      "import('../internal/restrictedClientCompat')",
-    )
-    .replaceAll("from '../../internal/debug'", "from '../internal/debug'")
+  return (
+    source
+      .replaceAll("from '#core/utils/debugLogger'", "from '../internal/debug'")
+      .replaceAll(
+        "from '#core/ai/llm/modelFamilies'",
+        "from '../internal/modelFamilies'",
+      )
+      .replaceAll(
+        "from '#core/constants/models/providers'",
+        "from '../internal/providers'",
+      )
+      .replaceAll(
+        "from '#core/ai/llm/restrictedClientCompat'",
+        "from '../internal/restrictedClientCompat'",
+      )
+      .replaceAll(
+        "from '#core/utils/config'",
+        "from '../internal/runtimeConfig'",
+      )
+      .replaceAll('getGlobalConfig().proxy', 'getAiProxy()')
+      .replaceAll(
+        "import { getGlobalConfig } from '../internal/runtimeConfig'",
+        "import { getAiProxy } from '../internal/runtimeConfig'",
+      )
+      .replaceAll(
+        "import('#core/ai/llm/restrictedClientCompat')",
+        "import('../internal/restrictedClientCompat')",
+      )
+      .replaceAll("from '../../internal/debug'", "from '../internal/debug'")
+      // The core debug import has a longer source path, so Prettier wraps it
+      // before normalization while the @kode/ai equivalent stays on one line.
+      .replaceAll(
+        "import {\n  debug as debugLogger,\n  getCurrentRequest,\n} from '../internal/debug'",
+        "import { debug as debugLogger, getCurrentRequest } from '../internal/debug'",
+      )
+  )
 }
 
 function normalizeLlmOwnedImports(source: string): string {
@@ -97,7 +108,6 @@ function normalizeLlmOwnedImports(source: string): string {
       "from '../modelFamilies'",
       "from '../../internal/modelFamilies'",
     )
-    .replaceAll("from '../prefixCache'", "from '../../internal/prefixCache'")
 }
 
 describe('OpenAI provider mirror boundary', () => {

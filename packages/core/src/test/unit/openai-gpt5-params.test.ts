@@ -86,7 +86,7 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
     expect((high as { thinking?: unknown }).thinking).toBeUndefined()
   })
 
-  test('DeepSeek stabilizes system prefix and uses max_tokens', () => {
+  test('DeepSeek preserves system message boundaries and uses max_tokens', () => {
     const params = buildOpenAIChatCompletionCreateParams({
       model: 'deepseek-v4-flash',
       maxTokens: 111,
@@ -103,10 +103,11 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
     })
     expect(params.max_tokens).toBe(111)
     expect(params.max_completion_tokens).toBeUndefined()
-    expect(params.messages[0]).toEqual({
-      role: 'system',
-      content: 'part-a\n\npart-b',
-    })
+    expect(params.messages).toEqual([
+      { role: 'system', content: 'part-a' },
+      { role: 'system', content: 'part-b' },
+      { role: 'user', content: 'q' },
+    ])
     expect((params as { thinking?: unknown }).thinking).toEqual({
       type: 'disabled',
     })

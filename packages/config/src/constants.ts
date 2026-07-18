@@ -35,9 +35,14 @@ export type ModelCostTier = keyof typeof MODEL_COSTS
 /** Pick a cost tier for rough USD estimates from model name. */
 export function resolveModelCostTier(
   modelName: string | null | undefined,
+  provider?: string | null,
 ): ModelCostTier {
   const name = (modelName || '').toLowerCase()
-  if (name.includes('deepseek')) {
+  const isDeepSeek =
+    name.includes('deepseek') ||
+    name.startsWith('ds-') ||
+    provider?.trim().toLowerCase() === 'deepseek'
+  if (isDeepSeek) {
     if (name.includes('pro')) {
       return 'deepseekPro'
     }

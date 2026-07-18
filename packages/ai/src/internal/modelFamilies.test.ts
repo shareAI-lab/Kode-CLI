@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type OpenAI from 'openai'
 
-import {
-  detectModelFamily,
-  isDeepSeekReasonerModel,
-  supportsPrefixPromptCache,
-} from './modelFamilies'
-import { stabilizeMessagesForPrefixCache } from './prefixCache'
+import { detectModelFamily, isDeepSeekReasonerModel } from './modelFamilies'
 import {
   buildOpenAIChatCompletionCreateParams,
   shouldDisableProviderThinking,
@@ -20,37 +14,6 @@ describe('model families', () => {
     expect(detectModelFamily('mimo-v2.5-pro')).toBe('mimo')
     expect(detectModelFamily('gpt-5-mini')).toBe('gpt5')
     expect(isDeepSeekReasonerModel('deepseek-reasoner')).toBe(true)
-    expect(supportsPrefixPromptCache('deepseek-v4-pro')).toBe(true)
-    expect(supportsPrefixPromptCache('qwen3-coder')).toBe(false)
-  })
-})
-
-describe('prefix cache stabilization', () => {
-  test('merges consecutive system messages into one leading block', () => {
-    const out = stabilizeMessagesForPrefixCache([
-      { role: 'system', content: 'A' },
-      { role: 'system', content: 'B' },
-      { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'yo' },
-      { role: 'user', content: 'again' },
-    ])
-    expect(out[0]).toEqual({ role: 'system', content: 'A\n\nB' })
-    expect(out.map(m => m.role)).toEqual([
-      'system',
-      'user',
-      'assistant',
-      'user',
-    ])
-  })
-
-  test('preserves empty and structured messages outside mergeable system text', () => {
-    const messages: OpenAI.ChatCompletionMessageParam[] = [
-      { role: 'system', content: '' },
-      { role: 'user', content: '' },
-      { role: 'assistant', content: '' },
-    ]
-
-    expect(stabilizeMessagesForPrefixCache(messages)).toEqual(messages)
   })
 })
 
@@ -79,6 +42,17 @@ describe('provider thinking defaults', () => {
     ).toBe(false)
   })
 
+  test('recognizes DeepSeek provider aliases', () => {
+    expect(
+      shouldDisableProviderThinking({
+        model: 'team-alias',
+        provider: 'deepseek',
+        toolSchemasLength: 1,
+        reasoningEffort: 'high',
+      }),
+    ).toBe(true)
+  })
+
   test('params set thinking disabled and max_tokens for deepseek', () => {
     const params = buildOpenAIChatCompletionCreateParams({
       model: 'deepseek-v4-flash',
@@ -97,10 +71,11 @@ describe('provider thinking defaults', () => {
     expect(params.max_tokens).toBe(100)
     expect(params.max_completion_tokens).toBeUndefined()
     expect((params as any).thinking).toEqual({ type: 'disabled' })
-    expect(params.messages[0]).toEqual({
-      role: 'system',
-      content: 'sys1\n\nsys2',
-    })
+    expect(params.messages).toEqual([
+      { role: 'system', content: 'sys1' },
+      { role: 'system', content: 'sys2' },
+      { role: 'user', content: 'hi' },
+    ])
   })
 
   test('deepseek high effort enables thinking without tools', () => {
@@ -115,6 +90,21 @@ describe('provider thinking defaults', () => {
     })
     expect((params as any).thinking).toEqual({ type: 'enabled' })
     expect(params.reasoning_effort).toBe('high')
+    expect(params.temperature).toBeUndefined()
+  })
+
+  test('DeepSeek provider aliases enable thinking without tools', () => {
+    const params = buildOpenAIChatCompletionCreateParams({
+      model: 'team-alias',
+      provider: 'deepseek',
+      maxTokens: 200,
+      messages: [{ role: 'user', content: 'think' }],
+      temperature: 0.7,
+      stream: false,
+      toolSchemas: [],
+      reasoningEffort: 'high',
+    })
+    expect((params as any).thinking).toEqual({ type: 'enabled' })
     expect(params.temperature).toBeUndefined()
   })
 
@@ -165,6 +155,7 @@ describe('usage cache mapping', () => {
     expect(resolveModelCostTier('deepseek-v4-flash')).toBe('deepseekFlash')
     expect(resolveModelCostTier('deepseek-v4-pro')).toBe('deepseekPro')
     expect(resolveModelCostTier('deepseek-reasoner')).toBe('deepseekFlash')
+    expect(resolveModelCostTier('team-alias', 'deepseek')).toBe('deepseekFlash')
     expect(MODEL_COSTS.deepseekPro.promptCacheReadPerMillionTokens).toBe(
       0.003625,
     )

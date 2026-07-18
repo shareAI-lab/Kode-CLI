@@ -4,9 +4,7 @@ import {
   detectModelFamily,
   isDeepSeekModel,
   isDeepSeekReasonerModel,
-  supportsPrefixPromptCache,
 } from '../../internal/modelFamilies'
-import { stabilizeMessagesForPrefixCache } from '../../internal/prefixCache'
 
 export function isGPT5Model(modelName: string): boolean {
   return (
@@ -26,9 +24,12 @@ export function shouldDisableProviderThinking(args: {
   model: string
   toolSchemasLength: number
   reasoningEffort?: string | null
+  provider?: string | null
 }): boolean {
   const family = detectModelFamily(args.model)
-  if (family !== 'mimo' && family !== 'deepseek') return false
+  const isDeepSeek =
+    family === 'deepseek' || args.provider?.trim().toLowerCase() === 'deepseek'
+  if (family !== 'mimo' && !isDeepSeek) return false
   if (args.toolSchemasLength > 0) return true
   const effort = args.reasoningEffort
   return effort !== 'medium' && effort !== 'high'
@@ -55,19 +56,16 @@ export function buildOpenAIChatCompletionCreateParams(args: {
   toolSchemas: OpenAI.ChatCompletionTool[]
   stopSequences?: string[]
   reasoningEffort?: any
-  /** Optional provider for cache-prefix heuristics */
+  /** Optional provider for provider-specific request shaping. */
   provider?: string | null
 }): OpenAI.ChatCompletionCreateParams {
   const isGPT5 = isGPT5Model(args.model)
   const isMiMo = isMiMoModel(args.model)
-  const isDeepSeek = isDeepSeekModel(args.model)
+  const isDeepSeek =
+    isDeepSeekModel(args.model) ||
+    args.provider?.trim().toLowerCase() === 'deepseek'
   const isReasoner = isDeepSeekReasonerModel(args.model)
   const family = detectModelFamily(args.model)
-
-  // DeepSeek + similar: stabilize prefix so disk cache can hit on multi-turn.
-  const messages = supportsPrefixPromptCache(args.model, args.provider)
-    ? stabilizeMessagesForPrefixCache(args.messages)
-    : args.messages
 
   // GPT-5 / MiMo / o-series prefer max_completion_tokens; DeepSeek still uses
   // max_tokens (OpenAI-compatible default). Reasoner also uses max_tokens.
@@ -78,7 +76,7 @@ export function buildOpenAIChatCompletionCreateParams(args: {
     ...(usesMaxCompletionTokens
       ? { max_completion_tokens: args.maxTokens }
       : { max_tokens: args.maxTokens }),
-    messages,
+    messages: args.messages,
     temperature: args.temperature,
   }
 
@@ -101,6 +99,7 @@ export function buildOpenAIChatCompletionCreateParams(args: {
     model: args.model,
     toolSchemasLength: args.toolSchemas.length,
     reasoningEffort: args.reasoningEffort,
+    provider: args.provider,
   })
   const enableDeepSeekThinking =
     !disableThinking &&

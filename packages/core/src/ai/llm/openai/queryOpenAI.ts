@@ -385,7 +385,15 @@ export async function queryOpenAI(
   const cacheCreationInputTokens =
     normalizedUsage.cache_creation_input_tokens ?? 0
 
-  const costTier = MODEL_COSTS[resolveModelCostTier(model)]
+  const costTier =
+    MODEL_COSTS[
+      resolveModelCostTier(
+        model,
+        typeof modelProfile?.provider === 'string'
+          ? modelProfile.provider
+          : null,
+      )
+    ]
   const costUSD = estimateCostUSD({
     inputTokens,
     outputTokens,

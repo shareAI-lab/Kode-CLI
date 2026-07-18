@@ -50,19 +50,3 @@ export function isDeepSeekReasonerModel(
 export function isDeepSeekModel(modelName: string | null | undefined): boolean {
   return detectModelFamily(modelName) === 'deepseek'
 }
-
-/**
- * Whether this model exposes OpenAI-style prefix/disk prompt caching that
- * benefits from stable message prefixes (system first, append-only history).
- */
-export function supportsPrefixPromptCache(
-  modelName: string | null | undefined,
-  provider?: string | null,
-): boolean {
-  const family = detectModelFamily(modelName)
-  if (family === 'deepseek') return true
-  // OpenAI-compatible gateways often pass DeepSeek cache fields through.
-  const p = (provider || '').toLowerCase()
-  if (p === 'deepseek') return true
-  return false
-}
