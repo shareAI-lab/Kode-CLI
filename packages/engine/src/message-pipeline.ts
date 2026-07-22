@@ -31,6 +31,10 @@ import {
 import { getCwd } from '#core/utils/state'
 import { getEffectiveSessionId } from '#core/utils/sessionId'
 import {
+  flushBackgroundAgentNotifications,
+  renderBackgroundAgentNotification,
+} from '#core/tasks'
+import {
   extractLongTermMemories,
   formatMemoryContext,
   getRelevantMemories,
@@ -302,6 +306,23 @@ async function* messagePipelineCore(
     // We inject these as synthetic assistant messages so the model can decide when to call TaskOutput.
     if (toolUseContext.agentId === 'main') {
       const shell = BunShell.getInstance()
+
+      const agentNotifications = flushBackgroundAgentNotifications({
+        sessionId: getEffectiveSessionId(),
+      })
+      for (const notification of agentNotifications) {
+        addNotification({
+          title: 'Background agent',
+          message: `${notification.description} — ${notification.status}. Output: ${notification.outputFile}`,
+          source: 'system',
+          kind: notification.status === 'failed' ? 'error' : 'info',
+        })
+
+        const text = renderBackgroundAgentNotification(notification)
+        const msg = createAssistantMessage(text)
+        messages = [...messages, msg]
+        yield msg
+      }
 
       const notifications = shell.flushBashNotifications()
       for (const notification of notifications) {

@@ -1,4 +1,5 @@
 export * from './types'
 export * from './storage'
 export * from './backgroundRegistry'
+export * from './agentNotifications'
 export * from './outputPaths'

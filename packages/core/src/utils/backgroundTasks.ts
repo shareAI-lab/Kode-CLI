@@ -23,6 +23,7 @@ export type BackgroundAgentTask = {
   resultText?: string
   messages: ConversationMessage[]
   retrieved?: boolean
+  notified?: boolean
 }
 
 export type BackgroundAgentTaskRuntime = BackgroundAgentTask & {
@@ -66,6 +67,12 @@ export function markBackgroundAgentTaskRetrieved(agentId: string): void {
   const task = backgroundTasks.get(agentId)
   if (!task) return
   task.retrieved = true
+}
+
+export function markBackgroundAgentTaskNotified(agentId: string): void {
+  const task = backgroundTasks.get(agentId)
+  if (!task) return
+  task.notified = true
 }
 
 export function killBackgroundAgentTask(agentId: string): boolean {

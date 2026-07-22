@@ -56,6 +56,11 @@ Background shell and agent records are reconciled at startup. A shell is only
 considered tailable with an exact process identity; LLM agent/goal runs are
 marked interrupted and requeueable rather than falsely reattached.
 
+When a background agent reaches a terminal state, its owning session receives
+one task notification at the next main-agent turn. The notification points to
+the task output file instead of injecting the full result into context; other
+sessions cannot consume it.
+
 The task supervisor is a durable DAG planner over Kode Tasks. It validates
 missing dependencies/cycles, exposes ready and critical tasks, and persists
 serial or bounded-parallel plans. It never launches an LLM or modifies task
