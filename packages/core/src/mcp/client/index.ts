@@ -76,3 +76,9 @@ export {
   type McpLogMessageEvent,
   type McpLoggingLevel,
 } from './logging'
+export {
+  __resetMcpSamplingForTests,
+  __setMcpSamplingEnabledForTests,
+  isMcpSamplingEnabled,
+  setMcpSamplingEnabled,
+} from './sampling'

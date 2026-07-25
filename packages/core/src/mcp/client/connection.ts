@@ -33,6 +33,10 @@ import {
   registerMcpClientRequestHandlers,
   unregisterMcpClientRequestHandlers,
 } from './roots'
+import {
+  registerMcpSamplingHandler,
+  unregisterMcpSamplingHandler,
+} from './sampling'
 import type { WrappedClient } from './types'
 
 type GlobalWithWebSocket = { WebSocket?: unknown }
@@ -101,6 +105,7 @@ export function createMcpClient(
     createMcpClientSdkOptions(name),
   )
   registerMcpClientRequestHandlers(client)
+  registerMcpSamplingHandler(client)
   client.setNotificationHandler(
     LoggingMessageNotificationSchema,
     notification => {
@@ -121,6 +126,7 @@ export function createMcpClient(
 
 export async function closeMcpClient(client: Client): Promise<void> {
   unregisterMcpClientRequestHandlers(client)
+  unregisterMcpSamplingHandler(client)
   try {
     await client.close()
   } catch {}

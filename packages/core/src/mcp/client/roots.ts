@@ -11,6 +11,7 @@ import {
 import { checkHasTrustDialogAccepted } from '#core/utils/config'
 import { logMCPError } from '#core/utils/log'
 import { getCwd, subscribeCwdChanged } from '#core/utils/state'
+import { isMcpSamplingEnabled } from './sampling'
 
 let exposeRootsOverrideForTests: boolean | null = null
 const rootsClients = new Set<Client>()
@@ -43,10 +44,17 @@ export function shouldExposeMcpRoots(): boolean {
 }
 
 export function getMcpClientCapabilities(): ClientCapabilities {
-  if (!shouldExposeMcpRoots()) return {}
-  return {
-    roots: { listChanged: true },
+  const capabilities: ClientCapabilities = {}
+
+  if (shouldExposeMcpRoots()) {
+    capabilities.roots = { listChanged: true }
   }
+
+  if (isMcpSamplingEnabled()) {
+    capabilities.sampling = {}
+  }
+
+  return capabilities
 }
 
 function ensureCwdChangedSubscription(): void {

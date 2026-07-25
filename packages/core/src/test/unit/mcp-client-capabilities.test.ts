@@ -9,14 +9,38 @@ import {
   __resetMcpRootsForTests,
   __setMcpRootsTrustOverrideForTests,
 } from '#core/mcp/client/roots'
+import {
+  __resetMcpSamplingForTests,
+  __setMcpSamplingEnabledForTests,
+} from '#core/mcp/client/sampling'
 
 describe('MCP client capability summary', () => {
   afterEach(() => {
     __resetMcpRootsForTests()
+    __resetMcpSamplingForTests()
   })
 
-  test('summarizes trusted root capability exposure', () => {
+  test('summarizes trusted root capability exposure with sampling enabled', () => {
     __setMcpRootsTrustOverrideForTests(true)
+    __setMcpSamplingEnabledForTests(true)
+
+    expect(getMcpClientCapabilitySummary()).toEqual({
+      roots: { enabled: true, listChanged: true },
+      sampling: { enabled: true, context: false, tools: false },
+      elicitation: { enabled: false, form: false, url: false },
+      tasks: {
+        enabled: false,
+        list: false,
+        cancel: false,
+        samplingCreateMessage: false,
+        elicitationCreate: false,
+      },
+    })
+  })
+
+  test('summarizes capabilities when sampling is disabled', () => {
+    __setMcpRootsTrustOverrideForTests(true)
+    __setMcpSamplingEnabledForTests(false)
 
     expect(getMcpClientCapabilitySummary()).toEqual({
       roots: { enabled: true, listChanged: true },
