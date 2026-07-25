@@ -25,6 +25,7 @@ import logout from './builtin/logout'
 import lsp from './builtin/lsp'
 import loop from './builtin/loop'
 import memory from './builtin/memory'
+import migrate from './builtin/migrate'
 import mcp from './mcp/mcp'
 import plugin from './plugin/plugin'
 import outputStyle from './builtin/output-style'
@@ -101,6 +102,7 @@ const COMMANDS = memoize((): Command[] => [
   lsp,
   loop,
   memory,
+  migrate,
   outputStyle,
   permissions,
   theme,

@@ -3,16 +3,11 @@ import { dirname, join, resolve } from 'path'
 import { memoize } from 'lodash-es'
 import { createRequire } from 'module'
 
-import { getClaudeCompatRoots } from '#config'
 import { getCwd } from '#core/utils/state'
 import { getSessionPlugins } from '#core/utils/sessionPlugins'
 import { getKodeBaseDir } from '#core/utils/env'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
-import {
-  LEGACY_CONFIG_SUBDIRS,
-  legacyConfigPathInProject,
-} from '#core/compat/legacyPaths'
 
 import type { CustomCommandWithScope } from './types'
 import {
@@ -89,7 +84,6 @@ export const loadCustomCommands = memoize(
   async (): Promise<CustomCommandWithScope[]> => {
     const cwd = getCwd()
     const userKodeBaseDir = getUserKodeBaseDir()
-    const legacyRoots = getClaudeCompatRoots()
     const sessionPlugins = getSessionPlugins()
 
     const projectKodeCommandsDirs = discoverNestedProjectDirs(
@@ -98,25 +92,11 @@ export const loadCustomCommands = memoize(
     )
     const userKodeCommandsDir = join(userKodeBaseDir, 'commands')
 
-    const projectLegacyCommandsDirs = discoverNestedProjectDirs(
-      cwd,
-      LEGACY_CONFIG_SUBDIRS.commands,
-    )
-    const userLegacyCommandsDirs = legacyRoots.map(root =>
-      join(root, 'commands'),
-    )
-
     const projectKodeSkillsDirs = discoverNestedProjectDirs(
       cwd,
       join('.kode', 'skills'),
     )
     const userKodeSkillsDir = join(userKodeBaseDir, 'skills')
-
-    const projectLegacySkillsDirs = discoverNestedProjectDirs(
-      cwd,
-      LEGACY_CONFIG_SUBDIRS.skills,
-    )
-    const userLegacySkillsDirs = legacyRoots.map(root => join(root, 'skills'))
     const bundledSkillsDir = tryResolveBundledSkillsDir()
 
     const abortController = new AbortController()
@@ -145,22 +125,6 @@ export const loadCustomCommands = memoize(
           'user',
           abortController.signal,
         ),
-        ...projectLegacyCommandsDirs.flatMap(dir =>
-          loadCommandMarkdownFilesFromBaseDir(
-            dir,
-            'localSettings',
-            'project',
-            abortController.signal,
-          ),
-        ),
-        ...userLegacyCommandsDirs.flatMap(dir =>
-          loadCommandMarkdownFilesFromBaseDir(
-            dir,
-            'userSettings',
-            'user',
-            abortController.signal,
-          ),
-        ),
       ])
 
       const fileCommands = commandFiles
@@ -179,16 +143,6 @@ export const loadCustomCommands = memoize(
           userKodeSkillsDir,
           'userSettings',
           'user',
-        ),
-        ...projectLegacySkillsDirs.flatMap(dir =>
-          loadSkillDirectoryCommandsFromBaseDir(
-            dir,
-            'localSettings',
-            'project',
-          ),
-        ),
-        ...userLegacySkillsDirs.flatMap(dir =>
-          loadSkillDirectoryCommandsFromBaseDir(dir, 'userSettings', 'user'),
         ),
         ...(bundledSkillsDir
           ? loadSkillDirectoryCommandsFromBaseDir(
@@ -251,15 +205,10 @@ export const loadCustomCommands = memoize(
   () => {
     const cwd = getCwd()
     const userKodeBaseDir = getUserKodeBaseDir()
-    const legacyRoots = getClaudeCompatRoots()
     const ancestorDirs = listAncestorDirs(cwd)
     const dirs = [
-      ...legacyRoots.map(root => join(root, 'commands')),
-      ...ancestorDirs.map(d => legacyConfigPathInProject(d, 'commands')),
       join(userKodeBaseDir, 'commands'),
       ...ancestorDirs.map(d => join(d, '.kode', 'commands')),
-      ...legacyRoots.map(root => join(root, 'skills')),
-      ...ancestorDirs.map(d => legacyConfigPathInProject(d, 'skills')),
       join(userKodeBaseDir, 'skills'),
       ...ancestorDirs.map(d => join(d, '.kode', 'skills')),
     ]
@@ -273,22 +222,13 @@ export const reloadCustomCommands = (): void => {
 }
 
 export function getCustomCommandDirectories(): {
-  userLegacyCommands: string
-  projectLegacyCommands: string
-  userLegacySkills: string
-  projectLegacySkills: string
   userKodeCommands: string
   projectKodeCommands: string
   userKodeSkills: string
   projectKodeSkills: string
 } {
   const userKodeBaseDir = getUserKodeBaseDir()
-  const legacyRoot = getClaudeCompatRoots()[0] ?? ''
   return {
-    userLegacyCommands: legacyRoot ? join(legacyRoot, 'commands') : '',
-    projectLegacyCommands: legacyConfigPathInProject(getCwd(), 'commands'),
-    userLegacySkills: legacyRoot ? join(legacyRoot, 'skills') : '',
-    projectLegacySkills: legacyConfigPathInProject(getCwd(), 'skills'),
     userKodeCommands: join(userKodeBaseDir, 'commands'),
     projectKodeCommands: join(getCwd(), '.kode', 'commands'),
     userKodeSkills: join(userKodeBaseDir, 'skills'),
@@ -298,12 +238,7 @@ export function getCustomCommandDirectories(): {
 
 export function hasCustomCommands(): boolean {
   const dirs = getCustomCommandDirectories()
-  const legacyRoots = getClaudeCompatRoots()
   return (
-    legacyRoots.some(root => existsSync(join(root, 'commands'))) ||
-    existsSync(dirs.projectLegacyCommands) ||
-    legacyRoots.some(root => existsSync(join(root, 'skills'))) ||
-    existsSync(dirs.projectLegacySkills) ||
     existsSync(dirs.userKodeCommands) ||
     existsSync(dirs.projectKodeCommands) ||
     existsSync(dirs.userKodeSkills) ||

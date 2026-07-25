@@ -174,12 +174,6 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push(`- ${dirs.projectKodeCommands}`)
   lines.push(`- ${dirs.userKodeSkills}`)
   lines.push(`- ${dirs.projectKodeSkills}`)
-  lines.push('')
-  lines.push('Legacy directories (also loaded)')
-  lines.push(`- ${dirs.userLegacyCommands}`)
-  lines.push(`- ${dirs.projectLegacyCommands}`)
-  lines.push(`- ${dirs.userLegacySkills}`)
-  lines.push(`- ${dirs.projectLegacySkills}`)
   lines.push(`- Reload: /refresh-commands`)
 
   if (!hasCustomCommands()) {
@@ -319,6 +313,8 @@ export function HelpScreen({
         save()
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

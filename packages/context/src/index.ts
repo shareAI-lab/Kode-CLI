@@ -23,20 +23,16 @@ export async function getInstructionFilesNote(): Promise<string | null> {
   try {
     const cwd = getCwd()
     const instructionFiles = getProjectInstructionFiles(cwd)
-    const legacyPath = join(cwd, 'CLAUDE.md')
-    const hasLegacy = existsSync(legacyPath)
 
-    if (instructionFiles.length === 0 && !hasLegacy) {
+    if (instructionFiles.length === 0) {
       return null
     }
 
     const fileTypes = new Set<string>()
     for (const f of instructionFiles) fileTypes.add(f.filename)
-    if (hasLegacy) fileTypes.add('CLAUDE.md (legacy)')
 
     const allFiles = [
       ...instructionFiles.map(f => f.absolutePath),
-      ...(hasLegacy ? [legacyPath] : []),
     ]
 
     return `NOTE: Additional project instruction files (${Array.from(fileTypes).join(', ')}) were found. When working in these directories, make sure to read and follow the instructions in the corresponding files:\n${allFiles
@@ -84,14 +80,13 @@ export const getReadme = memoize(async (): Promise<string | null> => {
 })
 
 /**
- * Get project documentation content (AGENTS.md and legacy CLAUDE.md)
+ * Get project documentation content (AGENTS.md)
  */
 export async function getProjectDocsForCwd(
   cwd: string,
 ): Promise<string | null> {
   try {
     const instructionFiles = getProjectInstructionFiles(cwd)
-    const legacyPath = join(cwd, 'CLAUDE.md')
 
     const docs = []
 
@@ -101,16 +96,6 @@ export async function getProjectDocsForCwd(
         { includeHeadings: true },
       )
       if (content.trim().length > 0) docs.push(content)
-    }
-
-    // Try to read legacy CLAUDE.md (compatibility).
-    if (existsSync(legacyPath)) {
-      try {
-        const content = await readFile(legacyPath, 'utf-8')
-        docs.push(`# Legacy instructions (CLAUDE.md)\n\n${content}`)
-      } catch (e) {
-        logError(e)
-      }
     }
 
     return docs.length > 0 ? docs.join('\n\n---\n\n') : null

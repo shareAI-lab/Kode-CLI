@@ -5,8 +5,6 @@ import { debug as debugLogger } from '#core/utils/debugLogger'
 import { getKodeBaseDir } from '#core/utils/env'
 import { getCwd } from '#core/utils/state'
 import { logError } from '#core/utils/log'
-import { getClaudeCompatRoots } from '#config'
-import { legacyConfigPathInProject } from '#core/compat/legacyPaths'
 
 import { reloadCustomCommandsForSession } from './reload'
 
@@ -64,19 +62,14 @@ function listChildDirs(parentDir: string): string[] {
 function getCandidateBaseDirs(): { skills: string[]; commands: string[] } {
   const cwd = getCwd()
   const userKodeBaseDir = getKodeBaseDir()
-  const claudeCompatRoots = getClaudeCompatRoots()
   const ancestors = listAncestorDirs(cwd)
 
   const commands = [
-    ...claudeCompatRoots.map(root => join(root, 'commands')),
-    ...ancestors.map(d => legacyConfigPathInProject(d, 'commands')),
     join(userKodeBaseDir, 'commands'),
     ...ancestors.map(d => join(d, '.kode', 'commands')),
   ]
 
   const skills = [
-    ...claudeCompatRoots.map(root => join(root, 'skills')),
-    ...ancestors.map(d => legacyConfigPathInProject(d, 'skills')),
     join(userKodeBaseDir, 'skills'),
     ...ancestors.map(d => join(d, '.kode', 'skills')),
   ]
