@@ -170,6 +170,16 @@ export function ApiKeyScreen({
         </Text>
       )
     }
+    if (selectedProvider === 'orcarouter') {
+      return (
+        <Text color={theme.secondaryText}>
+          Tip: Get your API key from:{' '}
+          <Text color={theme.suggestion}>
+            https://www.orcarouter.ai/console
+          </Text>
+        </Text>
+      )
+    }
     if (selectedProvider === 'anthropic') {
       return (
         <Text color={theme.secondaryText}>

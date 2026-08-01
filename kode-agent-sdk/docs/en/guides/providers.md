@@ -188,6 +188,18 @@ const provider = new OpenAIProvider(
 );
 ```
 
+### Using OrcaRouter
+
+```typescript
+const provider = new OpenAIProvider(
+  process.env.ORCAROUTER_API_KEY!,
+  'openai/gpt-5.5',  // OrcaRouter model format: <upstream>/<model>
+  'https://api.orcarouter.ai/v1'
+);
+```
+
+Model ids keep their upstream namespace, so pass them exactly as OrcaRouter lists them. `orcarouter/auto` selects a named router that picks the upstream per request instead of a fixed model.
+
 ### Enable Reasoning (o4 models)
 
 ```typescript
@@ -218,6 +230,7 @@ The following are common model examples. Any model compatible with the OpenAI AP
 | GLM | `glm-4-plus`, `glm-4-flash` |
 | Qwen | `qwen-plus`, `qwen-turbo` |
 | OpenRouter | `anthropic/claude-sonnet-4.5`, `openai/gpt-5` |
+| OrcaRouter | `openai/gpt-5.5`, `anthropic/claude-sonnet-4.6`, `orcarouter/auto` |
 
 ---
 

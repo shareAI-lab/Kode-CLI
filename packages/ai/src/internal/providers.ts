@@ -43,4 +43,8 @@ export const providers = {
     name: 'OpenRouter',
     baseURL: 'https://openrouter.ai/api/v1',
   },
+  orcarouter: {
+    name: 'OrcaRouter',
+    baseURL: 'https://api.orcarouter.ai/v1',
+  },
 } as const

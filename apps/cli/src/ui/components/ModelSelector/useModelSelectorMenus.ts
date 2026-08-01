@@ -38,6 +38,7 @@ export function useModelSelectorMenus(args: {
       'qwen',
       'deepseek',
       'openrouter',
+      'orcarouter',
       'burncloud',
       'siliconflow',
       'baidu-qianfan',

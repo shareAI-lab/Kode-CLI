@@ -79,6 +79,37 @@ describe('modelConfigYaml', () => {
     expect(yamlText).not.toContain('SECRET_KEY_SHOULD_NOT_APPEAR')
   })
 
+  test('export uses ORCAROUTER_API_KEY for OrcaRouter profiles', () => {
+    const config: any = {
+      modelProfiles: [
+        {
+          name: 'OrcaRouter Main',
+          provider: 'orcarouter',
+          modelName: 'anthropic/claude-sonnet-4.6',
+          baseURL: 'https://api.orcarouter.ai/v1',
+          apiKey: 'SECRET_KEY_SHOULD_NOT_APPEAR',
+          maxTokens: 8192,
+          contextLength: 200000,
+          isActive: true,
+          createdAt: 1,
+        },
+      ],
+      modelPointers: {
+        main: 'anthropic/claude-sonnet-4.6',
+        task: 'anthropic/claude-sonnet-4.6',
+        compact: 'anthropic/claude-sonnet-4.6',
+        quick: 'anthropic/claude-sonnet-4.6',
+      },
+    }
+
+    const yamlText = formatModelConfigYamlForSharing(config)
+
+    expect(yamlText).toContain('provider: orcarouter')
+    expect(yamlText).toContain('baseURL: https://api.orcarouter.ai/v1')
+    expect(yamlText).toContain('fromEnv: ORCAROUTER_API_KEY')
+    expect(yamlText).not.toContain('SECRET_KEY_SHOULD_NOT_APPEAR')
+  })
+
   test('import resolves apiKey from env and applies pointers', () => {
     process.env.TEST_OPENAI_KEY = 'resolved-from-env'
 

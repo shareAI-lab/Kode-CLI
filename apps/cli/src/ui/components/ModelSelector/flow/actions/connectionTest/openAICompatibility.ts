@@ -16,6 +16,7 @@ const OPENAI_COMPATIBLE_PROVIDERS: ReadonlySet<ProviderType> = new Set([
   'xai',
   'groq',
   'openrouter',
+  'orcarouter',
   'gemini',
   'ollama',
   'custom-openai',
