@@ -188,6 +188,18 @@ const provider = new OpenAIProvider(
 );
 ```
 
+### 使用 OrcaRouter
+
+```typescript
+const provider = new OpenAIProvider(
+  process.env.ORCAROUTER_API_KEY!,
+  'openai/gpt-5.5',  // OrcaRouter 模型格式：<上游>/<模型>
+  'https://api.orcarouter.ai/v1'
+);
+```
+
+模型 ID 需保留上游命名空间，按 OrcaRouter 列出的写法原样传入。`orcarouter/auto` 是命名路由，不是固定模型，每次请求由服务端选择上游。
+
 ### 启用推理 (o4 模型)
 
 ```typescript
@@ -218,6 +230,7 @@ const provider = new OpenAIProvider(
 | GLM | `glm-4-plus`, `glm-4-flash` |
 | Qwen | `qwen-plus`, `qwen-turbo` |
 | OpenRouter | `anthropic/claude-sonnet-4.5`, `openai/gpt-5` |
+| OrcaRouter | `openai/gpt-5.5`, `anthropic/claude-sonnet-4.6`, `orcarouter/auto` |
 
 ---
 

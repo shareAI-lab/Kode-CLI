@@ -114,6 +114,12 @@ export function ModelInputScreen({
     examples =
       'For example: "ERNIE-4.0-8K", "ERNIE-3.5-8K", "ERNIE-Speed-128K", etc.'
     placeholder = 'ERNIE-4.0-8K'
+  } else if (selectedProvider === 'orcarouter') {
+    screenTitle = 'OrcaRouter Model Setup'
+    description = `Enter the OrcaRouter model name for ${modelTypeText}:`
+    examples =
+      'Use the namespaced id, for example: "openai/gpt-5.5", "anthropic/claude-sonnet-4.6", "orcarouter/auto", etc.'
+    placeholder = 'openai/gpt-5.5'
   } else if (selectedProvider === 'custom-openai') {
     screenTitle = 'Custom API Model Setup'
     description = `Enter the model name for ${modelTypeText}:`
@@ -155,7 +161,9 @@ export function ModelInputScreen({
                                 ? 'This should be a valid MiniMax model identifier.'
                                 : selectedProvider === 'baidu-qianfan'
                                   ? 'This should be a valid Baidu Qianfan model identifier.'
-                                  : 'This should match the model name supported by your API endpoint.'}
+                                  : selectedProvider === 'orcarouter'
+                                    ? 'OrcaRouter routes by namespaced id, so keep the upstream prefix (for example "openai/").'
+                                    : 'This should match the model name supported by your API endpoint.'}
               <Newline />
               {compactLayout ? examples.split(',')[0] : examples}
             </Text>

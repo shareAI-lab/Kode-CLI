@@ -39,6 +39,10 @@ export const providers = {
     name: 'OpenRouter',
     baseURL: 'https://openrouter.ai/api/v1',
   },
+  orcarouter: {
+    name: 'OrcaRouter',
+    baseURL: 'https://api.orcarouter.ai/v1',
+  },
   minimax: {
     name: 'MiniMax',
     baseURL: 'https://api.minimaxi.com/v1',
