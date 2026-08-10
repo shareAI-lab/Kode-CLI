@@ -9,6 +9,7 @@ export type AiModelProfileLike = {
   provider?: string
   baseURL?: string
   apiKey?: string
+  apiKeyEnv?: string
   reasoningEffort?: string
   [key: string]: unknown
 }
@@ -83,7 +84,12 @@ export function getAiStream(): boolean {
 
 export function getAiMainModelProfile(): AiModelProfileLike | null {
   try {
-    return getMainModelProfileImpl() ?? null
+    const profile = getMainModelProfileImpl() ?? null
+    if (!profile?.apiKeyEnv) return profile
+    return {
+      ...profile,
+      apiKey: process.env[profile.apiKeyEnv]?.trim() || '',
+    }
   } catch {
     return null
   }

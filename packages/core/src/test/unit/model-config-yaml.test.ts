@@ -2,6 +2,8 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import {
   applyModelConfigYamlImport,
   formatModelConfigYamlForSharing,
+  resolveModelApiKey,
+  validateApiKeyEnvironmentReference,
 } from '#config'
 
 describe('modelConfigYaml', () => {
@@ -79,7 +81,7 @@ describe('modelConfigYaml', () => {
     expect(yamlText).not.toContain('SECRET_KEY_SHOULD_NOT_APPEAR')
   })
 
-  test('import resolves apiKey from env and applies pointers', () => {
+  test('import preserves an environment reference without resolving it', () => {
     process.env.TEST_OPENAI_KEY = 'resolved-from-env'
 
     const existingConfig: any = {
@@ -109,7 +111,8 @@ pointers:
     )
 
     expect(warnings).toEqual([])
-    expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('resolved-from-env')
+    expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('')
+    expect(nextConfig.modelProfiles?.[0]?.apiKeyEnv).toBe('TEST_OPENAI_KEY')
     expect(nextConfig.modelPointers?.main).toBe('gpt-4o')
     expect(nextConfig.modelPointers?.quick).toBe('gpt-4o')
   })
@@ -152,5 +155,53 @@ profiles:
     )
 
     expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('existing-key')
+    expect(nextConfig.modelProfiles?.[0]?.apiKeyEnv).toBe('MISSING_ENV')
+  })
+
+  test('import keeps explicit legacy credentials for backward compatibility', () => {
+    const existingConfig: any = {
+      modelProfiles: [],
+      modelPointers: { main: '', task: '', compact: '', quick: '' },
+    }
+
+    const { nextConfig } = applyModelConfigYamlImport(
+      existingConfig,
+      `
+version: 1
+profiles:
+  - name: Legacy OpenAI
+    provider: openai
+    modelName: gpt-4o
+    maxTokens: 1024
+    contextLength: 128000
+    apiKey:
+      value: legacy-local-key
+`,
+      { replace: true },
+    )
+
+    expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('legacy-local-key')
+    expect(nextConfig.modelProfiles?.[0]?.apiKeyEnv).toBeUndefined()
+  })
+
+  test('resolves a credential reference only for a request', () => {
+    process.env.TEST_OPENAI_KEY = 'resolved-from-env'
+
+    expect(
+      resolveModelApiKey({ apiKey: '', apiKeyEnv: 'TEST_OPENAI_KEY' } as any),
+    ).toBe('resolved-from-env')
+    expect(resolveModelApiKey({ apiKey: 'legacy-local-key' } as any)).toBe(
+      'legacy-local-key',
+    )
+  })
+
+  test('accepts only safe environment variable names', () => {
+    expect(validateApiKeyEnvironmentReference('OPENAI_API_KEY')).toBeNull()
+    expect(validateApiKeyEnvironmentReference('1OPENAI_API_KEY')).toContain(
+      'cannot start with a digit',
+    )
+    expect(validateApiKeyEnvironmentReference('OPENAI API KEY')).toContain(
+      'letters, digits, and underscores',
+    )
   })
 })

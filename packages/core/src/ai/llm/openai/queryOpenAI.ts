@@ -10,6 +10,7 @@ import {
   getGlobalConfig,
   MODEL_COSTS,
   resolveModelCostTier,
+  withResolvedModelApiKey,
 } from '#core/utils/config'
 import { getModelManager } from '#core/utils/model'
 import {
@@ -112,8 +113,11 @@ export async function queryOpenAI(
   const config = getGlobalConfig()
   const toolUseContext = options?.toolUseContext
 
-  const modelProfile =
+  const configuredProfile =
     options?.modelProfile ?? getModelManager().getModel('main')
+  const modelProfile = configuredProfile
+    ? withResolvedModelApiKey(configuredProfile)
+    : null
   let model: string
 
   // 🔍 Debug: 记录模型配置详情

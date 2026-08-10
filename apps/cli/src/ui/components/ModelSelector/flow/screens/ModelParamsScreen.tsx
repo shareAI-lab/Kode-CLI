@@ -90,19 +90,19 @@ export function ModelParamsScreen({
 
   return (
     <ScreenFrame
-      title="Model Parameters"
+      title="Advanced settings / 高级设置"
       exitState={exitState}
       paddingX={tightLayout || compactLayout ? 1 : 2}
       paddingY={containerPaddingY}
       gap={containerGap}
     >
       <Box flexDirection="column" gap={containerGap}>
-        <Text bold>Configure parameters for {selectedModel}:</Text>
+        <Text bold>Advanced settings for {selectedModel}:</Text>
         {!tightLayout && (
           <Text color={theme.secondaryText}>
             {compactLayout
-              ? 'Tab: next field · Enter: continue'
-              : 'Use Tab to navigate between fields. Press Enter to continue.'}
+              ? 'Output, reasoning, and compatibility settings.'
+              : 'These optional limits are applied only after the provider accepts them. Kode does not expose unsupported temperature or timeout controls here.'}
           </Text>
         )}
 
@@ -209,7 +209,9 @@ export function ModelParamsScreen({
           ))}
 
           <Box marginTop={tightLayout ? 0 : 1}>
-            <Text dimColor>Tab: next · Enter: continue · Esc: back</Text>
+            <Text color={theme.secondaryText}>
+              Tab next · Enter review · Esc back
+            </Text>
           </Box>
         </Box>
       </Box>

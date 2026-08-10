@@ -25,7 +25,8 @@ export function useModelSelectorInput(args: {
   setCodingPlanFocusIndex: (value: number | ((prev: number) => number)) => void
 
   selectedProvider: ProviderType
-  apiKey: string
+  /** Legacy plumbing for callers; this hook never reads credential values. */
+  apiKey?: string
   resourceName: string
   providerBaseUrl: string
   customBaseUrl: string
@@ -216,37 +217,29 @@ export function useModelSelectorInput(args: {
     }
 
     if (args.currentScreen === 'apiKey' && key.tab) {
-      if (
-        args.selectedProvider === 'anthropic' ||
-        args.selectedProvider === 'kimi' ||
-        args.selectedProvider === 'deepseek' ||
-        args.selectedProvider === 'qwen' ||
-        args.selectedProvider === 'glm' ||
-        args.selectedProvider === 'glm-coding' ||
-        args.selectedProvider === 'minimax' ||
-        args.selectedProvider === 'minimax-coding' ||
-        args.selectedProvider === 'baidu-qianfan' ||
-        args.selectedProvider === 'siliconflow' ||
-        args.selectedProvider === 'custom-openai'
-      ) {
-        args.navigateTo('modelInput')
-        return true
-      }
-
       void args.fetchModelsWithRetry().catch(error => {
         logError(error)
       })
       return true
     }
 
-    if (args.currentScreen === 'confirmation' && key.return) {
-      void args.handleConfirmation().catch(error => {
-        logError(error)
-        args.setValidationError(
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        )
-      })
-      return true
+    if (args.currentScreen === 'confirmation') {
+      if (inputChar.toLowerCase() === 'a') {
+        args.setActiveFieldIndex(0)
+        args.navigateTo('modelParams')
+        return true
+      }
+      if (key.return) {
+        void args.handleConfirmation().catch(error => {
+          logError(error)
+          args.setValidationError(
+            error instanceof Error
+              ? error.message
+              : 'Unexpected error occurred',
+          )
+        })
+        return true
+      }
     }
 
     if (args.currentScreen === 'connectionTest') {
@@ -310,7 +303,7 @@ export function useModelSelectorInput(args: {
       ((key.ctrl && input === 'v') || (key.meta && input === 'v'))
     ) {
       args.setModelLoadError(
-        "Please use your terminal's paste functionality or type the API key manually",
+        "Paste the environment variable name with your terminal's normal paste action.",
       )
       return true
     }

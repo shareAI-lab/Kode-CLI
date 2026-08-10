@@ -4,11 +4,13 @@ export type ThemeNames =
   // Light themes
   | 'light'
   | 'light-daltonized'
+  | 'high-contrast-light'
   | 'solarized-light'
   | 'github-light'
   // Dark themes
   | 'dark'
   | 'dark-daltonized'
+  | 'high-contrast-dark'
   | 'dracula'
   | 'nord'
   | 'monokai'
@@ -177,6 +179,12 @@ export type ModelProfile = {
   provider: ProviderType
   modelName: string
   baseURL?: string
+  /** Name of the environment variable that supplies the credential at request time. */
+  apiKeyEnv?: string
+  /**
+   * Legacy local credential. New interactive setup stores an apiKeyEnv instead;
+   * keep this field for existing configurations and non-interactive integrations.
+   */
   apiKey: string
   maxTokens: number
   contextLength: number

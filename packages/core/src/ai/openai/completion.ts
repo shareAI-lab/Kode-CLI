@@ -231,7 +231,6 @@ export async function getCompletionWithProfile(
       model: opts.model,
       provider,
       apiKeyConfigured: !!apiKey,
-      apiKeyPrefix: apiKey ? apiKey.substring(0, 8) : null,
       maxTokens: opts.max_tokens,
       temperature: opts.temperature,
       messageCount: opts.messages?.length || 0,

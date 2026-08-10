@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { getTheme } from '#core/utils/theme'
+import { suggestedApiKeyEnvironmentReference } from '#core/utils/config'
 import { useExitOnCtrlCD } from '#ui-ink/hooks/useExitOnCtrlCD'
 import { useCliExit } from '#ui-ink/hooks/useCliExit'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
@@ -12,29 +13,6 @@ import { useModelSelectorModelOptions } from './useModelSelectorModelOptions'
 import { useModelSelectorState } from './useModelSelectorState'
 import { useModelSelectorActions } from './useModelSelectorActions'
 import { useEscapeNavigation } from './flow/useEscapeNavigation'
-
-function normalizeProviderForApiKeyEnvVar(provider: string): string {
-  // Some "coding plan" providers share auth with their base provider.
-  if (provider === 'glm-coding') return 'glm'
-  if (provider === 'minimax-coding') return 'minimax'
-  return provider
-}
-
-function getApiKeyEnvVarNames(provider: string): string[] {
-  const normalizedProvider = normalizeProviderForApiKeyEnvVar(provider)
-  const sanitizedProvider = normalizedProvider.replace(/[^a-z0-9]/gi, '_')
-  const canonical = `${sanitizedProvider.toUpperCase()}_API_KEY`
-  const legacy = `${normalizedProvider.toUpperCase()}_API_KEY`
-  return canonical === legacy ? [canonical] : [canonical, legacy]
-}
-
-function readApiKeyFromEnv(provider: string): string | undefined {
-  for (const envVarName of getApiKeyEnvVarNames(provider)) {
-    const value = process.env[envVarName]
-    if (value) return value
-  }
-  return undefined
-}
 
 function clampOptionIndex(next: number, length: number): number {
   if (length <= 0) return 0
@@ -93,9 +71,11 @@ export function useModelSelectorController(
     if (props.initialModelProfile) return
 
     if (!state.apiKeyEdited && state.selectedProvider) {
-      const envValue = readApiKeyFromEnv(state.selectedProvider) ?? ''
-      state.setApiKey(envValue)
-      state.setCursorOffset(envValue.length)
+      const reference = suggestedApiKeyEnvironmentReference(
+        state.selectedProvider,
+      )
+      state.setApiKey(reference)
+      state.setCursorOffset(reference.length)
     }
   }, [
     state.apiKeyEdited,
@@ -184,7 +164,6 @@ export function useModelSelectorController(
     codingPlanFocusIndex: state.codingPlanFocusIndex,
     setCodingPlanFocusIndex: state.setCodingPlanFocusIndex,
     selectedProvider: state.selectedProvider,
-    apiKey: state.apiKey,
     resourceName: state.resourceName,
     providerBaseUrl: state.providerBaseUrl,
     customBaseUrl: state.customBaseUrl,
@@ -230,7 +209,6 @@ export function useModelSelectorController(
     handleApiKeyChange: actions.handleApiKeyChange,
     handleApiKeySubmit: actions.handleApiKeySubmit,
     handleCursorOffsetChange: actions.handleCursorOffsetChange,
-    apiKeyCleanedNotification: state.apiKeyCleanedNotification,
     isLoadingModels: state.isLoadingModels,
     modelLoadError: state.modelLoadError,
     providerBaseUrl: state.providerBaseUrl,
@@ -297,7 +275,6 @@ export function useModelSelectorController(
     codingReservedLines: menus.codingReservedLines,
     onCodingPlanOptionPress,
     onCodingPlanOptionWheel,
-    formatApiKeyDisplay: actions.formatApiKeyDisplay,
     getProviderLabel: menus.getProviderLabel,
   }
 }

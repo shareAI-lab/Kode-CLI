@@ -12,7 +12,7 @@ type Params = {
   providerBaseUrl: string
   resourceName: string
   customBaseUrl: string
-  apiKey: string
+  apiKeyEnv?: string
   maxTokens: string
   contextLength: number
   reasoningEffort: any
@@ -26,7 +26,7 @@ export async function saveModelConfiguration({
   providerBaseUrl,
   resourceName,
   customBaseUrl,
-  apiKey,
+  apiKeyEnv,
   maxTokens,
   contextLength,
   reasoningEffort,
@@ -68,7 +68,8 @@ export async function saveModelConfiguration({
     provider: actualProvider,
     modelName: model || actualProvider, // Use provider name if no specific model
     baseURL: baseURL,
-    apiKey: apiKey || '',
+    apiKey: '',
+    ...(apiKeyEnv ? { apiKeyEnv } : {}),
     maxTokens: parseInt(maxTokens) || DEFAULT_MAX_TOKENS,
     contextLength: contextLength || DEFAULT_CONTEXT_LENGTH,
     reasoningEffort,

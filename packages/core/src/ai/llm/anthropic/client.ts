@@ -3,7 +3,11 @@ import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
 import chalk from 'chalk'
 
-import { getAnthropicApiKey, getGlobalConfig } from '#core/utils/config'
+import {
+  getAnthropicApiKey,
+  getGlobalConfig,
+  withResolvedModelApiKey,
+} from '#core/utils/config'
 import { USER_AGENT } from '#core/utils/http'
 import {
   buildCompatHeaders,
@@ -44,7 +48,10 @@ export function getAnthropicClient(
   const region = getVertexRegionForModel(model)
 
   const modelManager = getModelManager()
-  const modelProfile = modelManager.getModel('main')
+  const configuredProfile = modelManager.getModel('main')
+  const modelProfile = configuredProfile
+    ? withResolvedModelApiKey(configuredProfile)
+    : null
 
   const defaultHeaders: { [key: string]: string } =
     requestHeadersProfile === 'compat'

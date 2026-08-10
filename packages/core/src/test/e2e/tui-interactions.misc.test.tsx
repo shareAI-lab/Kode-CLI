@@ -2165,7 +2165,6 @@ describe('TUI E2E regression (Ink render): Misc', () => {
         codingPlanFocusIndex: 0,
         setCodingPlanFocusIndex: () => {},
         selectedProvider: 'custom-openai',
-        apiKey: '',
         resourceName: '',
         providerBaseUrl: '',
         customBaseUrl: '',
@@ -2261,6 +2260,28 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     expect(output).toContain('Enter your custom API URL')
   })
 
+  test('ModelSelector: quick setup records a credential reference and continues to manual model ID', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <ModelSelector
+          initialProvider="openai"
+          onDone={() => {}}
+          abortController={new AbortController()}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(75)
+    expect(h.getOutput()).toContain('Credential Source')
+    expect(h.getOutput()).toContain('OPENAI_API_KEY')
+    expect(h.getOutput()).not.toContain('sk-test-secret')
+
+    h.stdin.write('\r')
+    await h.wait(75)
+    expect(h.getOutput()).toContain('Manual Model Setup')
+  })
+
   test('ModelSelector: mouse wheel moves provider focus', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
@@ -2329,7 +2350,6 @@ describe('TUI E2E regression (Ink render): Misc', () => {
         codingPlanFocusIndex: 0,
         setCodingPlanFocusIndex: () => {},
         selectedProvider: 'custom-openai',
-        apiKey: '',
         resourceName: '',
         providerBaseUrl: '',
         customBaseUrl: '',

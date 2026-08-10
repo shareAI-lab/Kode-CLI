@@ -5,7 +5,11 @@ import type { AssistantMessage, UserMessage } from '#core/query'
 import { resolveToolDescription, type Tool } from '#core/tooling/Tool'
 import { queryOpenAI } from '#core/ai/llm/openai'
 import { queryAnthropicNative } from '#core/ai/llm/anthropic'
-import { getGlobalConfig, type ModelProfile } from '#core/utils/config'
+import {
+  getGlobalConfig,
+  withResolvedModelApiKey,
+  type ModelProfile,
+} from '#core/utils/config'
 import { withVCR } from '#core/services/vcr'
 import {
   debug as debugLogger,
@@ -313,11 +317,12 @@ export async function queryLLM(
   delete cleanOptions.__testQueryLLMWithPromptCaching
 
   const executeQueryWithProfile = (profile: ModelProfile) => {
+    const requestProfile = withResolvedModelApiKey(profile)
     const runQuery = () =>
       queryFn(messages, systemPrompt, maxThinkingTokens, tools, signal, {
         ...cleanOptions,
-        model: profile.modelName,
-        modelProfile: profile,
+        model: requestProfile.modelName,
+        modelProfile: requestProfile,
         toolUseContext,
       })
 

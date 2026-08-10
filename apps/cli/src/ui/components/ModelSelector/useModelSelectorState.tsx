@@ -45,7 +45,7 @@ export function useModelSelectorState(opts: {
 
   const [screenStack, setScreenStack] = useState<ModelSelectorScreen[]>(() =>
     initialModelProfile
-      ? ['modelParams']
+      ? ['confirmation']
       : opts.initialProvider
         ? ['apiKey']
         : createInitialScreenStack({ skipModelType: opts.skipModelType }),
@@ -66,7 +66,7 @@ export function useModelSelectorState(opts: {
     initialModelProfile?.modelName ?? '',
   )
   const [apiKey, setApiKey] = useState<string>(
-    initialModelProfile?.apiKey ?? '',
+    initialModelProfile?.apiKeyEnv ?? '',
   )
 
   const [maxTokens, setMaxTokens] = useState<string>(
@@ -79,11 +79,13 @@ export function useModelSelectorState(opts: {
     useState<number>(initialMaxTokens)
   const [reasoningEffort, setReasoningEffort] =
     useState<ReasoningEffortOption | null>(
-      (initialModelProfile?.reasoningEffort as ReasoningEffortOption) ??
-        'medium',
+      (initialModelProfile?.reasoningEffort as ReasoningEffortOption) ?? null,
     )
   const [supportsReasoningEffort, setSupportsReasoningEffort] =
-    useState<boolean>(Boolean(initialModelProfile?.reasoningEffort))
+    useState<boolean>(false)
+  const [supportsMaxTokens, setSupportsMaxTokens] = useState<boolean>(false)
+  const [supportsContextLength, setSupportsContextLength] =
+    useState<boolean>(false)
 
   const [contextLength, setContextLength] =
     useState<number>(initialContextLength)
@@ -110,9 +112,6 @@ export function useModelSelectorState(opts: {
     initialMaxTokens.toString().length,
   )
 
-  const [apiKeyCleanedNotification, setApiKeyCleanedNotification] =
-    useState<boolean>(false)
-
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [modelLoadError, setModelLoadError] = useState<string | null>(null)
@@ -120,7 +119,7 @@ export function useModelSelectorState(opts: {
   const [modelSearchCursorOffset, setModelSearchCursorOffset] =
     useState<number>(0)
   const [cursorOffset, setCursorOffset] = useState<number>(
-    initialModelProfile?.apiKey?.length ?? 0,
+    initialModelProfile?.apiKeyEnv?.length ?? 0,
   )
   const [apiKeyEdited, setApiKeyEdited] = useState<boolean>(
     Boolean(initialModelProfile),
@@ -203,6 +202,10 @@ export function useModelSelectorState(opts: {
     setReasoningEffort,
     supportsReasoningEffort,
     setSupportsReasoningEffort,
+    supportsMaxTokens,
+    setSupportsMaxTokens,
+    supportsContextLength,
+    setSupportsContextLength,
     contextLength,
     contextLengthOptions,
     setContextLength,
@@ -212,8 +215,6 @@ export function useModelSelectorState(opts: {
     setActiveFieldIndex,
     maxTokensCursorOffset,
     setMaxTokensCursorOffset,
-    apiKeyCleanedNotification,
-    setApiKeyCleanedNotification,
     availableModels,
     setAvailableModels,
     isLoadingModels,

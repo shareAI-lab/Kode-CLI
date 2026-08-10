@@ -46,7 +46,6 @@ export type ModelSelectorViewProps = {
   handleApiKeyChange: (value: string) => void
   handleApiKeySubmit: (key: string) => void | Promise<void>
   handleCursorOffsetChange: (offset: number) => void
-  apiKeyCleanedNotification: boolean
 
   isLoadingModels: boolean
   modelLoadError: string | null
@@ -130,6 +129,5 @@ export type ModelSelectorViewProps = {
   onCodingPlanOptionPress: (optionIndex: number) => void
   onCodingPlanOptionWheel: (direction: 'up' | 'down') => void
 
-  formatApiKeyDisplay: (key: string) => string
   getProviderLabel: (provider: string, modelCount: number) => string
 }

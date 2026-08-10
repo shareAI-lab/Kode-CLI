@@ -1,4 +1,5 @@
 import type { ProviderType } from '#core/utils/config'
+import { resolveModelApiKey } from '#core/utils/config'
 import { logError } from '#core/utils/log'
 import { runConnectionTestFlow } from './flow/actions/connectionTest'
 import { handleProviderSelection as handleProviderSelectionAction } from './flow/actions/providerSelection'
@@ -33,7 +34,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         providerBaseUrl: state.providerBaseUrl,
         resourceName: state.resourceName,
         customBaseUrl: state.customBaseUrl,
-        apiKey: state.apiKey,
+        apiKeyEnv: state.apiKey || undefined,
         maxTokens: state.maxTokens,
         contextLength: state.contextLength,
         reasoningEffort: state.reasoningEffort ?? undefined,
@@ -104,7 +105,6 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
       state.setApiKeyEdited(false)
       state.setApiKey('')
       state.setCursorOffset(0)
-      state.setApiKeyCleanedNotification(false)
       state.setModelLoadError(null)
       state.setAvailableModels([])
       state.setSelectedModel('')
@@ -139,7 +139,10 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         params: {
           selectedProvider: state.selectedProvider,
           selectedModel: state.selectedModel,
-          apiKey: state.apiKey,
+          apiKey: resolveModelApiKey({
+            apiKey: '',
+            apiKeyEnv: state.apiKey || undefined,
+          }),
           maxTokens: state.maxTokens,
           providerBaseUrl: state.providerBaseUrl,
           customBaseUrl: state.customBaseUrl,

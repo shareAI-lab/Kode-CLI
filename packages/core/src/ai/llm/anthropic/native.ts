@@ -13,7 +13,11 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import { getCLISyspromptPrefix } from '#core/constants/prompts'
 import type { AssistantMessage, UserMessage } from '#core/query'
 import type { Tool, ToolUseContext } from '#core/tooling/Tool'
-import { getGlobalConfig, type ModelProfile } from '#core/utils/config'
+import {
+  getGlobalConfig,
+  withResolvedModelApiKey,
+  type ModelProfile,
+} from '#core/utils/config'
 import { USER_AGENT } from '#core/utils/http'
 import {
   buildCompatHeaders,
@@ -69,9 +73,6 @@ function traceAnthropicQuery(args: {
     model: args.model,
     provider: args.provider,
     apiKeyConfigured: !!args.modelProfile?.apiKey,
-    apiKeyPrefix: args.modelProfile?.apiKey
-      ? args.modelProfile.apiKey.substring(0, 8)
-      : null,
     maxTokens: args.params.max_tokens,
     temperature: args.temperature ?? MAIN_QUERY_TEMPERATURE,
     messageCount: args.params.messages?.length || 0,
@@ -141,8 +142,11 @@ export async function queryAnthropicNative(
   const assistantStreamRequestId =
     toolUseContext?.requestId ?? getCurrentRequest()?.id ?? nanoid()
 
-  const modelProfile =
+  const configuredProfile =
     options?.modelProfile ?? getModelManager().getModel('main')
+  const modelProfile = configuredProfile
+    ? withResolvedModelApiKey(configuredProfile)
+    : null
   let anthropic: Anthropic | AnthropicBedrock | AnthropicVertex
   let model: string
   let provider: string

@@ -35,19 +35,19 @@ export function ContextLengthScreen({
 
   return (
     <ScreenFrame
-      title="Context Length Configuration"
+      title="Advanced context window / 高级上下文"
       exitState={exitState}
       paddingX={tightLayout || compactLayout ? 1 : 2}
       paddingY={containerPaddingY}
       gap={containerGap}
     >
       <Box flexDirection="column" gap={containerGap}>
-        <Text bold>Choose the context window length for your model:</Text>
+        <Text bold>Set the configured context window:</Text>
         {!tightLayout && (
           <Text color={theme.secondaryText}>
             {compactLayout
-              ? 'Controls how much history the model can process.'
-              : 'This determines how much conversation history and context the model can process at once. Higher values allow for longer conversations but may increase costs.'}
+              ? 'Used for local context management; it does not change provider limits.'
+              : 'Use only a verified provider limit. This value guides Kode context management; it cannot increase model capacity or estimate cost without provider pricing data.'}
           </Text>
         )}
 
@@ -76,8 +76,8 @@ export function ContextLengthScreen({
         )}
 
         <Box marginTop={tightLayout ? 0 : 1}>
-          <Text dimColor>
-            ↑/↓ to select · Enter to continue · Esc to go back
+          <Text color={theme.secondaryText}>
+            ↑/↓ select · Enter continue · Esc back
           </Text>
         </Box>
       </Box>

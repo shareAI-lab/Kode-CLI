@@ -2,6 +2,7 @@ import { dump, load } from 'js-yaml'
 import { z } from 'zod'
 
 import type { GlobalConfig, ModelPointers, ModelProfile } from './schema'
+import { suggestedApiKeyEnvironmentReference } from './modelCredentials'
 
 const ApiKeySpecSchema = z.union([
   z
@@ -69,54 +70,43 @@ const ModelConfigYamlSchema = z
 
 export type ModelConfigYaml = z.infer<typeof ModelConfigYamlSchema>
 
-function suggestedApiKeyEnvForProvider(provider: string): string | undefined {
-  switch (provider) {
-    case 'anthropic':
-      return 'ANTHROPIC_API_KEY'
-    case 'openai':
-    case 'custom-openai':
-      return 'OPENAI_API_KEY'
-    case 'openrouter':
-      return 'OPENROUTER_API_KEY'
-    case 'azure':
-      return 'AZURE_OPENAI_API_KEY'
-    case 'gemini':
-      return 'GEMINI_API_KEY'
-    default:
-      return undefined
-  }
-}
-
-function resolveApiKeyFromYaml(
+function resolveCredentialReferenceFromYaml(
   input: {
     apiKey?: ApiKeySpec
     apiKeyEnv?: string
   },
   existingApiKey: string | undefined,
-): { apiKey: string; warnings: string[] } {
+  existingApiKeyEnv: string | undefined,
+): { apiKey: string; apiKeyEnv?: string; warnings: string[] } {
   const warnings: string[] = []
 
   if (input.apiKeyEnv) {
-    const envValue = process.env[input.apiKeyEnv]
-    if (envValue) return { apiKey: envValue, warnings }
-    if (existingApiKey) return { apiKey: existingApiKey, warnings }
-    warnings.push(`Missing env var '${input.apiKeyEnv}' for apiKey`)
-    return { apiKey: '', warnings }
+    return {
+      apiKey: existingApiKey ?? '',
+      apiKeyEnv: input.apiKeyEnv,
+      warnings,
+    }
   }
 
   if (input.apiKey && 'fromEnv' in input.apiKey) {
-    const envValue = process.env[input.apiKey.fromEnv]
-    if (envValue) return { apiKey: envValue, warnings }
-    if (existingApiKey) return { apiKey: existingApiKey, warnings }
-    warnings.push(`Missing env var '${input.apiKey.fromEnv}' for apiKey`)
-    return { apiKey: '', warnings }
+    return {
+      apiKey: existingApiKey ?? '',
+      apiKeyEnv: input.apiKey.fromEnv,
+      warnings,
+    }
   }
 
   if (input.apiKey && 'value' in input.apiKey) {
     return { apiKey: input.apiKey.value, warnings }
   }
 
-  if (existingApiKey) return { apiKey: existingApiKey, warnings }
+  if (existingApiKey || existingApiKeyEnv) {
+    return {
+      apiKey: existingApiKey ?? '',
+      ...(existingApiKeyEnv ? { apiKeyEnv: existingApiKeyEnv } : {}),
+      warnings,
+    }
+  }
 
   warnings.push(
     'Missing apiKey (set apiKey.fromEnv, apiKeyEnv, or apiKey.value)',
@@ -145,7 +135,6 @@ export function formatModelConfigYamlForSharing(config: GlobalConfig): string {
   const exported: ModelConfigYaml = {
     version: 1,
     profiles: modelProfiles.map(p => {
-      const suggestedEnv = suggestedApiKeyEnvForProvider(p.provider)
       return {
         name: p.name,
         provider: p.provider,
@@ -158,7 +147,10 @@ export function formatModelConfigYamlForSharing(config: GlobalConfig): string {
         isActive: p.isActive,
         createdAt: p.createdAt,
         ...(typeof p.lastUsed === 'number' ? { lastUsed: p.lastUsed } : {}),
-        apiKey: { fromEnv: suggestedEnv ?? 'API_KEY' },
+        apiKey: {
+          fromEnv:
+            p.apiKeyEnv ?? suggestedApiKeyEnvironmentReference(p.provider),
+        },
       }
     }),
     ...(pointers ? { pointers } : {}),
@@ -186,9 +178,10 @@ export function applyModelConfigYamlImport(
   const now = Date.now()
   const importedProfiles: ModelProfile[] = parsed.profiles.map(profile => {
     const existing = existingByModelName.get(profile.modelName)
-    const resolved = resolveApiKeyFromYaml(
+    const resolved = resolveCredentialReferenceFromYaml(
       { apiKey: profile.apiKey, apiKeyEnv: profile.apiKeyEnv },
       existing?.apiKey,
+      existing?.apiKeyEnv,
     )
     warnings.push(...resolved.warnings.map(w => `[${profile.modelName}] ${w}`))
 
@@ -198,6 +191,7 @@ export function applyModelConfigYamlImport(
       modelName: profile.modelName,
       ...(profile.baseURL ? { baseURL: profile.baseURL } : {}),
       apiKey: resolved.apiKey,
+      ...(resolved.apiKeyEnv ? { apiKeyEnv: resolved.apiKeyEnv } : {}),
       maxTokens: profile.maxTokens,
       contextLength: profile.contextLength,
       ...(profile.reasoningEffort

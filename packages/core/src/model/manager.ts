@@ -265,6 +265,7 @@ export class ModelManager {
       ...existing,
       ...config,
       apiKey: config.apiKey || existing.apiKey,
+      apiKeyEnv: config.apiKeyEnv ?? existing.apiKeyEnv,
       reasoningEffort: config.reasoningEffort ?? existing.reasoningEffort,
       createdAt: existing.createdAt,
       lastUsed: existing.lastUsed,
