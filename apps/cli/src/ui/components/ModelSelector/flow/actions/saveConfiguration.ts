@@ -1,6 +1,10 @@
 import { providers } from '#core/constants/models'
 import type { ModelPointerType, ProviderType } from '#core/utils/config'
-import { setAllPointersToModel, setModelPointer } from '#core/utils/config'
+import {
+  getSuggestedApiKeyEnvVar,
+  setAllPointersToModel,
+  setModelPointer,
+} from '#core/utils/config'
 import { getModelManager } from '#core/utils/model'
 import type { RequestStrategy } from '#config'
 
@@ -12,7 +16,7 @@ type Params = {
   providerBaseUrl: string
   resourceName: string
   customBaseUrl: string
-  apiKey: string
+  apiKeyEnv?: string
   maxTokens: string
   contextLength: number
   reasoningEffort: any
@@ -26,7 +30,7 @@ export async function saveModelConfiguration({
   providerBaseUrl,
   resourceName,
   customBaseUrl,
-  apiKey,
+  apiKeyEnv,
   maxTokens,
   contextLength,
   reasoningEffort,
@@ -62,13 +66,17 @@ export async function saveModelConfiguration({
   const displayModel = model || 'default'
   const modelDisplayName =
     `${providerCatalog[actualProvider]?.name || actualProvider} ${displayModel}`.trim()
+  const credentialEnv = apiKeyEnv ?? getSuggestedApiKeyEnvVar(actualProvider)
 
   const modelConfig = {
     name: modelDisplayName,
     provider: actualProvider,
     modelName: model || actualProvider, // Use provider name if no specific model
     baseURL: baseURL,
-    apiKey: apiKey || '',
+    // API keys are never persisted in model profiles. Requests resolve the
+    // named environment variable at runtime and fail closed if it is absent.
+    apiKey: '',
+    ...(credentialEnv ? { apiKeyEnv: credentialEnv } : {}),
     maxTokens: parseInt(maxTokens) || DEFAULT_MAX_TOKENS,
     contextLength: contextLength || DEFAULT_CONTEXT_LENGTH,
     reasoningEffort,

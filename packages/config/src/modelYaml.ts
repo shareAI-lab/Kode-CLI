@@ -1,20 +1,17 @@
 import { dump, load } from 'js-yaml'
 import { z } from 'zod'
 
+import {
+  getSuggestedApiKeyEnvVar,
+  providerUsesApiKey,
+} from './models/credentials'
 import type { GlobalConfig, ModelPointers, ModelProfile } from './schema'
 
-const ApiKeySpecSchema = z.union([
-  z
-    .object({
-      fromEnv: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      value: z.string(),
-    })
-    .strict(),
-])
+const ApiKeySpecSchema = z
+  .object({
+    fromEnv: z.string().min(1),
+  })
+  .strict()
 
 type ApiKeySpec = z.infer<typeof ApiKeySpecSchema>
 
@@ -69,59 +66,24 @@ const ModelConfigYamlSchema = z
 
 export type ModelConfigYaml = z.infer<typeof ModelConfigYamlSchema>
 
-function suggestedApiKeyEnvForProvider(provider: string): string | undefined {
-  switch (provider) {
-    case 'anthropic':
-      return 'ANTHROPIC_API_KEY'
-    case 'openai':
-    case 'custom-openai':
-      return 'OPENAI_API_KEY'
-    case 'openrouter':
-      return 'OPENROUTER_API_KEY'
-    case 'azure':
-      return 'AZURE_OPENAI_API_KEY'
-    case 'gemini':
-      return 'GEMINI_API_KEY'
-    default:
-      return undefined
-  }
-}
-
-function resolveApiKeyFromYaml(
+function resolveApiKeyEnvFromYaml(
   input: {
     apiKey?: ApiKeySpec
     apiKeyEnv?: string
   },
-  existingApiKey: string | undefined,
-): { apiKey: string; warnings: string[] } {
+  provider: string,
+): { apiKeyEnv?: string; warnings: string[] } {
   const warnings: string[] = []
+  const apiKeyEnv =
+    input.apiKeyEnv ??
+    input.apiKey?.fromEnv ??
+    getSuggestedApiKeyEnvVar(provider)
 
-  if (input.apiKeyEnv) {
-    const envValue = process.env[input.apiKeyEnv]
-    if (envValue) return { apiKey: envValue, warnings }
-    if (existingApiKey) return { apiKey: existingApiKey, warnings }
-    warnings.push(`Missing env var '${input.apiKeyEnv}' for apiKey`)
-    return { apiKey: '', warnings }
+  if (providerUsesApiKey(provider) && !apiKeyEnv) {
+    warnings.push('Missing apiKey environment-variable reference')
   }
 
-  if (input.apiKey && 'fromEnv' in input.apiKey) {
-    const envValue = process.env[input.apiKey.fromEnv]
-    if (envValue) return { apiKey: envValue, warnings }
-    if (existingApiKey) return { apiKey: existingApiKey, warnings }
-    warnings.push(`Missing env var '${input.apiKey.fromEnv}' for apiKey`)
-    return { apiKey: '', warnings }
-  }
-
-  if (input.apiKey && 'value' in input.apiKey) {
-    return { apiKey: input.apiKey.value, warnings }
-  }
-
-  if (existingApiKey) return { apiKey: existingApiKey, warnings }
-
-  warnings.push(
-    'Missing apiKey (set apiKey.fromEnv, apiKeyEnv, or apiKey.value)',
-  )
-  return { apiKey: '', warnings }
+  return { apiKeyEnv, warnings }
 }
 
 function resolvePointerTarget(
@@ -145,7 +107,7 @@ export function formatModelConfigYamlForSharing(config: GlobalConfig): string {
   const exported: ModelConfigYaml = {
     version: 1,
     profiles: modelProfiles.map(p => {
-      const suggestedEnv = suggestedApiKeyEnvForProvider(p.provider)
+      const apiKeyEnv = p.apiKeyEnv ?? getSuggestedApiKeyEnvVar(p.provider)
       return {
         name: p.name,
         provider: p.provider,
@@ -158,7 +120,7 @@ export function formatModelConfigYamlForSharing(config: GlobalConfig): string {
         isActive: p.isActive,
         createdAt: p.createdAt,
         ...(typeof p.lastUsed === 'number' ? { lastUsed: p.lastUsed } : {}),
-        apiKey: { fromEnv: suggestedEnv ?? 'API_KEY' },
+        ...(apiKeyEnv ? { apiKey: { fromEnv: apiKeyEnv } } : {}),
       }
     }),
     ...(pointers ? { pointers } : {}),
@@ -186,18 +148,24 @@ export function applyModelConfigYamlImport(
   const now = Date.now()
   const importedProfiles: ModelProfile[] = parsed.profiles.map(profile => {
     const existing = existingByModelName.get(profile.modelName)
-    const resolved = resolveApiKeyFromYaml(
+    const resolved = resolveApiKeyEnvFromYaml(
       { apiKey: profile.apiKey, apiKeyEnv: profile.apiKeyEnv },
-      existing?.apiKey,
+      profile.provider,
     )
     warnings.push(...resolved.warnings.map(w => `[${profile.modelName}] ${w}`))
 
+    // Preserve any legacy field only when the user explicitly imports over an
+    // existing profile. It is not read or used; runtime requests require the
+    // environment-variable reference below.
+    const preservedExisting = existing ? { ...existing } : { apiKey: '' }
+
     return {
+      ...preservedExisting,
       name: profile.name,
       provider: profile.provider,
       modelName: profile.modelName,
       ...(profile.baseURL ? { baseURL: profile.baseURL } : {}),
-      apiKey: resolved.apiKey,
+      ...(resolved.apiKeyEnv ? { apiKeyEnv: resolved.apiKeyEnv } : {}),
       maxTokens: profile.maxTokens,
       contextLength: profile.contextLength,
       ...(profile.reasoningEffort

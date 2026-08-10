@@ -69,9 +69,6 @@ function traceAnthropicQuery(args: {
     model: args.model,
     provider: args.provider,
     apiKeyConfigured: !!args.modelProfile?.apiKey,
-    apiKeyPrefix: args.modelProfile?.apiKey
-      ? args.modelProfile.apiKey.substring(0, 8)
-      : null,
     maxTokens: args.params.max_tokens,
     temperature: args.temperature ?? MAIN_QUERY_TEMPERATURE,
     messageCount: args.params.messages?.length || 0,

@@ -99,8 +99,6 @@ function getConfig<A>(
     debugLogger.state('CONFIG_FILE_READ', {
       file,
       contentLength: String(fileContent.length),
-      contentPreview:
-        fileContent.substring(0, 100) + (fileContent.length > 100 ? '...' : ''),
     })
 
     try {

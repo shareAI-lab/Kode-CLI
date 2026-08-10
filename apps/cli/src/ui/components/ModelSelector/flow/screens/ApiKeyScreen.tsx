@@ -16,6 +16,7 @@ type Props = {
   containerPaddingY: number
   containerGap: number
   selectedProvider: string
+  apiKeyEnv?: string
   apiKey: string
   cursorOffset: number
   handleApiKeyChange: (value: string) => void
@@ -38,6 +39,7 @@ export function ApiKeyScreen({
   containerPaddingY,
   containerGap,
   selectedProvider,
+  apiKeyEnv,
   apiKey,
   cursorOffset,
   handleApiKeyChange,
@@ -191,7 +193,7 @@ export function ApiKeyScreen({
     >
       <Box flexDirection="column" gap={containerGap}>
         <Text bold>
-          Enter your {providerDisplayName} API key for {modelTypeText}:
+          Configure {providerDisplayName} credentials for {modelTypeText}:
         </Text>
 
         <Box
@@ -200,14 +202,14 @@ export function ApiKeyScreen({
         >
           {tightLayout ? (
             <Text color={theme.secondaryText}>
-              Stored locally. Never sent to our servers.
+              Used only for this session. It is not saved in configuration.
             </Text>
           ) : (
             <>
               <Text color={theme.secondaryText}>
-                {compactLayout
-                  ? `Stored locally and used to access ${selectedProvider}. Never sent to our servers.`
-                  : `This key will be stored locally and used to access the ${selectedProvider} API. Your key is never sent to our servers.`}
+                {apiKeyEnv
+                  ? `Set ${apiKeyEnv} in the current environment before saving. This field is only for one-time validation; Kode never stores API keys.`
+                  : `Used only to validate ${selectedProvider}. Kode never stores API keys.`}
               </Text>
               {providerHint ? <Box marginTop={1}>{providerHint}</Box> : null}
             </>
@@ -229,14 +231,6 @@ export function ApiKeyScreen({
             showCursor={!isLoadingModels}
             focus={!isLoadingModels}
           />
-
-          {apiKey && !tightLayout && (
-            <Box marginTop={1}>
-              <Text color={theme.secondaryText}>
-                Key: {formatApiKeyDisplay(apiKey)} ({apiKey.length} chars)
-              </Text>
-            </Box>
-          )}
         </Box>
 
         {apiKeyCleanedNotification && !tightLayout && (

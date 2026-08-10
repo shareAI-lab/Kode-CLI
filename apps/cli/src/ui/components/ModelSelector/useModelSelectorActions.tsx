@@ -1,4 +1,9 @@
-import type { ProviderType } from '#core/utils/config'
+import {
+  getSuggestedApiKeyEnvVar,
+  providerUsesApiKey,
+  readApiKeyFromEnvironment,
+  type ProviderType,
+} from '#core/utils/config'
 import { logError } from '#core/utils/log'
 import { runConnectionTestFlow } from './flow/actions/connectionTest'
 import { handleProviderSelection as handleProviderSelectionAction } from './flow/actions/providerSelection'
@@ -33,7 +38,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         providerBaseUrl: state.providerBaseUrl,
         resourceName: state.resourceName,
         customBaseUrl: state.customBaseUrl,
-        apiKey: state.apiKey,
+        apiKeyEnv: state.apiKeyEnv,
         maxTokens: state.maxTokens,
         contextLength: state.contextLength,
         reasoningEffort: state.reasoningEffort ?? undefined,
@@ -49,6 +54,20 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
 
   async function handleConfirmation(): Promise<void> {
     state.setValidationError(null)
+
+    const apiKeyEnv =
+      state.apiKeyEnv ?? getSuggestedApiKeyEnvVar(state.selectedProvider)
+    if (
+      providerUsesApiKey(state.selectedProvider) &&
+      !readApiKeyFromEnvironment(apiKeyEnv)
+    ) {
+      state.setValidationError(
+        `This model was not saved because ${apiKeyEnv ?? 'the provider API key environment variable'} is not set. ` +
+          'Set it in the current environment, then retry. Rotate any API key previously stored in configuration.',
+      )
+      return
+    }
+
     const modelId = await saveConfiguration(
       state.selectedProvider,
       state.selectedModel,
@@ -102,6 +121,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
 
     if (!isProviderMenu) {
       state.setApiKeyEdited(false)
+      state.setApiKeyEnv(getSuggestedApiKeyEnvVar(provider))
       state.setApiKey('')
       state.setCursorOffset(0)
       state.setApiKeyCleanedNotification(false)

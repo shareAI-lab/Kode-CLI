@@ -4,6 +4,7 @@ import { runConnectionTestFlow } from '#ui-ink/components/ModelSelector/flow/act
 import { fetchModelsForProvider } from '#ui-ink/components/ModelSelector/flow/actions/fetchModels'
 import { handleProviderSelection } from '#ui-ink/components/ModelSelector/flow/actions/providerSelection'
 import { applyPointersForNewModel } from '#ui-ink/components/ModelSelector/flow/actions/saveConfiguration'
+import { saveModelConfiguration } from '#ui-ink/components/ModelSelector/flow/actions/saveConfiguration'
 
 describe('model selector actions', () => {
   test('provider -> apiKey -> model (anthropic happy path)', async () => {
@@ -90,6 +91,32 @@ describe('model selector actions', () => {
 
     expect(setModelPointerCalls).toEqual([['main', 'm1']])
     expect(setAllPointersCalls).toEqual(['m1'])
+  })
+
+  test('saving a profile persists an environment reference but not an API key', async () => {
+    let savedProfile: any = null
+
+    await saveModelConfiguration({
+      provider: 'openai',
+      model: 'gpt-4o',
+      providerBaseUrl: 'https://api.openai.com/v1',
+      resourceName: '',
+      customBaseUrl: '',
+      apiKeyEnv: 'TEST_OPENAI_KEY',
+      maxTokens: '1024',
+      contextLength: 128000,
+      reasoningEffort: 'medium',
+      getModelManagerFn: () =>
+        ({
+          upsertModel: async (profile: any) => {
+            savedProfile = profile
+            return profile.modelName
+          },
+        }) as any,
+    })
+
+    expect(savedProfile.apiKey).toBe('')
+    expect(savedProfile.apiKeyEnv).toBe('TEST_OPENAI_KEY')
   })
 
   test('connection test failure does not auto-advance', async () => {

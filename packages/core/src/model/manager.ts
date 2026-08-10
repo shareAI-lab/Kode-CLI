@@ -1,4 +1,6 @@
 import {
+  getModelCredentialStatus,
+  redactModelProfileCredential,
   saveGlobalConfig,
   type GlobalConfig,
   type ModelPointerType,
@@ -44,39 +46,22 @@ export class ModelManager {
   }
 
   getCurrentModel(): string | null {
-    const mainModelName = this.config.modelPointers?.main
-    if (mainModelName) {
-      const profile = this.findByModelName(mainModelName)
-      if (profile && profile.isActive) return profile.modelName
-    }
-    return this.getMainAgentModel()
+    return this.getModel('main')?.modelName ?? null
   }
 
   getMainAgentModel(): string | null {
-    const mainModelName = this.config.modelPointers?.main
-    if (mainModelName) {
-      const profile = this.findByModelName(mainModelName)
-      if (profile && profile.isActive) return profile.modelName
-    }
-
-    const activeProfile = this.modelProfiles.find(p => p.isActive)
-    return activeProfile ? activeProfile.modelName : null
+    return this.getModel('main')?.modelName ?? null
   }
 
   getTaskToolModel(): string | null {
-    const taskModelName = this.config.modelPointers?.task
-    if (taskModelName) {
-      const profile = this.findByModelName(taskModelName)
-      if (profile && profile.isActive) return profile.modelName
-    }
-    return this.getMainAgentModel()
+    return this.getModel('task')?.modelName ?? null
   }
 
   switchToNextModelWithContextCheck(
     currentContextTokens: number = 0,
   ): SwitchWithContextCheckResult {
     const { selected, result } = chooseNextModelWithContextCheck({
-      modelProfiles: this.getAllConfiguredModels(),
+      modelProfiles: this.getRuntimeReadyModelProfiles(),
       currentMainModelName: this.config.modelPointers?.main,
       currentContextTokens,
     })
@@ -95,7 +80,7 @@ export class ModelManager {
       this.switchToNextModelWithContextCheck(currentContextTokens)
     return formatSwitchResult({
       detailed,
-      modelProfiles: this.getAllConfiguredModels(),
+      modelProfiles: this.getRuntimeReadyModelProfiles(),
       currentMainModelName: this.config.modelPointers?.main,
     })
   }
@@ -162,19 +147,19 @@ export class ModelManager {
   }
 
   getActiveModelProfiles(): ModelProfile[] {
-    return this.modelProfiles.filter(p => p.isActive)
+    return this.modelProfiles
+      .filter(p => p.isActive)
+      .map(redactModelProfileCredential)
   }
 
   hasConfiguredModels(): boolean {
-    return this.getActiveModelProfiles().length > 0
+    return this.modelProfiles.some(
+      profile => profile.isActive && getModelCredentialStatus(profile).success,
+    )
   }
 
   getModel(pointer: ModelPointerType): ModelProfile | null {
-    const pointerId = this.config.modelPointers?.[pointer]
-    if (!pointerId) return this.getDefaultModel()
-
-    const profile = this.findByModelName(pointerId)
-    return profile && profile.isActive ? profile : this.getDefaultModel()
+    return resolveModel(this.config, this.modelProfiles, pointer)
   }
 
   getModelName(pointer: ModelPointerType): string | null {
@@ -213,6 +198,7 @@ export class ModelManager {
 
     const newModel: ModelProfile = {
       ...config,
+      apiKey: '',
       createdAt: Date.now(),
       isActive: true,
     }
@@ -264,7 +250,9 @@ export class ModelManager {
     const updatedModel: ModelProfile = {
       ...existing,
       ...config,
-      apiKey: config.apiKey || existing.apiKey,
+      // Keep legacy storage untouched, but never accept or persist a newly
+      // supplied plaintext key. Runtime resolution only uses apiKeyEnv.
+      apiKey: existing.apiKey,
       reasoningEffort: config.reasoningEffort ?? existing.reasoningEffort,
       createdAt: existing.createdAt,
       lastUsed: existing.lastUsed,
@@ -293,11 +281,11 @@ export class ModelManager {
   }
 
   getAvailableModels(): ModelProfile[] {
-    return this.modelProfiles.filter(p => p.isActive)
+    return this.getActiveModelProfiles()
   }
 
   getAllConfiguredModels(): ModelProfile[] {
-    return this.modelProfiles
+    return this.modelProfiles.map(redactModelProfileCredential)
   }
 
   getAllAvailableModelNames(): string[] {
@@ -370,12 +358,13 @@ export class ModelManager {
     this.saveConfig()
   }
 
-  private getDefaultModel(): ModelProfile | null {
-    if (this.config.defaultModelId) {
-      const profile = this.findByModelName(this.config.defaultModelId)
-      if (profile && profile.isActive) return profile
-    }
-    return this.modelProfiles.find(p => p.isActive) || null
+  private getRuntimeReadyModelProfiles(): ModelProfile[] {
+    return this.modelProfiles
+      .filter(
+        profile =>
+          profile.isActive && getModelCredentialStatus(profile).success,
+      )
+      .map(redactModelProfileCredential)
   }
 
   private saveConfig(): void {

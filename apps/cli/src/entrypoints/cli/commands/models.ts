@@ -127,7 +127,7 @@ export function registerModelsCommands(program: Command): void {
           validationStatus: p.validationStatus ?? null,
           lastValidation:
             typeof p.lastValidation === 'number' ? p.lastValidation : null,
-          hasApiKey: Boolean(p.apiKey),
+          apiKeyEnv: p.apiKeyEnv ?? null,
         }))
 
         if (asJson) {

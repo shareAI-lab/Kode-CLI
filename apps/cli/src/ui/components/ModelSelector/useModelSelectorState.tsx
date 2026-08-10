@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  getSuggestedApiKeyEnvVar,
   getGlobalConfig,
   type ModelProfile,
   type ProviderType,
@@ -65,9 +66,16 @@ export function useModelSelectorState(opts: {
   const [selectedModel, setSelectedModel] = useState<string>(
     initialModelProfile?.modelName ?? '',
   )
-  const [apiKey, setApiKey] = useState<string>(
-    initialModelProfile?.apiKey ?? '',
+  const [apiKeyEnv, setApiKeyEnv] = useState<string | undefined>(
+    initialModelProfile?.apiKeyEnv ??
+      getSuggestedApiKeyEnvVar(
+        initialModelProfile?.provider ??
+          opts.initialProvider ??
+          config.primaryProvider ??
+          'anthropic',
+      ),
   )
+  const [apiKey, setApiKey] = useState<string>('')
 
   const [maxTokens, setMaxTokens] = useState<string>(
     initialMaxTokens.toString(),
@@ -119,12 +127,8 @@ export function useModelSelectorState(opts: {
   const [modelSearchQuery, setModelSearchQuery] = useState<string>('')
   const [modelSearchCursorOffset, setModelSearchCursorOffset] =
     useState<number>(0)
-  const [cursorOffset, setCursorOffset] = useState<number>(
-    initialModelProfile?.apiKey?.length ?? 0,
-  )
-  const [apiKeyEdited, setApiKeyEdited] = useState<boolean>(
-    Boolean(initialModelProfile),
-  )
+  const [cursorOffset, setCursorOffset] = useState<number>(0)
+  const [apiKeyEdited, setApiKeyEdited] = useState<boolean>(false)
 
   const focusScope =
     opts.focusScope ??
@@ -191,6 +195,8 @@ export function useModelSelectorState(opts: {
     setSelectedProvider,
     selectedModel,
     setSelectedModel,
+    apiKeyEnv,
+    setApiKeyEnv,
     apiKey,
     setApiKey,
     maxTokens,

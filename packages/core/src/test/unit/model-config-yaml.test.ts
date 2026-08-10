@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import {
   applyModelConfigYamlImport,
   formatModelConfigYamlForSharing,
+  parseModelConfigYaml,
 } from '#config'
 
 describe('modelConfigYaml', () => {
@@ -79,9 +80,7 @@ describe('modelConfigYaml', () => {
     expect(yamlText).not.toContain('SECRET_KEY_SHOULD_NOT_APPEAR')
   })
 
-  test('import resolves apiKey from env and applies pointers', () => {
-    process.env.TEST_OPENAI_KEY = 'resolved-from-env'
-
+  test('import preserves only the apiKey environment reference and applies pointers', () => {
     const existingConfig: any = {
       modelProfiles: [],
       modelPointers: { main: '', task: '', compact: '', quick: '' },
@@ -109,7 +108,8 @@ pointers:
     )
 
     expect(warnings).toEqual([])
-    expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('resolved-from-env')
+    expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('')
+    expect(nextConfig.modelProfiles?.[0]?.apiKeyEnv).toBe('TEST_OPENAI_KEY')
     expect(nextConfig.modelPointers?.main).toBe('gpt-4o')
     expect(nextConfig.modelPointers?.quick).toBe('gpt-4o')
   })
@@ -152,5 +152,22 @@ profiles:
     )
 
     expect(nextConfig.modelProfiles?.[0]?.apiKey).toBe('existing-key')
+    expect(nextConfig.modelProfiles?.[0]?.apiKeyEnv).toBe('MISSING_ENV')
+  })
+
+  test('rejects plaintext apiKey values in model YAML', () => {
+    expect(() =>
+      parseModelConfigYaml(`
+version: 1
+profiles:
+  - name: Unsafe profile
+    provider: openai
+    modelName: gpt-4o
+    maxTokens: 1024
+    contextLength: 128000
+    apiKey:
+      value: not-accepted
+`),
+    ).toThrow()
   })
 })

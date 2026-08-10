@@ -1,4 +1,9 @@
-import type { ModelPointerType, ModelProfile, ModelPointers } from '#config'
+import {
+  getModelCredentialStatus,
+  type ModelPointerType,
+  type ModelProfile,
+  type ModelPointers,
+} from '#config'
 
 import type { ModelParam, ResolvedModelInfo } from './types'
 
@@ -62,6 +67,25 @@ function findByName(
   return modelProfiles.find(p => p.name === name) || null
 }
 
+function resolveRuntimeProfile(profile: ModelProfile): ModelProfile | null {
+  const credential = getModelCredentialStatus(profile)
+  if (!credential.success) return null
+  return { ...profile, apiKey: credential.apiKey }
+}
+
+function resolveRuntimeProfileWithInfo(
+  profile: ModelProfile,
+): ResolvedModelInfo {
+  const credential = getModelCredentialStatus(profile)
+  if (!credential.success) {
+    return { success: false, profile: null, error: credential.error }
+  }
+  return {
+    success: true,
+    profile: { ...profile, apiKey: credential.apiKey },
+  }
+}
+
 export function resolveModel(
   config: ModelResolutionConfig,
   modelProfiles: ModelProfile[],
@@ -74,23 +98,25 @@ export function resolveModel(
     const pointerId = config.modelPointers?.[modelParam as ModelPointerType]
     if (pointerId) {
       const profile = findByModelName(modelProfiles, pointerId)
-      if (profile && profile.isActive) return profile
+      if (profile && profile.isActive) return resolveRuntimeProfile(profile)
     }
-    return getDefaultModelProfile(config, modelProfiles)
+    const defaultProfile = getDefaultModelProfile(config, modelProfiles)
+    return defaultProfile ? resolveRuntimeProfile(defaultProfile) : null
   }
 
   const raw = String(modelParam)
 
   let profile = findByModelName(modelProfiles, raw)
-  if (profile && profile.isActive) return profile
+  if (profile && profile.isActive) return resolveRuntimeProfile(profile)
 
   profile = findByName(modelProfiles, raw)
-  if (profile && profile.isActive) return profile
+  if (profile && profile.isActive) return resolveRuntimeProfile(profile)
 
   const qualified = resolveProviderQualifiedModel(modelProfiles, raw)
-  if (qualified && qualified.isActive) return qualified
+  if (qualified && qualified.isActive) return resolveRuntimeProfile(qualified)
 
-  return getDefaultModelProfile(config, modelProfiles)
+  const defaultProfile = getDefaultModelProfile(config, modelProfiles)
+  return defaultProfile ? resolveRuntimeProfile(defaultProfile) : null
 }
 
 export function resolveModelWithInfo(
@@ -129,7 +155,7 @@ export function resolveModelWithInfo(
       }
     }
 
-    return { success: true, profile }
+    return resolveRuntimeProfileWithInfo(profile)
   }
 
   const raw = String(modelParam)
@@ -155,5 +181,5 @@ export function resolveModelWithInfo(
     }
   }
 
-  return { success: true, profile }
+  return resolveRuntimeProfileWithInfo(profile)
 }

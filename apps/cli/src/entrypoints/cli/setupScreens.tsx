@@ -6,6 +6,7 @@ import { TrustScreen } from '#ui-ink/screens/setup/TrustScreen'
 import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 import {
   checkHasTrustDialogAccepted,
+  getModelCredentialStatus,
   getGlobalConfig,
   saveGlobalConfig,
 } from '#core/utils/config'
@@ -43,7 +44,9 @@ export async function showSetupScreens(
 
   const config = getGlobalConfig()
   const hasConfiguredModels = Boolean(
-    (config.modelProfiles ?? []).some(profile => profile.isActive),
+    (config.modelProfiles ?? []).some(
+      profile => profile.isActive && getModelCredentialStatus(profile).success,
+    ),
   )
 
   const onboardingPlan = computeOnboardingPlan({

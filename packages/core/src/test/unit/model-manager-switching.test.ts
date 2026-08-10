@@ -16,6 +16,8 @@ function makeProfile(
     modelName: profile.modelName,
     baseURL: profile.baseURL,
     apiKey: profile.apiKey ?? '',
+    apiKeyEnv:
+      'apiKeyEnv' in profile ? profile.apiKeyEnv : 'TEST_MODEL_API_KEY',
     maxTokens: profile.maxTokens ?? 1024,
     contextLength: profile.contextLength,
     reasoningEffort: profile.reasoningEffort,
@@ -30,12 +32,19 @@ function makeProfile(
 
 describe('ModelManager model switching', () => {
   const originalNodeEnv = process.env.NODE_ENV
+  const originalTestModelApiKey = process.env.TEST_MODEL_API_KEY
 
   beforeAll(() => {
     process.env.NODE_ENV = 'test'
+    process.env.TEST_MODEL_API_KEY = 'runtime-test-key'
   })
 
   afterAll(() => {
+    if (originalTestModelApiKey === undefined) {
+      delete process.env.TEST_MODEL_API_KEY
+    } else {
+      process.env.TEST_MODEL_API_KEY = originalTestModelApiKey
+    }
     if (originalNodeEnv === undefined) {
       delete process.env.NODE_ENV
       return
@@ -195,7 +204,9 @@ describe('ModelManager model switching', () => {
     const updated = manager.getAllConfiguredModels()[0]!
     expect(updated.name).toBe('Model A Updated')
     expect(updated.baseURL).toBe('https://example.com/v1')
-    expect(updated.apiKey).toBe('existing-key')
+    // Callers never receive a legacy plaintext value, even when an old config
+    // still contains one for manual rotation.
+    expect(updated.apiKey).toBe('')
     expect(updated.maxTokens).toBe(8192)
     expect(updated.contextLength).toBe(256_000)
     expect(updated.reasoningEffort).toBe('high')
@@ -205,6 +216,38 @@ describe('ModelManager model switching', () => {
     expect(updated.isGPT5).toBe(true)
     expect(updated.validationStatus).toBe('valid')
     expect(updated.lastValidation).toBe(3)
+  })
+
+  test('blocks a legacy plaintext-only profile and uses its env reference at runtime', () => {
+    const legacyProfile = makeProfile({
+      name: 'Legacy Model',
+      modelName: 'legacy-model',
+      apiKey: 'legacy-key-not-for-runtime',
+      apiKeyEnv: undefined,
+      contextLength: 128_000,
+      createdAt: 1,
+    })
+    const config: any = {
+      modelProfiles: [legacyProfile],
+      modelPointers: {
+        main: legacyProfile.modelName,
+        task: legacyProfile.modelName,
+        compact: legacyProfile.modelName,
+        quick: legacyProfile.modelName,
+      },
+    }
+    const manager = new ModelManager(config)
+
+    const blocked = manager.resolveModelWithInfo('main')
+    expect(blocked.success).toBe(false)
+    expect(blocked.error).toContain('environment-variable credential reference')
+    expect(blocked.error).toContain('rotate')
+    expect(manager.getAllConfiguredModels()[0]?.apiKey).toBe('')
+
+    legacyProfile.apiKeyEnv = 'TEST_MODEL_API_KEY'
+    const resolved = manager.resolveModelWithInfo('main')
+    expect(resolved.success).toBe(true)
+    expect(resolved.profile?.apiKey).toBe('runtime-test-key')
   })
 
   test('removeModel clears pointers and default when deleting the last model', () => {

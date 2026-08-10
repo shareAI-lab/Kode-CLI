@@ -19,13 +19,11 @@ type Props = {
   resourceName: string
   ollamaBaseUrl: string
   customBaseUrl: string
-  apiKey: string
   maxTokens: string
   contextLength: number
   supportsReasoningEffort: boolean
   reasoningEffort: any
   validationError: string | null
-  formatApiKeyDisplay: (key: string) => string
   getProviderLabel: (provider: string, modelCount: number) => string
 }
 
@@ -41,13 +39,11 @@ export function ConfirmationScreen({
   resourceName,
   ollamaBaseUrl,
   customBaseUrl,
-  apiKey,
   maxTokens,
   contextLength,
   supportsReasoningEffort,
   reasoningEffort,
   validationError,
-  formatApiKeyDisplay,
   getProviderLabel,
 }: Props) {
   // Show model profile being created
@@ -56,9 +52,6 @@ export function ConfirmationScreen({
   const providerDisplayName = getProviderLabel(selectedProvider, 0).split(
     ' (',
   )[0]
-
-  // Determine if provider requires API key
-  const showsApiKey = selectedProvider !== 'ollama'
 
   return (
     <ScreenFrame
@@ -116,19 +109,6 @@ export function ConfirmationScreen({
             <Text bold>Model: </Text>
             <Text color={theme.suggestion}>{selectedModel}</Text>
           </Text>
-
-          {showsApiKey && (
-            <Text>
-              <Text bold>API Key: </Text>
-              <Text color={theme.suggestion}>
-                {apiKey
-                  ? tightLayout
-                    ? '(set)'
-                    : formatApiKeyDisplay(apiKey)
-                  : '(none)'}
-              </Text>
-            </Text>
-          )}
 
           {!tightLayout && maxTokens && (
             <Text>

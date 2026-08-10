@@ -41,6 +41,7 @@ export type ModelSelectorViewProps = {
   selectedProvider: ProviderType
   selectedModel: string
 
+  apiKeyEnv?: string
   apiKey: string
   cursorOffset: number
   handleApiKeyChange: (value: string) => void
