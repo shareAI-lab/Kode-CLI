@@ -11,7 +11,7 @@ import {
   classifyRequestFailure,
 } from '#core/ai/llm/restrictedClientCompat'
 import { PROMPT, TOOL_NAME_FOR_PROMPT } from './prompt'
-import { searchProviders } from './searchProviders'
+import { searchWithFallback } from './searchProviders'
 
 const inputSchema = z.object({
   query: z.string().describe('The search query to use'),
@@ -127,7 +127,12 @@ function parseAnthropicWebSearchContentBlocks(
 
 type WebSearchProgressEvent =
   | { type: 'query_update'; query: string }
-  | { type: 'search_results_received'; query: string; resultCount: number }
+  | {
+      type: 'search_results_received'
+      query: string
+      resultCount: number
+      providers: string[]
+    }
 
 function hostnameMatchesDomain(hostname: string, domain: string): boolean {
   const normalizedHost = hostname.trim().toLowerCase()
@@ -180,8 +185,7 @@ async function* streamDuckDuckGoWebSearch(args: {
   const startedAt = Date.now()
   yield { type: 'progress', event: { type: 'query_update', query: args.query } }
 
-  const provider = searchProviders.duckduckgo
-  const results = await provider.search(args.query)
+  const { results, providers } = await searchWithFallback(args.query)
   const hits: WebSearchHit[] = results
     .filter(result =>
       shouldIncludeResult({
@@ -198,6 +202,7 @@ async function* streamDuckDuckGoWebSearch(args: {
       type: 'search_results_received',
       query: args.query,
       resultCount: hits.length,
+      providers,
     },
   }
 
@@ -334,6 +339,7 @@ async function* streamAnthropicServerToolWebSearch(args: {
                 type: 'search_results_received',
                 query: queryForResult,
                 resultCount,
+                providers: ['anthropic'],
               },
             }
           }
@@ -550,7 +556,9 @@ export const WebSearchTool = {
           const message =
             item.event.type === 'query_update'
               ? `Searching: ${item.event.query}`
-              : `Found ${item.event.resultCount} results for "${item.event.query}"`
+              : item.event.resultCount > 0
+                ? `Found ${item.event.resultCount} results for "${item.event.query}" (${item.event.providers.join(', ')})`
+                : `Found 0 results for "${item.event.query}"`
           yield {
             type: 'progress' as const,
             content: createAssistantMessage(
