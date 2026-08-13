@@ -19,6 +19,7 @@ import { saveAgentTranscript } from '#core/utils/agentTranscripts'
 import { hasPermissionsToUseTool } from '#core/permissions'
 import {
   appendBackgroundTaskOutput,
+  flushBackgroundTaskOutput,
   touchBackgroundTaskOutputFile,
 } from '#core/tasks/backgroundRegistry'
 import type { AgentSupervisor } from '#core/utils/agentSupervisor'
@@ -245,6 +246,7 @@ export async function* callTaskToolBackground(
       }
       upsertBackgroundAgentTask(taskRecord)
     } finally {
+      flushBackgroundTaskOutput(prepared.agentId)
       lifecycle.finish(
         taskRecord.status === 'completed'
           ? 'completed'

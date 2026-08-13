@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import type { BackgroundProcess } from '#runtime/shell/types'
 import {
   appendTaskOutput,
+  flushTaskOutput,
   getTaskOutputFilePath,
   readTaskOutput,
   readTaskOutputTail,
@@ -233,6 +234,10 @@ export function appendBackgroundTaskOutput(
   chunk: string,
 ): void {
   appendTaskOutput(taskId, chunk)
+}
+
+export function flushBackgroundTaskOutput(taskId: string): void {
+  flushTaskOutput(taskId)
 }
 
 export function readBackgroundTaskOutput(taskId: string): string {

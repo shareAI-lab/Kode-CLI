@@ -51,3 +51,14 @@ export {
   type ExecuteAgentPlanOptions,
   type PlanAgentExecutionOptions,
 } from './agentOrchestration'
+
+export {
+  acquireWorkspaceLease,
+  canonicalizeWorkspacePath,
+  createWorkspaceLeaseManager,
+  type AcquireWorkspaceLeaseOptions,
+  type WorkspaceLease,
+  type WorkspaceLeaseManager,
+  type WorkspaceLeaseManagerOptions,
+  type WorkspaceLeaseMode,
+} from './workspaceLease'

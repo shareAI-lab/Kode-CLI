@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
   appendTaskOutput,
+  flushAllTaskOutputs,
+  flushTaskOutput,
   getTaskOutputStoreFilePath,
   getTaskOutputsStoreDir,
   readTaskOutputDelta,
@@ -41,12 +43,50 @@ test('incremental output uses byte offsets for multibyte text', () => {
 })
 
 afterEach(() => {
+  flushAllTaskOutputs()
   for (const key of ENV_KEYS) {
     const previous = previousEnv[key]
     if (previous === undefined) delete process.env[key]
     else process.env[key] = previous
   }
   rmSync(temporaryRoot, { recursive: true, force: true })
+})
+
+test('buffers small stream chunks until a read or explicit flush needs them', () => {
+  const taskId = 'buffered-output'
+  touchTaskOutputFile(taskId)
+  appendTaskOutput(taskId, 'first ')
+  appendTaskOutput(taskId, 'second')
+
+  expect(readFileSync(getTaskOutputStoreFilePath(taskId), 'utf8')).toBe('')
+
+  flushTaskOutput(taskId)
+  expect(readFileSync(getTaskOutputStoreFilePath(taskId), 'utf8')).toBe(
+    'first second',
+  )
+})
+
+test('flushes a quiet stream batch on its bounded timer', async () => {
+  const taskId = 'timed-output'
+  touchTaskOutputFile(taskId)
+  appendTaskOutput(taskId, 'eventual output')
+
+  await new Promise(resolve => setTimeout(resolve, 80))
+
+  expect(readFileSync(getTaskOutputStoreFilePath(taskId), 'utf8')).toBe(
+    'eventual output',
+  )
+})
+
+test('read APIs flush buffered output before calculating a delta', () => {
+  const taskId = 'buffered-delta'
+  touchTaskOutputFile(taskId)
+  appendTaskOutput(taskId, '你好')
+
+  expect(readTaskOutputDelta(taskId, 0)).toEqual({
+    content: '你好',
+    newOffset: 6,
+  })
 })
 
 test('task output is private and tail reads stay byte-bounded', () => {

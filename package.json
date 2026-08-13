@@ -98,6 +98,7 @@
     "lint:fix": "oxlint --fix",
     "security:audit": "bun audit",
     "test": "bun run scripts/run-workspace-tests.mjs",
+    "perf:gate": "bun run scripts/performance-gate.mjs",
     "typecheck": "tsc --noEmit",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build",
     "prepare": "node scripts/install-hooks.mjs",

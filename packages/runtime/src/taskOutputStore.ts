@@ -37,6 +37,47 @@ function getProjectRootForTaskOutputs(): string {
   return process.cwd()
 }
 
+const OUTPUT_FLUSH_INTERVAL_MS = 40
+const MAX_BUFFERED_OUTPUT_BYTES = 64 * 1024
+
+type TaskOutputBuffer = {
+  filePath: string
+  chunks: string[]
+  byteLength: number
+  timer: ReturnType<typeof setTimeout> | null
+}
+
+const bufferedOutputByTask = new Map<string, TaskOutputBuffer>()
+
+function scheduleTaskOutputFlush(
+  taskId: string,
+  buffer: TaskOutputBuffer,
+): void {
+  if (buffer.timer !== null) return
+  buffer.timer = setTimeout(() => {
+    buffer.timer = null
+    flushTaskOutput(taskId)
+  }, OUTPUT_FLUSH_INTERVAL_MS)
+  buffer.timer.unref?.()
+}
+
+function getTaskOutputBuffer(taskId: string): TaskOutputBuffer {
+  const existing = bufferedOutputByTask.get(taskId)
+  if (existing) return existing
+
+  // Set up permissions and the user-facing symlink once for a burst of output
+  // instead of performing those filesystem operations for every stream chunk.
+  touchTaskOutputFile(taskId)
+  const buffer: TaskOutputBuffer = {
+    filePath: getTaskOutputStoreFilePath(taskId),
+    chunks: [],
+    byteLength: 0,
+    timer: null,
+  }
+  bufferedOutputByTask.set(taskId, buffer)
+  return buffer
+}
+
 export function getTaskOutputsStoreDir(): string {
   return join(
     getKodeBaseDir(),
@@ -106,6 +147,7 @@ function tryEnsureUserFacingSymlink(taskId: string): boolean {
 }
 
 export function touchTaskOutputFile(taskId: string): string {
+  flushTaskOutput(taskId)
   ensureTaskOutputsDirExists()
   const storeFilePath = getTaskOutputStoreFilePath(taskId)
   if (!existsSync(storeFilePath)) {
@@ -121,6 +163,7 @@ export function touchTaskOutputFile(taskId: string): string {
 }
 
 export function getTaskOutputFilePath(taskId: string): string {
+  flushTaskOutput(taskId)
   const storeFilePath = getTaskOutputStoreFilePath(taskId)
   const userFacingFilePath = getTaskOutputUserFacingFilePath(taskId)
 
@@ -136,16 +179,60 @@ export function getTaskOutputFilePath(taskId: string): string {
 }
 
 export function appendTaskOutput(taskId: string, chunk: string): void {
+  if (!chunk) return
   try {
-    ensureTaskOutputsDirExists()
-    const storeFilePath = getTaskOutputStoreFilePath(taskId)
-    appendFileSync(storeFilePath, chunk, { encoding: 'utf8', mode: 0o600 })
-    ensurePrivateMode(storeFilePath, 0o600)
-    tryEnsureUserFacingSymlink(taskId)
+    const buffer = getTaskOutputBuffer(taskId)
+    buffer.chunks.push(chunk)
+    buffer.byteLength += Buffer.byteLength(chunk)
+    if (buffer.byteLength >= MAX_BUFFERED_OUTPUT_BYTES) {
+      flushTaskOutput(taskId)
+    } else {
+      scheduleTaskOutputFlush(taskId, buffer)
+    }
   } catch {
     // Best-effort: never crash the session on output persistence failures.
   }
 }
+
+/**
+ * Flush one task's buffered stream chunks. Shell/agent completion paths call
+ * this explicitly; read APIs also call it so their existing immediate-read
+ * contract remains intact.
+ */
+export function flushTaskOutput(taskId: string): void {
+  const buffer = bufferedOutputByTask.get(taskId)
+  if (!buffer || buffer.chunks.length === 0) return
+  if (buffer.timer !== null) {
+    clearTimeout(buffer.timer)
+    buffer.timer = null
+  }
+  try {
+    appendFileSync(buffer.filePath, buffer.chunks.join(''), {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
+    ensurePrivateMode(buffer.filePath, 0o600)
+    bufferedOutputByTask.delete(taskId)
+  } catch {
+    // Keep the batch in memory so a later append, read, controlled completion,
+    // or process exit can retry it without reordering output.
+  }
+}
+
+/** Flush all outstanding chunks for controlled shutdown and process exit. */
+export function flushAllTaskOutputs(): void {
+  for (const taskId of bufferedOutputByTask.keys()) flushTaskOutput(taskId)
+}
+
+let exitFlushRegistered = false
+
+function registerExitFlush(): void {
+  if (exitFlushRegistered) return
+  exitFlushRegistered = true
+  process.on('exit', flushAllTaskOutputs)
+}
+
+registerExitFlush()
 
 export function readTaskOutputDelta(
   taskId: string,
@@ -154,6 +241,7 @@ export function readTaskOutputDelta(
   content: string
   newOffset: number
 } {
+  flushTaskOutput(taskId)
   try {
     const filePath = getTaskOutputStoreFilePath(taskId)
     if (!existsSync(filePath)) return { content: '', newOffset: offset }
@@ -179,6 +267,7 @@ export function readTaskOutputDelta(
 }
 
 export function readTaskOutput(taskId: string): string {
+  flushTaskOutput(taskId)
   try {
     const filePath = getTaskOutputStoreFilePath(taskId)
     if (!existsSync(filePath)) return ''
@@ -192,6 +281,7 @@ export function readTaskOutputTail(
   taskId: string,
   maxBytes: number,
 ): { content: string; wasTruncated: boolean } {
+  flushTaskOutput(taskId)
   try {
     const filePath = getTaskOutputStoreFilePath(taskId)
     if (!existsSync(filePath)) return { content: '', wasTruncated: false }
@@ -222,6 +312,7 @@ export function readTaskOutputTailLines(
   taskId: string,
   maxLines: number,
 ): string[] {
+  flushTaskOutput(taskId)
   try {
     const lineLimit = Math.max(0, Math.floor(maxLines))
     if (lineLimit === 0) return []

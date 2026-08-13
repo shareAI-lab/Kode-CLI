@@ -201,6 +201,7 @@
       "name": "@kode/core",
       "version": "0.0.0",
       "dependencies": {
+        "@kode/ai": "workspace:*",
         "@kode/config": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/hooks": "workspace:*",
