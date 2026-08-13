@@ -72,9 +72,14 @@ export function isPublicNetworkAddress(address: string): boolean {
         first === 0 ||
         first! >= 224 ||
         (first === 192 && second === 0) ||
-        (first === 198 && (second === 18 || second === 19)) ||
+        // 198.51.100.0/24 and 203.0.113.0/24 are documentation ranges.
         (first === 198 && second === 51 && third === 100) ||
         (first === 203 && second === 0 && third === 113)
+        // 198.18.0.0/15 (RFC 2544 benchmarking) is intentionally allowed: it
+        // is never routed on the public internet, cannot reach internal
+        // networks, and proxy stacks (Clash/Surge fake-ip) use it as a
+        // virtual mapping range whose traffic is forwarded to the real
+        // destination for the already-validated hostname.
       )
     }
 
