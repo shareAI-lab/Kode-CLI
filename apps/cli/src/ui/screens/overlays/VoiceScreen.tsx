@@ -235,7 +235,8 @@ export function VoiceScreen({
         void startRecording(true)
         return true
       }
-      if (!key.return) return undefined
+      const isRecordingToggle = key.return || key.name === 'f10'
+      if (!isRecordingToggle) return undefined
       if (state.kind === 'error' && state.recovery === 'configure') {
         setMode('settings')
         return true
@@ -258,11 +259,11 @@ export function VoiceScreen({
 
   const stateLine =
     state.kind === 'ready'
-      ? 'Press Enter to begin recording.'
+      ? 'Press Enter or F10 to begin recording.'
       : state.kind === 'preparing'
         ? 'Preparing the macOS microphone recorder…'
         : state.kind === 'recording'
-          ? `Recording. Press Enter to stop (maximum ${configRef.current?.maxRecordingSeconds ?? '?'} seconds).`
+          ? `Recording. Press Enter or F10 to stop (maximum ${configRef.current?.maxRecordingSeconds ?? '?'} seconds).`
           : state.kind === 'transcribing'
             ? 'Transcribing securely with MiMo…'
             : state.kind === 'review'
@@ -276,7 +277,7 @@ export function VoiceScreen({
     state.kind === 'review'
       ? 'Ctrl+R records another segment and appends it · Esc/Ctrl+C close'
       : state.kind === 'recording'
-        ? 'Enter stops recording · Esc/Ctrl+C cancels and closes'
+        ? 'Enter/F10 stops recording · Esc/Ctrl+C cancels and closes'
         : state.kind === 'transcribing'
           ? 'Esc/Ctrl+C cancels transcription and closes'
           : state.kind === 'error' && state.recovery === 'configure'
@@ -284,7 +285,7 @@ export function VoiceScreen({
             : state.kind === 'error'
               ? 'Enter tries again · Esc/Ctrl+C closes'
               : state.kind === 'ready'
-                ? 'Enter starts recording · Esc/Ctrl+C closes'
+                ? 'Enter/F10 starts recording · Esc/Ctrl+C closes'
                 : 'Esc/Ctrl+C cancels and closes'
 
   if (mode === 'settings') {

@@ -4,6 +4,7 @@ import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { getTheme, type Theme } from '#core/utils/theme'
+import { isExperimentalVoiceEnabled } from '#core/utils/config'
 import { getPermissionModeCycleShortcut } from '#ui-ink/utils/permissionModeCycleShortcut'
 import {
   getCommandShortcutHints,
@@ -85,6 +86,13 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
     trigger: 'Alt+G',
     effect: 'open external editor',
   }
+  const voiceShortcut = isExperimentalVoiceEnabled()
+    ? {
+        label: 'F10',
+        detail: 'voice conversation; tap to start/stop recording',
+        tone: 'shortcut' as const,
+      }
+    : null
 
   useKeypress((input, key) => {
     const inputChar = input.length === 1 ? input : ''
@@ -143,13 +151,15 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
     { label: 'Ctrl+T', detail: 'work tasks', tone: 'shortcut' },
     { label: 'Ctrl+_', detail: 'undo', tone: 'shortcut' },
     { label: 'Ctrl+V', detail: 'paste images', tone: 'shortcut' },
+    ...(voiceShortcut ? [voiceShortcut] : []),
     { label: 'Esc', detail: 'close', tone: 'shortcut' },
   ]
   const narrowRows: ShortcutRow[] = [
     ...systemRows.slice(0, 2),
     ...inputRows.slice(2, 4),
     ...systemRows.slice(2, 4),
-    systemRows[6] ?? { label: 'Esc', detail: 'close', tone: 'shortcut' },
+    voiceShortcut ??
+      systemRows[6] ?? { label: 'Esc', detail: 'close', tone: 'shortcut' },
   ]
   const wide = layout.columns >= 110
   const gap = Math.max(2, layout.gap)

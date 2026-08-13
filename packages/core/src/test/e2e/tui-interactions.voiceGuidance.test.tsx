@@ -31,13 +31,16 @@ async function waitForOutput(
 describe('TUI E2E: reviewed voice control delivery', () => {
   let apiKeyEnv = 'MIMO_API_KEY'
   let previousApiKey: string | undefined
+  let previousVoiceFeatureFlag: string | undefined
 
   beforeEach(() => {
     const resolved = resolveVoiceConfig(getGlobalConfig().voice)
     if (!resolved.ok) throw new Error(resolved.message)
     apiKeyEnv = resolved.config.apiKeyEnv
     previousApiKey = process.env[apiKeyEnv]
+    previousVoiceFeatureFlag = process.env.KODE_EXPERIMENTAL_VOICE
     process.env[apiKeyEnv] = 'test-key'
+    process.env.KODE_EXPERIMENTAL_VOICE = '1'
   })
 
   afterEach(async () => {
@@ -45,6 +48,33 @@ describe('TUI E2E: reviewed voice control delivery', () => {
     mock.restore()
     if (previousApiKey === undefined) delete process.env[apiKeyEnv]
     else process.env[apiKeyEnv] = previousApiKey
+    if (previousVoiceFeatureFlag === undefined) {
+      delete process.env.KODE_EXPERIMENTAL_VOICE
+    } else {
+      process.env.KODE_EXPERIMENTAL_VOICE = previousVoiceFeatureFlag
+    }
+  })
+
+  test('opens a voice conversation from the F10 shortcut', async () => {
+    const { REPL } = await import('#ui-ink/screens/REPL/REPL')
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <REPL
+          commands={[]}
+          initialPrompt={undefined}
+          messageLogName={`voice-shortcut-${Date.now()}`}
+          shouldShowPromptInput={true}
+          tools={[]}
+          verbose={false}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(80)
+    h.stdin.write('\u001b[21~')
+    await waitForOutput(h, 'Voice conversation')
+    expect(h.getOutput()).toContain('Press Enter or F10 to begin recording')
   })
 
   test('records, streams a transcript, reviews it, then guides the selected Agent', async () => {
@@ -92,10 +122,10 @@ describe('TUI E2E: reviewed voice control delivery', () => {
     )
     harnessManager.track(h)
 
-    await waitForOutput(h, 'Press Enter to begin recording')
-    h.stdin.write('\r')
+    await waitForOutput(h, 'Press Enter or F10 to begin recording')
+    h.stdin.write('\u001b[21~')
     await waitForOutput(h, '● Listening')
-    h.stdin.write('\r')
+    h.stdin.write('\u001b[21~')
     await waitForOutput(h, 'Prioritize the cancellation race.')
     await waitForOutput(h, 'send it to running Agent agent-1')
     // The test harness writes transcript-sized chunks like a paste. Let the
@@ -152,7 +182,7 @@ describe('TUI E2E: reviewed voice control delivery', () => {
       )
       harnessManager.track(h)
 
-      await waitForOutput(h, 'Press Enter to begin recording')
+      await waitForOutput(h, 'Press Enter or F10 to begin recording')
       h.stdin.write('\r')
       await waitForOutput(h, 'Press Enter to open Voice settings')
       expect(h.getOutput()).toContain('Enter opens settings')

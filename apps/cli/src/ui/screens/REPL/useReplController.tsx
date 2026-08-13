@@ -25,7 +25,11 @@ import {
 } from '#core/messages'
 import type { Message as MessageType } from '#core/query'
 import { createUserMessage, normalizeMessages } from '#core/utils/messages'
-import { getGlobalConfigCached, saveGlobalConfig } from '#core/utils/config'
+import {
+  getGlobalConfigCached,
+  isExperimentalVoiceEnabled,
+  saveGlobalConfig,
+} from '#core/utils/config'
 import { getNextAvailableLogForkNumber, logError } from '#core/utils/log'
 import { getCwd, getOriginalCwd } from '#core/utils/state'
 import {
@@ -923,6 +927,20 @@ export function useReplController(props: REPLProps) {
 
       if (key.name === 'f8') {
         void openTasksScreen()
+        return undefined
+      }
+
+      // F10 is intentionally a discrete toggle: terminal input provides
+      // keypress sequences but not a portable key-up event, so push-to-talk
+      // would stop unpredictably across terminals.
+      if (key.name === 'f10' && isExperimentalVoiceEnabled()) {
+        const { VoiceScreen } =
+          await import('#ui-ink/screens/overlays/VoiceScreen')
+        openToolView({
+          jsx: <VoiceScreen onDone={dismissToolView} />,
+          shouldHidePromptInput: true,
+          displayMode: 'fullscreen',
+        })
         return undefined
       }
 
