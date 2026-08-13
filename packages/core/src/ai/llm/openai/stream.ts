@@ -497,8 +497,14 @@ export async function handleMessageStream(
   }
 
   if (degradationReason) {
-    completion.__streamDegraded = true
-    completion.__streamDegradationReason = degradationReason
+    // The stream did not complete cleanly (e.g. MiMo's SSE endpoint can
+    // terminate mid tool-call argument). Surface this as a retryable error so
+    // the caller's retry loop can re-issue the request through the
+    // non-streaming endpoint instead of silently returning partial output.
+    throw new OpenAIStreamError(
+      'read_error',
+      `OpenAI stream degraded: ${degradationReason}`,
+    )
   }
 
   return completion

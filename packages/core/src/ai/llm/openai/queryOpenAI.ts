@@ -321,7 +321,7 @@ export async function queryOpenAI(
 
   try {
     queryResult = await withRetry(
-      async () => {
+      async attempt => {
         start = Date.now()
 
         if (adapterContext) {
@@ -366,7 +366,7 @@ export async function queryOpenAI(
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
-          stream: streamDecision.stream,
+          stream: attempt > 1 ? false : streamDecision.stream,
           toolSchemas: toolSchemas,
           stopSequences: options?.stopSequences,
           provider:
