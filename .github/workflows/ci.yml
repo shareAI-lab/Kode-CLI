@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [develop, beta, main]
   pull_request:
-    branches: [main]
+    branches: [develop, beta, main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -49,13 +49,21 @@ jobs:
 
       - name: Test
         run: bun run test
+        env:
+          # Each file still runs in its own Bun process. Three workers shorten
+          # the CI critical path while remaining below the local default of four.
+          KODE_TEST_CONCURRENCY: '3'
 
       - name: Unit coverage gate
         if: runner.os == 'Linux'
-        run: bun test --coverage --coverage-threshold=50 ./packages/core/src/test/unit ./apps/cli/src ./packages/config/src/test/unit ./packages/host/src/test/unit ./packages/protocol/src/test/unit ./packages/runtime/src/test/unit
+        run: bun run test:unit:coverage
 
       - name: Build
         run: bun run build
+
+      - name: Performance gates
+        if: runner.os == 'Linux'
+        run: bun run perf:gate
 
   kode-agent-sdk:
     name: Kode Agent SDK

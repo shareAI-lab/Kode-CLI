@@ -157,6 +157,18 @@ function buildEffectiveContext(args: {
   return effectiveToolPermissionContext
 }
 
+function isReadOnlyToolUse(
+  tool: Tool,
+  input: Record<string, unknown>,
+): boolean {
+  try {
+    return tool.isReadOnly(input as never)
+  } catch (error) {
+    logError(`Error checking whether ${tool.name} is read-only: ${error}`)
+    return false
+  }
+}
+
 export const hasPermissionsToUseTool: CanUseToolFn = async (
   tool,
   input,
@@ -199,6 +211,21 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     return {
       result: false,
       message: `${PRODUCT_NAME} requested permissions to use ${tool.name}, but you haven't granted it yet.`,
+    }
+  }
+
+  // Plan is a real execution boundary, not merely a UI label. Every call is
+  // classified using its actual input: Read remains usable, while Edit,
+  // Write, dangerous Bash commands, and write-capable delegation are denied.
+  // Tools that require user interaction (for example ExitPlanMode) were
+  // handled above so an explicit approval can intentionally change modes.
+  if (permissionMode === 'plan') {
+    if (!isReadOnlyToolUse(tool, input)) {
+      return {
+        result: false,
+        message: `${tool.name} is unavailable in read-only Plan mode. Exit Plan mode and explicitly choose an editing permission mode to continue.`,
+        shouldPromptUser: false,
+      }
     }
   }
 

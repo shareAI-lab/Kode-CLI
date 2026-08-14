@@ -18,8 +18,7 @@ export type { Props } from './TextInput.types'
 // Character codes - use numeric comparison to survive minification
 const BACKSPACE_CODE = 8 // \x08
 const DEL_CODE = 127 // \x7f
-const PASTE_GUARD_MESSAGE =
-  'Paste detected. Added as a placeholder; press Enter to send.'
+const PASTE_GUARD_MESSAGE = 'Paste detected. Press Enter again to send.'
 const LEGACY_PASTE_AGGREGATION_DELAY_MS = 75
 const SPECIAL_PASTE_AGGREGATION_DELAY_MS = 32
 

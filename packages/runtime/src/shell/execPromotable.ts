@@ -6,7 +6,11 @@ import type {
   BunShellPromotableExecStatus,
 } from './types'
 import type { BunShellState } from './state'
-import { appendTaskOutput, touchTaskOutputFile } from '../taskOutputStore'
+import {
+  appendTaskOutput,
+  flushTaskOutput,
+  touchTaskOutputFile,
+} from '../taskOutputStore'
 import { buildSandboxCommand } from './sandboxCommand'
 import { annotateStderrWithSandboxViolations } from './sandboxViolations'
 import { createCancellableTextCollector } from './streamReaders'
@@ -325,6 +329,7 @@ export function execPromotable(
           }
         }
       }
+      if (backgroundTaskId) flushTaskOutput(backgroundTaskId)
 
       return {
         stdout,

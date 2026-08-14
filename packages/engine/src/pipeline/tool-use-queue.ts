@@ -7,6 +7,7 @@ import {
   createUserMessage,
 } from '../messages/create'
 import { REJECT_MESSAGE } from '../messages/constants'
+import { logError } from '#core/utils/log'
 
 import type {
   AssistantMessage,
@@ -162,72 +163,111 @@ export class ToolUseQueue {
     > = []
 
     const promise = (async () => {
-      const abortReason = this.getAbortReason()
-      if (abortReason) {
-        results.push(createSyntheticToolUseErrorMessage(entry.id, abortReason))
-        entry.results = results
-        entry.contextModifiers = contextModifiers
-        entry.status = 'completed'
-        return
-      }
-
-      const generator = runToolUse(
-        entry.block,
-        this.siblingToolUseIDs,
-        entry.assistantMessage,
-        this.canUseTool,
-        this.toolUseContext,
-        this.shouldSkipPermissionCheck,
-      )
-
-      let toolErrored = false
-
-      for await (const message of generator) {
-        const reason = this.getAbortReason()
-        if (reason && !toolErrored) {
-          results.push(createSyntheticToolUseErrorMessage(entry.id, reason))
-          break
-        }
-
-        if (
-          message.type === 'user' &&
-          Array.isArray(message.message.content) &&
-          message.message.content.some(
-            block => block.type === 'tool_result' && block.is_error === true,
+      try {
+        const abortReason = this.getAbortReason()
+        if (abortReason) {
+          results.push(
+            createSyntheticToolUseErrorMessage(entry.id, abortReason),
           )
-        ) {
-          this.hasErrored = true
-          toolErrored = true
+          entry.results = results
+          entry.contextModifiers = contextModifiers
+          entry.status = 'completed'
+          return
         }
 
-        if (message.type === 'progress') {
-          entry.pendingProgress.push(message)
-          if (this.progressAvailableResolve) {
-            this.progressAvailableResolve()
-            this.progressAvailableResolve = undefined
+        const generator = runToolUse(
+          entry.block,
+          this.siblingToolUseIDs,
+          entry.assistantMessage,
+          this.canUseTool,
+          this.toolUseContext,
+          this.shouldSkipPermissionCheck,
+        )
+
+        let toolErrored = false
+
+        for await (const message of generator) {
+          const reason = this.getAbortReason()
+          if (reason && !toolErrored) {
+            results.push(createSyntheticToolUseErrorMessage(entry.id, reason))
+            break
           }
-        } else {
-          results.push(message)
 
           if (
             message.type === 'user' &&
-            message.toolUseResult?.contextModifier
-          ) {
-            contextModifiers.push(
-              message.toolUseResult.contextModifier.modifyContext,
+            Array.isArray(message.message.content) &&
+            message.message.content.some(
+              block => block.type === 'tool_result' && block.is_error === true,
             )
+          ) {
+            this.hasErrored = true
+            toolErrored = true
+          }
+
+          if (message.type === 'progress') {
+            entry.pendingProgress.push(message)
+            if (this.progressAvailableResolve) {
+              this.progressAvailableResolve()
+              this.progressAvailableResolve = undefined
+            }
+          } else {
+            results.push(message)
+
+            if (
+              message.type === 'user' &&
+              message.toolUseResult?.contextModifier
+            ) {
+              contextModifiers.push(
+                message.toolUseResult.contextModifier.modifyContext,
+              )
+            }
           }
         }
-      }
 
-      entry.results = results
-      entry.contextModifiers = contextModifiers
-      entry.status = 'completed'
+        entry.results = results
+        entry.contextModifiers = contextModifiers
+        entry.status = 'completed'
 
-      if (!entry.isConcurrencySafe && contextModifiers.length > 0) {
-        for (const modifyContext of contextModifiers) {
-          this.toolUseContext = modifyContext(this.toolUseContext)
+        if (!entry.isConcurrencySafe && contextModifiers.length > 0) {
+          for (const modifyContext of contextModifiers) {
+            this.toolUseContext = modifyContext(this.toolUseContext)
+          }
         }
+      } catch (error) {
+        // `runToolUse` converts tool failures into is_error tool_result
+        // messages, so reaching this catch means the generator itself broke
+        // (e.g. the tool call could not be started, or a tool threw during
+        // cleanup/return). Leave the entry completed with an error result so
+        // the queue drains instead of hanging on a stuck 'executing' entry and
+        // leaking an unhandled rejection from the finally chain below.
+        logError(error)
+        this.hasErrored = true
+        const alreadyHasResult = results.some(
+          message =>
+            message.type === 'user' &&
+            Array.isArray(message.message.content) &&
+            message.message.content.some(
+              block =>
+                block.type === 'tool_result' && block.tool_use_id === entry.id,
+            ),
+        )
+        if (!alreadyHasResult) {
+          results.push(
+            createUserMessage([
+              {
+                type: 'tool_result',
+                content: `Tool execution failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+                is_error: true,
+                tool_use_id: entry.id,
+              },
+            ]),
+          )
+        }
+        entry.results = results
+        entry.contextModifiers = contextModifiers
+        entry.status = 'completed'
       }
     })()
 

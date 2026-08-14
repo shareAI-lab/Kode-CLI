@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import {
-  appendFileSync,
   closeSync,
   existsSync,
   mkdirSync,
@@ -14,6 +13,7 @@ import {
 import { dirname, join } from 'node:path'
 
 import { getClaudeCompatRoots, getKodeRoot } from '#config/dataRoots'
+import { appendJsonlAsync, flushPendingSync } from '#core/utils/jsonlWriter'
 import { LEGACY_ENV } from '#core/compat/legacyEnv'
 import { getCurrentProjectConfig } from '#core/utils/config'
 import { getCwd } from '#core/utils/state'
@@ -315,6 +315,7 @@ function loadPromptHistoryFromRoot(args: {
   maxItems: number
 }): ReverseJsonlScanResult<PromptHistoryItem> {
   const historyFilePath = getHistoryFilePath(args.root)
+  flushPendingSync(historyFilePath)
 
   let fileKey = `${args.root}:missing`
   try {
@@ -434,6 +435,7 @@ function loadGlobalPromptHistoryFromRoot(args: {
   maxItems: number
 }): ReverseJsonlScanResult<PromptHistoryItem> {
   const historyFilePath = getHistoryFilePath(args.root)
+  flushPendingSync(historyFilePath)
 
   let fileKey = `${args.root}:missing`
   try {
@@ -679,8 +681,9 @@ export function addToHistory(input: HistoryWriteInput): void {
   const filePath = getHistoryFilePath(root)
   const release = acquireFileLock(`${filePath}.lock`)
   try {
-    appendFileSync(filePath, JSON.stringify(record) + '\n', {
-      encoding: 'utf8',
+    appendJsonlAsync({
+      filePath,
+      entry: JSON.stringify(record) + '\n',
       mode: 0o600,
     })
   } catch {

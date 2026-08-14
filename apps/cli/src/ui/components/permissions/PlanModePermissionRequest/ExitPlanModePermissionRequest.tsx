@@ -186,9 +186,11 @@ export function ExitPlanModePermissionRequest({
       pushToRemoteAvailable,
       swarmAvailable,
       teammateCount: swarmTeammateCount,
+      quickSelectLabel: modeCycleShortcut.displayText,
     })
   }, [
     bypassAvailable,
+    modeCycleShortcut.displayText,
     pushToRemoteAvailable,
     swarmAvailable,
     swarmTeammateCount,
@@ -500,9 +502,22 @@ export function ExitPlanModePermissionRequest({
     }
 
     if (focusSection === 'options' && modeCycleShortcut.check(input, key)) {
-      const quickValue: ExitPlanModeOptionValue = 'yes-accept-edits'
-      handleApprove(quickValue)
-      return true
+      // Quick-select only fires while an approval option is focused. When the
+      // user moved focus to the "No, keep planning" input, shift+tab must not
+      // silently approve and switch permission modes behind their back.
+      const focusedOption = options[focusedOptionIndex]
+      // Non-input options are approval options by construction: the only
+      // "no" option is the typed input row.
+      const isApprovalOption =
+        focusedOption !== undefined &&
+        'value' in focusedOption &&
+        focusedOption.type !== 'input'
+      if (isApprovalOption) {
+        const quickValue: ExitPlanModeOptionValue = 'yes-accept-edits'
+        handleApprove(quickValue)
+        return true
+      }
+      return undefined
     }
 
     if (key.pageUp && !showExitWithoutPlan) {

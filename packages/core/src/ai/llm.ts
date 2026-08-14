@@ -3,6 +3,7 @@ import type { UUID } from 'crypto'
 import { config as loadDotenv } from 'dotenv'
 import type { AssistantMessage, UserMessage } from '#core/query'
 import { resolveToolDescription, type Tool } from '#core/tooling/Tool'
+import { createAssistantAPIErrorMessage } from '#core/utils/messages'
 import { queryOpenAI } from '#core/ai/llm/openai'
 import { queryAnthropicNative } from '#core/ai/llm/anthropic'
 import { queryCodexOAuth } from '#core/ai/llm/codexOAuth'
@@ -68,6 +69,23 @@ type QueryLLMWithPromptCachingFn = typeof queryLLMWithPromptCaching
 
 const MODEL_POINTERS = new Set(['main', 'task', 'compact', 'quick'])
 const AUXILIARY_MODEL_POINTERS = new Set(['task', 'compact', 'quick'])
+const OAUTH_PROVIDERS_WITHOUT_KODE_TOOL_BRIDGE = new Set([
+  'github-copilot',
+  'grok-build',
+])
+
+export const EXTERNAL_RUNTIME_TOOL_BRIDGE_UNAVAILABLE_MESSAGE =
+  'API Error: The selected OAuth model runtime cannot execute Kode tools yet, so this project inspection or action was not executed. Use /model to select a tool-capable API model and retry.'
+
+function requiresKodeToolBridge(
+  systemPrompt: string[],
+  tools: Tool[],
+): boolean {
+  return (
+    tools.length > 0 &&
+    systemPrompt.some(prompt => prompt.includes('<tool_use_requirement>'))
+  )
+}
 
 /**
  * Loads the process-wide model configuration before the first user request.
@@ -275,6 +293,19 @@ export async function queryLLM(
 
   const modelProfile = modelResolution.profile
   const resolvedModel = modelProfile.modelName
+
+  // OAuth runtimes currently return text-only responses and deliberately do
+  // not bridge their native tools into Kode's permission and transcript flow.
+  // Fail before any provider call instead of letting an explicit project action
+  // enter the required-tool retry loop and appear to have been inspected.
+  if (
+    OAUTH_PROVIDERS_WITHOUT_KODE_TOOL_BRIDGE.has(modelProfile.provider) &&
+    requiresKodeToolBridge(systemPrompt, tools)
+  ) {
+    return createAssistantAPIErrorMessage(
+      EXTERNAL_RUNTIME_TOOL_BRIDGE_UNAVAILABLE_MESSAGE,
+    )
+  }
 
   // Initialize response state if toolUseContext is provided
   const toolUseContext = options.toolUseContext

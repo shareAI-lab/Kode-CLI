@@ -9,6 +9,7 @@ import { Message } from './Message'
 import { ToolUseLoader } from './ToolUseLoader'
 import { AssistantThinkingMessage } from './messages/AssistantThinkingMessage'
 import { BashToolRunInBackgroundOverlay } from '#tools/tools/system/BashTool/BashToolRunInBackgroundOverlay'
+import { RequestStatusIndicator } from './RequestStatusIndicator'
 import { setRequestStatus } from '#core/utils/requestStatus'
 
 type TestHarness = {
@@ -229,17 +230,14 @@ describe('animation lifecycle', () => {
     expect(harness.getOutput()).toBe(initialOutput)
   })
 
-  test('does not animate a hidden Bash tool status', async () => {
-    setRequestStatus({ kind: 'tool' })
+  test('shows and animates the active Bash tool status', async () => {
+    setRequestStatus({ kind: 'tool', detail: 'Bash' })
     const setIntervalSpy = spyOn(globalThis, 'setInterval')
     const harness = createHarness(<BashToolRunInBackgroundOverlay />)
 
     await harness.wait(40)
-    const initialRenderCount = harness.getRenderCount()
-
-    expect(setIntervalSpy).not.toHaveBeenCalled()
-    await harness.wait(220)
-    expect(harness.getRenderCount()).toBe(initialRenderCount)
+    expect(harness.getOutput()).toContain('Working · Bash')
+    expect(setIntervalSpy).toHaveBeenCalled()
   })
 
   test('keeps the Bash request status static for screen readers', async () => {
@@ -253,10 +251,42 @@ describe('animation lifecycle', () => {
     const initialOutput = harness.getOutput()
     const initialRenderCount = harness.getRenderCount()
 
-    expect(initialOutput).toContain('Preparing response')
+    expect(initialOutput).toContain('Thinking')
     expect(setIntervalSpy).not.toHaveBeenCalled()
     await harness.wait(220)
     expect(harness.getRenderCount()).toBe(initialRenderCount)
     expect(harness.getOutput()).toBe(initialOutput)
+  })
+
+  test('keeps the main REPL request status static for screen readers', async () => {
+    setRequestStatus({ kind: 'thinking', inputTokens: 42 })
+    const setIntervalSpy = spyOn(globalThis, 'setInterval')
+    const harness = createHarness(<RequestStatusIndicator />, {
+      isScreenReaderEnabled: true,
+    })
+
+    await harness.wait(40)
+    const initialOutput = harness.getOutput()
+    const initialRenderCount = harness.getRenderCount()
+
+    expect(initialOutput).toContain('Thinking')
+    expect(setIntervalSpy).not.toHaveBeenCalled()
+    await harness.wait(220)
+    expect(harness.getRenderCount()).toBe(initialRenderCount)
+    expect(harness.getOutput()).toBe(initialOutput)
+  })
+
+  test('animates the main REPL request status for sighted users', async () => {
+    setRequestStatus({ kind: 'streaming', outputTokens: 12_500 })
+    const setIntervalSpy = spyOn(globalThis, 'setInterval')
+    const harness = createHarness(<RequestStatusIndicator />)
+
+    await harness.wait(40)
+    const output = harness.getOutput()
+
+    expect(output).toContain('Writing response')
+    expect(output).toContain('↓ 13k')
+    expect(output).toContain('(Esc cancel)')
+    expect(setIntervalSpy).toHaveBeenCalled()
   })
 })

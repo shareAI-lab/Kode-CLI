@@ -39,13 +39,10 @@ function rankHistoryEntries(
         return { item, score: 10000 - position }
       }
       const result = matchAdvanced(item.display, query)
-      return result.matched
-        ? { item, score: Math.max(1, result.score) }
-        : null
+      return result.matched ? { item, score: Math.max(1, result.score) } : null
     })
     .filter(
-      (entry): entry is { item: HistoryEntry; score: number } =>
-        entry !== null,
+      (entry): entry is { item: HistoryEntry; score: number } => entry !== null,
     )
     .sort((a, b) => b.score - a.score)
 

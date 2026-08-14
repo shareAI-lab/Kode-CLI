@@ -17,7 +17,7 @@ import {
   isWriteProtectedPath,
   resolveLikeCliPath,
   toPosixPath,
-} from './paths'
+} from '@kode/permissions/fileToolPermissionEngine'
 
 const POSIX = path.posix
 const POSIX_SEP = POSIX.sep

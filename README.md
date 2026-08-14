@@ -30,6 +30,8 @@
 - [Highlights](#highlights)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Interactive Help & Commands](#interactive-help--commands)
+- [Voice Conversation (macOS)](#voice-conversation-macos)
 - [Multi-Model Collaboration](#multi-model-collaboration)
 - [Agents & Subagents](#agents--subagents)
 - [Skills & Plugins](#skills--plugins)
@@ -95,17 +97,17 @@ Kode bundles per-platform `ripgrep` and native binaries via `optionalDependencie
 <details>
 <summary><b>Standalone Binary (no npm)</b></summary>
 
-Download Bun-compiled binaries from [GitHub Releases](https://github.com/shareAI-lab/kode/releases). See `docs/binary-distribution.md`.
+Download Bun-compiled binaries from [GitHub Releases](https://github.com/shareAI-lab/kode/releases).
 
 </details>
 
 After installation, use any of these commands:
 
-| Command | Description |
-|---------|-------------|
-| `kode` | Primary command |
-| `kwa` | Kode With Agent |
-| `kd` | Ultra-short alias |
+| Command | Description       |
+| ------- | ----------------- |
+| `kode`  | Primary command   |
+| `kwa`   | Kode With Agent   |
+| `kd`    | Ultra-short alias |
 
 ## Quick Start
 
@@ -115,10 +117,14 @@ After installation, use any of these commands:
 kode
 ```
 
+On first use, run `/login` in the TUI to configure Codex, GitHub Copilot,
+OpenAI, or another supported provider.
+
 ### One-Shot Mode
 
 ```bash
 kode -p "explain this function" path/to/file.js
+kode --headless --output-format json "list the public API in this package"
 ```
 
 ### ACP Mode (Agent Client Protocol)
@@ -127,29 +133,81 @@ kode -p "explain this function" path/to/file.js
 kode-acp          # stdio JSON-RPC for Toad/Zed clients
 ```
 
+### Get Help
+
+```bash
+kode --help        # CLI commands and non-interactive options
+```
+
+Inside the TUI, use `/help` for the current interactive guide. It reflects the
+commands available in that installation; use the F7 command palette to search
+the complete built-in, custom, plugin, and MCP command set.
+
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Enter` | Submit message |
-| `Option+Enter` | Insert newline |
-| `Option+M` | Cycle active model |
-| `Option+G` | Open message in `$EDITOR` |
-| `Ctrl+V` | Attach clipboard image (macOS) |
+| Shortcut                 | Action                                 |
+| ------------------------ | -------------------------------------- |
+| `?` (empty input) / `F1` | Show shortcuts / open interactive help |
+| `F2`                     | Open configuration                     |
+| `F7`                     | Search the command palette             |
+| `F8` / `Ctrl+T`          | Open background tasks / work tasks     |
+| `Enter`                  | Submit message                         |
+| `Option+Enter`           | Insert newline                         |
+| `Option+M`               | Cycle active model                     |
+| `Option+G` / `Ctrl+G`    | Open message in `$EDITOR`              |
+| `Ctrl+V`                 | Attach clipboard image (macOS)         |
+| `Ctrl+R`                 | Search prompt history                  |
+| `Ctrl+O`                 | Toggle verbose transcript              |
 
-### Slash Commands
+## Interactive Help & Commands
 
+`/help` is the authoritative guide for the running TUI. The list below is a
+stable starting point rather than a static copy of every extension command.
+
+| Command                                               | Use it for                                                                   |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `/help`                                               | Keyboard shortcuts, common commands, and custom-command locations            |
+| `/login`                                              | Configure Codex, GitHub Copilot, OpenAI, or another provider                 |
+| `/model`, `/effort`                                   | Choose the session model and set a supported reasoning level                 |
+| `/settings`, `/config`                                | Configure Kode, appearance, terminal behavior, and safeguards                |
+| `/plan`, `/work`, `/review`                           | Plan, monitor, and review local work                                         |
+| `/tasks`, `/goal`                                     | Inspect background work and manage durable goals                             |
+| `/session`, `/clear`, `/resume`, `/rewind`            | Manage a conversation, checkpoints, and recovery                             |
+| `/extensions`                                         | Manage plugins, skills, MCP servers, hooks, and agent configuration          |
+| `/inspect`, `/status`, `/doctor`, `/cost`, `/console` | Inspect the session, workspace, installation, costs, and captured TUI output |
+| `/voice`                                              | Record, review, and send a voice prompt on macOS                             |
+
+The command palette and `/help` also show project/user custom commands and
+commands contributed by enabled plugins or MCP servers. Their availability can
+therefore vary by workspace and configuration.
+
+## Voice Conversation (macOS)
+
+Kode includes a macOS voice input/output surface backed by MiMo ASR and TTS.
+Recordings are transcribed, shown for review, and only then submitted as a
+normal message, so normal tool permissions still apply.
+
+```bash
+export MIMO_API_KEY="<your-mimo-api-key>"
+kode
 ```
-/model          Change AI model settings
-/config         Open configuration panel
-/agents         Manage subagents
-/tasks          Inspect, stop, and open output for live local tasks
-/plugin         Manage skills & plugins
-/output-style   Switch output behavior
-/cost           Show token usage & costs
-/clear          Clear conversation
-/help           Show all commands
+
+Then run `/voice` in the TUI. `/voice config` provides a keyboard-driven
+settings screen and can store a pasted key in Kode's owner-only credential
+store; environment credentials take precedence. Keys are never accepted as
+slash-command arguments or written to `~/.kode.json`.
+
+```text
+/voice status                       Show redacted configuration and credential status
+/voice config set language zh       Prefer Chinese recognition (auto, zh, or en)
+/voice config set speak-responses false
+/voice stop                         Stop the current spoken reply
 ```
+
+Voice is enabled by default in the current CLI. To launch without it, use
+`KODE_EXPERIMENTAL_VOICE=0 kode`. If capture reports that no microphone signal
+was received, allow microphone access for the terminal and verify the selected
+macOS input device before retrying.
 
 ## Multi-Model Collaboration
 
@@ -170,12 +228,21 @@ Unlike single-model tools, Kode enables **true multi-model orchestration** — a
 
 **Model Pointers** — Configure defaults for each role via `/model`:
 
-| Pointer | Purpose |
-|---------|---------|
-| `main` | Primary conversation model |
-| `task` | SubAgent / delegation model |
+| Pointer   | Purpose                               |
+| --------- | ------------------------------------- |
+| `main`    | Primary conversation model            |
+| `task`    | SubAgent / delegation model           |
 | `compact` | Context compression near window limit |
-| `quick` | Fast operations & utilities |
+| `quick`   | Fast operations & utilities           |
+
+### Sign In, Reasoning, and Provider Compatibility
+
+Use `/login` to add or switch a provider, `/model` to select the active model,
+and `/effort [level]` to inspect or set the reasoning level supported by that
+model. Kode validates the level against the active profile instead of applying
+one setting to every provider. Provider-specific request shaping is automatic;
+for example, MiMo profiles avoid OpenAI-only `reasoning_effort` parameters and
+use their compatible thinking controls.
 
 ### Shareable Config (YAML)
 
@@ -204,13 +271,13 @@ kode models list                               # List profiles + pointers
 
 ### Key Capabilities
 
-| Feature | Kode | Single-Model CLI |
-|---------|------|-----------------|
-| Models Supported | Unlimited | One |
-| Live Switching | `Option+M` | Restart required |
-| Parallel SubAgents | Yes | No |
-| Per-Model Cost Tracking | Yes | No |
-| Expert Consultation | `@ask-*` | Not available |
+| Feature                 | Kode       | Single-Model CLI |
+| ----------------------- | ---------- | ---------------- |
+| Models Supported        | Unlimited  | One              |
+| Live Switching          | `Option+M` | Restart required |
+| Parallel SubAgents      | Yes        | No               |
+| Per-Model Cost Tracking | Yes        | No               |
+| Expert Consultation     | `@ask-*`   | Not available    |
 
 ## Agents & Subagents
 
@@ -231,8 +298,8 @@ Task(subagent_type: "reviewer")  # Via tool call
 ```markdown
 ---
 name: reviewer
-description: "Review diffs for correctness, security, and simplicity"
-tools: ["Read", "Grep"]
+description: 'Review diffs for correctness, security, and simplicity'
+tools: ['Read', 'Grep']
 model: inherit
 maxExecutionTimeMs: 300000
 ---
@@ -245,6 +312,11 @@ Sources: `.kode/agents` (project) → `~/.kode/agents` (user) → plugins → `-
 Model field accepts: `inherit`, pointer names (`main|task|compact|quick`), profile names, or `provider:modelName`.
 
 `maxExecutionTimeMs` sets an active wall-clock deadline for the Agent (1,000–3,600,000 ms; default 300,000). Kode aborts overdue foreground and background runs, records their terminal state, and releases their concurrency slot. Use `/tasks` to inspect or stop live work and `/runs status` for durable run history.
+
+Use `/work` as the work-control hub for the task board, plan mode, durable
+goals, scheduled prompts, background tasks, durable runs, worktrees, and
+read-only GitHub workflow/PR probes. These controls expose and manage work;
+they do not bypass normal permission checks.
 
 ## Skills & Plugins
 
@@ -273,7 +345,8 @@ allowed-tools: Read Bash(git:*) Bash(jq:*)
 # Skill instructions here
 ```
 
-See `docs/skills.md` for full reference.
+Use `/skills` or `/extensions` in the TUI to inspect the skills currently
+available to this installation.
 
 ## MCP Extensions
 
@@ -285,6 +358,10 @@ kode mcp list             # List connected servers
 kode mcp remove <name>    # Remove server
 ```
 
+MCP sampling remains separately opt-in because it can consume the configured
+model quota: start Kode with `KODE_EXPERIMENTAL_MCP_SAMPLING=1` only when you
+want a connected MCP server to request a model completion.
+
 Config file (`.mcp.json` in project root):
 
 ```json
@@ -295,11 +372,11 @@ Config file (`.mcp.json` in project root):
 
 ## Permissions & Security
 
-| Mode | Behavior |
-|------|----------|
-| Default (YOLO) | Skips permission prompts for speed |
-| `kode --safe` | Requires approval for writes & commands |
-| Plan Mode | Read-only until plan is approved |
+| Mode           | Behavior                                |
+| -------------- | --------------------------------------- |
+| Default (YOLO) | Skips permission prompts for speed      |
+| `kode --safe`  | Requires approval for writes & commands |
+| Plan Mode      | Read-only until plan is approved        |
 
 ### System Sandbox (Linux)
 
@@ -312,13 +389,17 @@ With `--safe` or `KODE_SYSTEM_SANDBOX=1`, Bash commands run inside a `bwrap` san
 
 ## Configuration
 
-| Scope | Location |
-|-------|----------|
-| Global config | `~/.kode.json` (or `$KODE_CONFIG_DIR/config.json`) |
+| Scope            | Location                                           |
+| ---------------- | -------------------------------------------------- |
+| Global config    | `~/.kode.json` (or `$KODE_CONFIG_DIR/config.json`) |
 | Project settings | `.kode/settings.json`, `.kode/settings.local.json` |
-| MCP servers | `.mcp.json` or `.mcprc` |
-| Agents | `.kode/agents/*.md` |
-| Skills | `.kode/skills/*/SKILL.md` |
+| MCP servers      | `.mcp.json` or `.mcprc`                            |
+| Agents           | `.kode/agents/*.md`                                |
+| Skills           | `.kode/skills/*/SKILL.md`                          |
+
+Use `/settings` for the configuration hub, `/config` for direct configuration,
+and `/model` for provider/model selection. `kode models export` and
+`kode models import` move shareable model profiles without plaintext keys.
 
 ### AGENTS.md Support
 
@@ -356,6 +437,7 @@ bun install
 # Dev / Build / Test
 bun run dev
 bun run build
+bun run typecheck
 bun test
 ```
 

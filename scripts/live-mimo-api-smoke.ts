@@ -105,7 +105,11 @@ function fail(name: string, err: unknown): never {
   throw err
 }
 
-function minimalTool(name: string, description: string, schema: z.ZodTypeAny) {
+function minimalTool(
+  name: string,
+  description: string,
+  schema: z.ZodType<any, any>,
+) {
   return {
     name,
     inputSchema: schema,

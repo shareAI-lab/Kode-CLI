@@ -4,7 +4,7 @@ import {
   saveSettingsToPrimaryAndSyncLegacy,
 } from '#config'
 import { getDisableAllHooksState } from '@kode/hooks/disableAllHooks'
-import { getCwd } from '#core/utils/state'
+import { getCwd } from '#runtime/cwd'
 
 type UserSettings = {
   statusLine?: unknown

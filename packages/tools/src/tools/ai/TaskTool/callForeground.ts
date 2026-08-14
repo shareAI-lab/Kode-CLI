@@ -28,6 +28,7 @@ import {
 } from '#core/utils/messages'
 import {
   appendBackgroundTaskOutput,
+  flushBackgroundTaskOutput,
   touchBackgroundTaskOutputFile,
 } from '#core/tasks/backgroundRegistry'
 import {
@@ -550,6 +551,8 @@ export async function* callTaskToolForeground(
           taskRecord.status === 'killed' ? 'cancelled' : 'failed',
           message,
         )
+      } finally {
+        flushBackgroundTaskOutput(prepared.agentId)
       }
     })
 
@@ -620,6 +623,7 @@ export async function* callTaskToolForeground(
       )
     }
   } finally {
+    flushBackgroundTaskOutput(prepared.agentId)
     if (overlayTimeout) clearTimeout(overlayTimeout)
     prepared.abortController.signal.removeEventListener('abort', onParentAbort)
     setToolJSX?.(null)

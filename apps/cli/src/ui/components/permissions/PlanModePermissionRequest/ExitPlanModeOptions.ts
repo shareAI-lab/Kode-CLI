@@ -26,6 +26,11 @@ export function getExitPlanModeOptions(args: {
   pushToRemoteAvailable?: boolean
   swarmAvailable?: boolean
   teammateCount?: number
+  /**
+   * Label of the actual mode-cycle shortcut (e.g. "shift+tab" or "F9" on
+   * older Windows runtimes). Keeps the option copy truthful per platform.
+   */
+  quickSelectLabel?: string
 }): ExitPlanModeOption[] {
   const options: ExitPlanModeOption[] = []
 
@@ -36,7 +41,9 @@ export function getExitPlanModeOptions(args: {
           value: 'yes-bypass-permissions',
         }
       : {
-          label: 'Yes, clear context and auto-accept edits (shift+tab)',
+          label: args.quickSelectLabel
+            ? `Yes, clear context and auto-accept edits (${args.quickSelectLabel})`
+            : 'Yes, clear context and auto-accept edits',
           value: 'yes-accept-edits',
         },
   )
@@ -90,6 +97,7 @@ export function __getExitPlanModeOptionsForTests(args: {
   pushToRemoteAvailable?: boolean
   swarmAvailable?: boolean
   teammateCount?: number
+  quickSelectLabel?: string
 }): ExitPlanModeOption[] {
   return getExitPlanModeOptions(args)
 }

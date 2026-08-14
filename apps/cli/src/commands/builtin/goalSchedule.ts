@@ -1,4 +1,8 @@
-import { GoalService, type Goal } from '#core/goals'
+import {
+  BACKGROUND_KEEP_ALIVE_METADATA_KEY,
+  GoalService,
+  type Goal,
+} from '#core/goals'
 
 const INTERVAL_FACTORS: Record<'s' | 'm' | 'h', number> = {
   s: 1_000,
@@ -8,6 +12,8 @@ const INTERVAL_FACTORS: Record<'s' | 'm' | 'h', number> = {
 
 const EVERY_OPTION_PATTERN = /(?:^|\s)--every(?:\s+|=)(\d+[smh])(?=\s|$)/i
 const EVERY_FLAG_PATTERN = /(?:^|\s)--every(?:\s|=|$)/i
+const BACKGROUND_LOOP_OPTION_PATTERN =
+  /(?:^|\s)--(?:background|keep-alive)(?=\s|$)/gi
 
 export function parseEveryInterval(value: string): number | null {
   const match = value.trim().match(/^(\d+)([smh])$/i)
@@ -55,14 +61,29 @@ export function parseGoalScheduleArgs(
 
 export function parseLoopCreateArgs(
   raw: string,
-): { objective: string; everyMs: number } | { error: string } {
-  const parsed = parseGoalScheduleArgs(raw, { requireEvery: true })
+):
+  | { objective: string; everyMs: number; backgroundKeepAlive: boolean }
+  | { error: string } {
+  const backgroundOptions = Array.from(
+    raw.matchAll(BACKGROUND_LOOP_OPTION_PATTERN),
+  )
+  if (backgroundOptions.length > 1) {
+    return { error: 'Use only one --background or --keep-alive option.' }
+  }
+  const parsed = parseGoalScheduleArgs(
+    raw.replace(BACKGROUND_LOOP_OPTION_PATTERN, ' '),
+    { requireEvery: true },
+  )
   if ('error' in parsed) return parsed
   if (!parsed.everyMs) {
     return { error: 'Missing --every interval (for example: --every 5m).' }
   }
   if (!parsed.objective) return { error: 'A loop objective is required.' }
-  return { objective: parsed.objective, everyMs: parsed.everyMs }
+  return {
+    objective: parsed.objective,
+    everyMs: parsed.everyMs,
+    backgroundKeepAlive: backgroundOptions.length === 1,
+  }
 }
 
 export function createIntervalGoal(args: {
@@ -70,6 +91,7 @@ export function createIntervalGoal(args: {
   sessionId: string
   objective: string
   everyMs: number
+  backgroundKeepAlive?: boolean
   maxIterations?: number
   now?: number
 }): Goal {
@@ -88,6 +110,9 @@ export function createIntervalGoal(args: {
     },
     ...(args.maxIterations
       ? { loop: { maxIterations: args.maxIterations } }
+      : {}),
+    ...(args.backgroundKeepAlive
+      ? { metadata: { [BACKGROUND_KEEP_ALIVE_METADATA_KEY]: true } }
       : {}),
   })
 }

@@ -1,4 +1,4 @@
-import { Box } from 'ink'
+import { Box, Text } from 'ink'
 import * as React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactReconciler from 'react-reconciler'
@@ -25,14 +25,19 @@ import {
 } from '#core/messages'
 import type { Message as MessageType } from '#core/query'
 import { createUserMessage, normalizeMessages } from '#core/utils/messages'
-import { getGlobalConfigCached, saveGlobalConfig } from '#core/utils/config'
+import {
+  getGlobalConfigCached,
+  isExperimentalVoiceEnabled,
+  saveGlobalConfig,
+} from '#core/utils/config'
 import { getNextAvailableLogForkNumber, logError } from '#core/utils/log'
 import { getCwd, getOriginalCwd } from '#core/utils/state'
+import { getTheme } from '#core/utils/theme'
 import {
-  claimDueSchedules,
-  getUnstartedGoalRunSchedule,
   GoalService,
+  pollGoalSchedule,
   type ClaimedSchedule,
+  type Goal,
 } from '#core/goals'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { MACRO } from '#core/constants/macros'
@@ -47,7 +52,10 @@ import { useTranscriptItems, type TranscriptItem } from './useTranscriptItems'
 import { useRequestToolUsePermission } from './useRequestToolUsePermission'
 import { useReplQuery } from './useReplQuery'
 import { useReplInit } from './useReplInit'
-import { transitionToolUseConfirmQueue } from './toolUseConfirmQueue'
+import {
+  transitionToolUseConfirmQueue,
+  transitionToolUseConfirmQueueClear,
+} from './toolUseConfirmQueue'
 import { buildPromptInputProps } from './promptInputProps'
 import { useMessageSelectorSelect } from './useMessageSelectorSelect'
 import { buildStartupHeaderIdentityKey } from './startupHeaderIdentity'
@@ -141,8 +149,8 @@ export function useReplController(props: REPLProps) {
     props.toolsPromise || props.commandsPromise || props.mcpClientsPromise,
   )
   const [tools, setTools] = useState<Tool[]>(() => props.tools ?? [])
-  const [mcpClients, setMcpClients] = useState<WrappedClient[]>(() =>
-    props.mcpClients ?? EMPTY_MCP_CLIENTS,
+  const [mcpClients, setMcpClients] = useState<WrappedClient[]>(
+    () => props.mcpClients ?? EMPTY_MCP_CLIENTS,
   )
   const runtimeReadyRef = useRef<Promise<void>>(
     hasDeferredRuntime ? new Promise<void>(() => {}) : Promise.resolve(),
@@ -303,6 +311,37 @@ export function useReplController(props: REPLProps) {
     setIsLoadingState(current =>
       current === nextIsLoading ? current : nextIsLoading,
     )
+  }, [])
+  const [activeGoal, setActiveGoal] = useState<Goal | null>(null)
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'test') return undefined
+
+    let disposed = false
+    const refresh = () => {
+      if (disposed) return
+      try {
+        const goal = new GoalService().findActiveGoal({
+          cwd: getCwd(),
+          sessionId: getKodeAgentSessionId(),
+        })
+        if (disposed) return
+        setActiveGoal(current =>
+          current?.id === goal?.id && current?.updatedAt === goal?.updatedAt
+            ? current
+            : goal,
+        )
+      } catch {
+        /* goal store unreadable during shutdown */
+      }
+    }
+    refresh()
+    const timer = setInterval(refresh, 1_000)
+    timer.unref?.()
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
   }, [])
   const [cancelRequestKey, setCancelRequestKey] = useState(0)
   type ToolView = {
@@ -482,14 +521,11 @@ export function useReplController(props: REPLProps) {
   // arrive at once; later ones are queued behind the head instead of
   // clobbering the single dialog slot.
   const toolUseConfirm = pendingToolUseConfirms[0] ?? null
-  const setToolUseConfirm = useCallback(
-    (confirm: ToolUseConfirm | null) => {
-      setPendingToolUseConfirms(prev =>
-        transitionToolUseConfirmQueue(prev, confirm),
-      )
-    },
-    [],
-  )
+  const setToolUseConfirm = useCallback((confirm: ToolUseConfirm | null) => {
+    setPendingToolUseConfirms(prev =>
+      transitionToolUseConfirmQueue(prev, confirm),
+    )
+  }, [])
   const allowAllPendingToolUseConfirms = useCallback(() => {
     setPendingToolUseConfirms(prev => {
       for (const confirm of prev) {
@@ -569,9 +605,8 @@ export function useReplController(props: REPLProps) {
   }, [dismissToolView, openToolView])
 
   const openWorkTasksScreen = useCallback(async () => {
-    const { WorkTasksScreen } = await import(
-      '#ui-ink/screens/overlays/WorkTasksScreen'
-    )
+    const { WorkTasksScreen } =
+      await import('#ui-ink/screens/overlays/WorkTasksScreen')
     openToolView({
       jsx: <WorkTasksScreen onDone={dismissToolView} />,
       shouldHidePromptInput: true,
@@ -600,9 +635,8 @@ export function useReplController(props: REPLProps) {
   const dispatchedUnstartedGoalRunIdsRef = useRef(new Set<string>())
 
   const openHistorySearchScreen = useCallback(async () => {
-    const { HistorySearchScreen } = await import(
-      '#ui-ink/screens/overlays/HistorySearchScreen'
-    )
+    const { HistorySearchScreen } =
+      await import('#ui-ink/screens/overlays/HistorySearchScreen')
     openToolView({
       jsx: (
         <HistorySearchScreen
@@ -730,9 +764,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.ctrl && inputChar === 'o') {
-        const { TranscriptScreen } = await import(
-          '#ui-ink/screens/overlays/TranscriptScreen'
-        )
+        const { TranscriptScreen } =
+          await import('#ui-ink/screens/overlays/TranscriptScreen')
         openToolView({
           jsx: (
             <TranscriptScreen
@@ -759,9 +792,8 @@ export function useReplController(props: REPLProps) {
           messages.some(m => m.type === 'assistant') ||
           messages.some(m => m.type === 'user' && !(m as any)?.isMeta)
 
-        const { ThinkingToggleScreen, getThinkingModeLabel } = await import(
-          '#ui-ink/screens/overlays/ThinkingToggleScreen'
-        )
+        const { ThinkingToggleScreen, getThinkingModeLabel } =
+          await import('#ui-ink/screens/overlays/ThinkingToggleScreen')
         openToolView({
           jsx: (
             <ThinkingToggleScreen
@@ -781,9 +813,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.meta && inputChar === 'p') {
-        const { ModelPickerScreen } = await import(
-          '#ui-ink/screens/overlays/ModelPickerScreen'
-        )
+        const { ModelPickerScreen } =
+          await import('#ui-ink/screens/overlays/ModelPickerScreen')
         openToolView({
           jsx: (
             <ModelPickerScreen
@@ -833,9 +864,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (inputChar === '?' && inputValue.trim().length === 0) {
-        const { ShortcutsScreen } = await import(
-          '#ui-ink/screens/overlays/ShortcutsScreen'
-        )
+        const { ShortcutsScreen } =
+          await import('#ui-ink/screens/overlays/ShortcutsScreen')
         openToolView({
           jsx: <ShortcutsScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -845,9 +875,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f1') {
-        const { HelpScreen } = await import(
-          '#ui-ink/screens/overlays/HelpScreen'
-        )
+        const { HelpScreen } =
+          await import('#ui-ink/screens/overlays/HelpScreen')
         openToolView({
           jsx: <HelpScreen commands={commands} onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -857,9 +886,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f2') {
-        const { ConfigScreen } = await import(
-          '#ui-ink/screens/overlays/ConfigScreen'
-        )
+        const { ConfigScreen } =
+          await import('#ui-ink/screens/overlays/ConfigScreen')
         openToolView({
           jsx: <ConfigScreen onClose={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -869,9 +897,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f3') {
-        const { OpenFileScreen } = await import(
-          '#ui-ink/screens/overlays/OpenFileScreen'
-        )
+        const { OpenFileScreen } =
+          await import('#ui-ink/screens/overlays/OpenFileScreen')
         openToolView({
           jsx: <OpenFileScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -881,9 +908,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f4') {
-        const { ConsoleScreen } = await import(
-          '#ui-ink/screens/overlays/ConsoleScreen'
-        )
+        const { ConsoleScreen } =
+          await import('#ui-ink/screens/overlays/ConsoleScreen')
         openToolView({
           jsx: <ConsoleScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -893,9 +919,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f5') {
-        const { NotificationsScreen } = await import(
-          '#ui-ink/screens/overlays/NotificationsScreen'
-        )
+        const { NotificationsScreen } =
+          await import('#ui-ink/screens/overlays/NotificationsScreen')
         openToolView({
           jsx: <NotificationsScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -905,9 +930,8 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f6') {
-        const { TranscriptScreen } = await import(
-          '#ui-ink/screens/overlays/TranscriptScreen'
-        )
+        const { TranscriptScreen } =
+          await import('#ui-ink/screens/overlays/TranscriptScreen')
         openToolView({
           jsx: (
             <TranscriptScreen
@@ -926,10 +950,23 @@ export function useReplController(props: REPLProps) {
         return undefined
       }
 
+      // F10 is intentionally a discrete toggle: terminal input provides
+      // keypress sequences but not a portable key-up event, so push-to-talk
+      // would stop unpredictably across terminals.
+      if (key.name === 'f10' && isExperimentalVoiceEnabled()) {
+        const { VoiceScreen } =
+          await import('#ui-ink/screens/overlays/VoiceScreen')
+        openToolView({
+          jsx: <VoiceScreen onDone={dismissToolView} />,
+          shouldHidePromptInput: true,
+          displayMode: 'fullscreen',
+        })
+        return undefined
+      }
+
       if (key.name === 'f7') {
-        const { CommandPaletteScreen } = await import(
-          '#ui-ink/screens/overlays/CommandPaletteScreen'
-        )
+        const { CommandPaletteScreen } =
+          await import('#ui-ink/screens/overlays/CommandPaletteScreen')
         openToolView({
           jsx: (
             <CommandPaletteScreen
@@ -953,9 +990,8 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'help') {
-                  const { HelpScreen } = await import(
-                    '#ui-ink/screens/overlays/HelpScreen'
-                  )
+                  const { HelpScreen } =
+                    await import('#ui-ink/screens/overlays/HelpScreen')
                   openToolView({
                     jsx: (
                       <HelpScreen
@@ -970,9 +1006,8 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'config') {
-                  const { ConfigScreen } = await import(
-                    '#ui-ink/screens/overlays/ConfigScreen'
-                  )
+                  const { ConfigScreen } =
+                    await import('#ui-ink/screens/overlays/ConfigScreen')
                   openToolView({
                     jsx: <ConfigScreen onClose={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -982,9 +1017,8 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'open') {
-                  const { OpenFileScreen } = await import(
-                    '#ui-ink/screens/overlays/OpenFileScreen'
-                  )
+                  const { OpenFileScreen } =
+                    await import('#ui-ink/screens/overlays/OpenFileScreen')
                   openToolView({
                     jsx: <OpenFileScreen onDone={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -994,9 +1028,8 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'console') {
-                  const { ConsoleScreen } = await import(
-                    '#ui-ink/screens/overlays/ConsoleScreen'
-                  )
+                  const { ConsoleScreen } =
+                    await import('#ui-ink/screens/overlays/ConsoleScreen')
                   openToolView({
                     jsx: <ConsoleScreen onDone={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -1006,9 +1039,8 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'notifications') {
-                  const { NotificationsScreen } = await import(
-                    '#ui-ink/screens/overlays/NotificationsScreen'
-                  )
+                  const { NotificationsScreen } =
+                    await import('#ui-ink/screens/overlays/NotificationsScreen')
                   openToolView({
                     jsx: <NotificationsScreen onDone={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -1018,9 +1050,8 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'transcript') {
-                  const { TranscriptScreen } = await import(
-                    '#ui-ink/screens/overlays/TranscriptScreen'
-                  )
+                  const { TranscriptScreen } =
+                    await import('#ui-ink/screens/overlays/TranscriptScreen')
                   openToolView({
                     jsx: (
                       <TranscriptScreen
@@ -1037,9 +1068,7 @@ export function useReplController(props: REPLProps) {
                 if (action === 'doctor') {
                   const { Doctor } = await import('#ui-ink/screens/Doctor')
                   openToolView({
-                    jsx: (
-                      <Doctor onDone={dismissToolView} doctorMode={true} />
-                    ),
+                    jsx: <Doctor onDone={dismissToolView} doctorMode={true} />,
                     shouldHidePromptInput: true,
                     displayMode: 'fullscreen',
                   })
@@ -1054,9 +1083,8 @@ export function useReplController(props: REPLProps) {
                   }
                   setIsLoading(false)
 
-                  const { ModelConfig } = await import(
-                    '#ui-ink/components/ModelConfig'
-                  )
+                  const { ModelConfig } =
+                    await import('#ui-ink/components/ModelConfig')
                   openToolView({
                     jsx: (
                       <ModelConfig
@@ -1128,7 +1156,16 @@ export function useReplController(props: REPLProps) {
       assistantStreamStore.endTurn(activeAbortController)
     }
     if (toolUseConfirm) {
-      toolUseConfirm.onAbort()
+      // Abort the whole pending permission queue, not just the dialog head:
+      // every queued confirm belongs to tool calls of the cancelled turn and
+      // leaving them behind would surface zombie dialogs whose promises never
+      // resolve.
+      for (const confirm of pendingToolUseConfirms) {
+        confirm.onAbort()
+      }
+      setPendingToolUseConfirms(prev =>
+        transitionToolUseConfirmQueueClear(prev),
+      )
       setAbortController(null)
       showToast('Interrupted')
       return
@@ -1140,6 +1177,7 @@ export function useReplController(props: REPLProps) {
     showToast('Interrupted')
   }, [
     assistantStreamStore,
+    pendingToolUseConfirms,
     setAbortController,
     setIsLoading,
     showToast,
@@ -1289,9 +1327,7 @@ export function useReplController(props: REPLProps) {
     }
   }, [])
 
-  const canUseTool = useCanUseTool(
-    confirm => setToolUseConfirm(confirm),
-    {
+  const canUseTool = useCanUseTool(confirm => setToolUseConfirm(confirm), {
     onPermissionRuleWarnings: warnings => {
       const first = warnings[0]
       const example = first
@@ -1366,17 +1402,13 @@ export function useReplController(props: REPLProps) {
       try {
         const cwd = getCwd()
         const sessionId = getKodeAgentSessionId()
-        schedule = claimDueSchedules({
-          cwd,
-          sessionId,
-          limit: 1,
-        })[0]
-        if (!schedule) {
-          schedule =
-            getUnstartedGoalRunSchedule(
-              new GoalService().findActiveGoal({ cwd, sessionId }),
-            ) ?? undefined
-          isUnstartedGoalRun = schedule !== undefined
+        // Single unified polling primitive shared with the daemon runner:
+        // claims the next due schedule, or surfaces an already-claimed
+        // one-off run that has not produced a turn yet.
+        const result = pollGoalSchedule({ cwd, sessionId })
+        if (result) {
+          schedule = result.schedule
+          isUnstartedGoalRun = result.source === 'unstarted'
         }
       } catch (error) {
         logError(error)
@@ -1514,6 +1546,9 @@ export function useReplController(props: REPLProps) {
     toolUseConfirm,
     isMessageSelectorVisible,
     forkNumber,
+    // Bottom-anchored frame only makes sense when the terminal has room for
+    // transcript content; tiny viewports keep everything in <Static>.
+    keepRecentInFrame: terminalRows > 4,
   })
 
   const startupHeaderKey = useMemo(
@@ -1534,8 +1569,20 @@ export function useReplController(props: REPLProps) {
     ],
   )
 
-  const startupHeader = useMemo(
-    () => (
+  const startupHeader = useMemo(() => {
+    // A non-default model is worth surfacing in the startup header: the
+    // identity key already recomputes on model changes, so this display uses
+    // budget that was previously spent on an invisible prop.
+    void uiRefreshCounter // re-evaluate when the model configuration changes
+    let modelLabel: string | null = null
+    if (!isDefaultModel) {
+      const current = getModelManager().getModel('main')
+      if (current) {
+        modelLabel = current.name || current.modelName
+      }
+    }
+
+    return (
       <Box flexDirection="column" key={startupHeaderKey}>
         <Logo
           mcpClients={mcpClients}
@@ -1545,19 +1592,24 @@ export function useReplController(props: REPLProps) {
           terminalColumns={terminalColumns}
           terminalRows={terminalRows}
         />
+        {modelLabel ? (
+          <Text color={getTheme().secondaryText} dimColor wrap="truncate-end">
+            Model: {modelLabel}
+          </Text>
+        ) : null}
         <ProjectOnboarding workspaceDir={getOriginalCwd()} />
       </Box>
-    ),
-    [
-      isDefaultModel,
-      mcpClients,
-      startupHeaderKey,
-      terminalColumns,
-      terminalRows,
-      updateAvailableVersion,
-      updateCommands,
-    ],
-  )
+    )
+  }, [
+    isDefaultModel,
+    mcpClients,
+    startupHeaderKey,
+    terminalColumns,
+    terminalRows,
+    uiRefreshCounter,
+    updateAvailableVersion,
+    updateCommands,
+  ])
   const showStartupHeader =
     messages.length === 0 && transcript.items.length === 0
 
@@ -1738,6 +1790,7 @@ export function useReplController(props: REPLProps) {
     showStartupHeader,
     transientItems,
     assistantStreamStore,
+    activeGoal,
     toolJSX,
     toolUseConfirm,
     setToolUseConfirm,

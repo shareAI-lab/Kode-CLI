@@ -1,14 +1,15 @@
-import {
-  GoalScheduler,
-  GoalService,
-  type ClaimedSchedule,
-} from '@kode/core/goals'
+import { GoalScheduler, GoalService, type ClaimedSchedule } from '@kode/goals'
 
 import type { DaemonSession } from '../ws/types'
 
 export type GoalScheduleRunnerOptions = {
   listSessions: () => Iterable<DaemonSession>
   canDispatch: (session: DaemonSession) => boolean
+  /**
+   * A detached session must claim only schedules that explicitly opted into
+   * background keep-alive; foreground sessions retain normal scheduling.
+   */
+  isBackgroundSession?: (session: DaemonSession) => boolean
   dispatch: (args: {
     session: DaemonSession
     schedule: ClaimedSchedule
@@ -61,39 +62,57 @@ export class GoalScheduleRunner {
     if (this.ticking) return
     this.ticking = true
     try {
+      const dispatches: Promise<void>[] = []
       for (const session of this.options.listSessions()) {
         if (!this.options.canDispatch(session)) continue
+        const backgroundOnly =
+          this.options.isBackgroundSession?.(session) === true
         const schedules = this.scheduler.tick({
           cwd: session.cwd,
           sessionId: session.sessionId,
-          limit: 1,
+          ...(backgroundOnly ? { backgroundOnly: true } : {}),
         })
         for (const schedule of schedules) {
-          try {
-            await this.options.dispatch({ session, schedule })
-            // The normal engine pipeline applies a terminal evaluator decision
-            // before dispatch returns. Echo/test transports and defensive host
-            // adapters may return without doing so; never leave that claimed
-            // run stuck until its lease expires. runId fencing makes this a
-            // no-op when the engine already completed, paused, or replaced it.
-            this.service.releaseAfterTurn(schedule.goalId, {
-              runId: schedule.runId,
-              reason:
-                'Scheduled turn returned without a terminal goal decision.',
-            })
-          } catch (error) {
-            // Do not leave a claimed run silently stuck. Interval schedules are
-            // released to their next cadence; one-off runs pause for review.
-            this.service.releaseAfterTurn(schedule.goalId, {
-              runId: schedule.runId,
-              reason: `Scheduled dispatch failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            })
-            this.options.onError?.(error)
-          }
+          dispatches.push(
+            this.options.dispatch({ session, schedule }).then(
+              () => {
+                // The normal engine pipeline applies a terminal evaluator
+                // decision before dispatch returns. Echo/test transports
+                // and defensive host adapters may return without doing so;
+                // never leave that claimed run stuck until its lease
+                // expires. runId fencing makes this a no-op when the engine
+                // already completed, paused, or replaced it.
+                this.service.releaseAfterTurn(schedule.goalId, {
+                  runId: schedule.runId,
+                  reason:
+                    'Scheduled turn returned without a terminal goal decision.',
+                })
+              },
+              error => {
+                // Do not leave a claimed run silently stuck. Interval
+                // schedules are released to their next cadence; one-off runs
+                // pause for review.
+                this.service.releaseAfterTurn(schedule.goalId, {
+                  runId: schedule.runId,
+                  reason: `Scheduled dispatch failed: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`,
+                })
+                this.options.onError?.(error)
+              },
+            ),
+          )
         }
       }
+      // Dispatch is the slow part (an LLM turn); run independent sessions in
+      // parallel instead of serializing them behind the first session's turn.
+      await Promise.allSettled(dispatches)
+    } catch (error) {
+      // A claim/storage failure must never escape as an unhandled rejection:
+      // `start()` fires `void this.tick()` from a timer, and Bun terminates
+      // the process on an unhandled rejection. Route the failure to the
+      // host's error sink instead of killing the daemon.
+      this.options.onError?.(error)
     } finally {
       this.ticking = false
     }

@@ -1,5 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 
+import {
+  appendExternalRuntimeStderr,
+  formatExternalRuntimeCloseMessage,
+} from './diagnostics'
+
 const INITIALIZE_REQUEST_ID = 1
 const REQUEST_TIMEOUT_MS = 60_000
 const MAX_STDOUT_BYTES = 1024 * 1024
@@ -16,6 +21,25 @@ type PendingRequest = {
   resolve: (result: unknown) => void
   reject: (error: Error) => void
   timeout: ReturnType<typeof setTimeout>
+}
+
+type CodexAppServerClientOptions = {
+  /** Enables app-server APIs such as dynamicTools for this client session. */
+  experimentalApi?: boolean
+}
+
+export class CodexAppServerTimeoutError extends Error {
+  constructor(operation: string) {
+    super(`Codex app-server timed out while ${operation}`)
+    this.name = 'CodexAppServerTimeoutError'
+  }
+}
+
+export class CodexAppServerRuntimeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CodexAppServerRuntimeError'
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,6 +65,7 @@ function getCodexCommand(): string {
 export class CodexAppServerClient {
   private child: ChildProcess | null = null
   private buffer = ''
+  private stderr = ''
   private stdoutBytes = 0
   private nextRequestId = 2
   private readonly pending = new Map<number, PendingRequest>()
@@ -55,24 +80,46 @@ export class CodexAppServerClient {
         params: unknown,
       ) => void
     } = {},
+    private readonly options: CodexAppServerClientOptions = {},
   ) {}
 
   async start(): Promise<void> {
     if (this.child) return
 
+    this.buffer = ''
+    this.stderr = ''
+    this.stdoutBytes = 0
+
     const child = spawn(getCodexCommand(), ['app-server', '--stdio'], {
       shell: process.platform === 'win32',
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     })
     this.child = child
 
     child.stdout?.setEncoding('utf8')
     child.stdout?.on('data', chunk => this.handleOutput(chunk))
-    child.once('error', error => this.failAll(error))
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', chunk => {
+      this.stderr = appendExternalRuntimeStderr(this.stderr, chunk)
+    })
+    child.once('error', error =>
+      this.failAll(
+        new CodexAppServerRuntimeError(
+          formatExternalRuntimeCloseMessage(
+            `Codex app-server failed: ${error.message}`,
+            this.stderr,
+          ),
+        ),
+      ),
+    )
     child.once('close', () => {
       if (this.child === child) this.child = null
-      this.failAll(new Error('Codex app-server closed unexpectedly'))
+      this.failAll(
+        new CodexAppServerRuntimeError(
+          formatExternalRuntimeCloseMessage('Codex app-server', this.stderr),
+        ),
+      )
     })
 
     try {
@@ -86,7 +133,7 @@ export class CodexAppServerClient {
             version: process.env.npm_package_version || 'unknown',
           },
           capabilities: {
-            experimentalApi: false,
+            experimentalApi: this.options.experimentalApi === true,
             requestAttestation: false,
           },
         },
@@ -139,7 +186,7 @@ export class CodexAppServerClient {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(id)
-        reject(new Error(`Codex app-server timed out while calling ${method}`))
+        reject(new CodexAppServerTimeoutError(`calling ${method}`))
       }, REQUEST_TIMEOUT_MS)
       this.pending.set(id, { resolve, reject, timeout })
       try {

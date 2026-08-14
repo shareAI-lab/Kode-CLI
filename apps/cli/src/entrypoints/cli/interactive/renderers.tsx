@@ -6,6 +6,7 @@ import {
   type InkRenderInstance,
 } from '#ui-ink/utils/inkRender'
 import type { LogListResult } from '#ui-ink/screens/LogList'
+import type { REPLProps } from '#ui-ink/screens/REPL/types'
 import {
   restoreTuiStdioPatch,
   writeToStderr,
@@ -26,9 +27,9 @@ type RenderFn = (
 ) => RenderInstance
 
 export async function renderRepl(
-  props: any,
+  props: REPLProps,
   renderContext: RenderOptions | undefined,
-  deps?: { render?: RenderFn; REPL?: React.ComponentType<any> },
+  deps?: { render?: RenderFn; REPL?: React.ComponentType<REPLProps> },
 ): Promise<void> {
   const render = deps?.render ?? (await import('ink')).render
   const REPL = deps?.REPL ?? (await import('#ui-ink/screens/REPL')).REPL

@@ -10,6 +10,7 @@ import type {
 import type { BunShellState } from './state'
 import {
   appendTaskOutput,
+  flushTaskOutput,
   getTaskOutputFilePath,
   touchTaskOutputFile,
 } from '../taskOutputStore'
@@ -170,6 +171,7 @@ export function execInBackground(
         clearTimeout(backgroundProcess.timeoutHandle)
         backgroundProcess.timeoutHandle = null
       }
+      flushTaskOutput(bashId)
       backgroundProcess.completedAt =
         backgroundProcess.completedAt ?? Date.now()
       const status: BackgroundShellCompletion['status'] =

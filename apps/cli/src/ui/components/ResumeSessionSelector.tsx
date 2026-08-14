@@ -585,6 +585,7 @@ export function ResumeSessionSelector(props: {
     setSelectedIndex(prev => (prev === 0 ? prev : 0))
   }, [setSelectedIndex])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(),
   )
@@ -1043,12 +1044,14 @@ export function ResumeSessionSelector(props: {
 
     didSubmitRef.current = true
     setSubmitError(null)
+    setIsSubmitting(true)
     try {
       await onSelect(session)
     } catch (error) {
       logError(error)
       if (!mountedRef.current) return
       didSubmitRef.current = false
+      setIsSubmitting(false)
       setSubmitError(error instanceof Error ? error.message : String(error))
     }
   }, [
@@ -1820,10 +1823,16 @@ export function ResumeSessionSelector(props: {
         </Box>
 
         <Text
-          color={submitError ? theme.error : theme.secondaryText}
+          color={
+            submitError
+              ? theme.error
+              : isSubmitting
+                ? theme.success
+                : theme.secondaryText
+          }
           wrap="truncate-end"
         >
-          {submitError ?? ' '}
+          {submitError ?? (isSubmitting ? 'Resuming conversation…' : ' ')}
         </Text>
       </Box>
     </ScreenFrame>

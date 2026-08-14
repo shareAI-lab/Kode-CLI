@@ -68,7 +68,7 @@ describe('Tool prompt/description/schema parity', () => {
 
   test('BashTool schema description includes examples', () => {
     const schema = BashTool.inputSchema
-    const description = schema.shape.description?._def?.description
+    const description = schema.shape.description?.description
     expect(description).toContain('Examples:')
     expect(description).toContain('Input: ls')
     expect(description).toContain("Output: Create directory 'foo'")

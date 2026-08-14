@@ -12,7 +12,7 @@ type Suggestion = {
   value: string
   displayValue: string
   description?: string
-  metadata?: { color?: string }
+  metadata?: { color?: string; moreCount?: number }
 }
 
 type SuggestionItemProps = {
@@ -40,11 +40,11 @@ export function __areSuggestionItemPropsEqualForTests(
 // 使用 React.memo 优化建议列表渲染
 const SuggestionItem = React.memo(
   ({ suggestion, isSelected, theme, maxWidth }: SuggestionItemProps) => {
-    const isAgent = suggestion.type === 'agent'
+    const hasColor = Boolean(suggestion.metadata?.color)
     const displayColor = isSelected
       ? theme.suggestion
-      : isAgent && suggestion.metadata?.color
-        ? resolveAgentColor(suggestion.metadata.color)
+      : hasColor
+        ? resolveAgentColor(suggestion.metadata?.color)
         : undefined
 
     return (
@@ -109,6 +109,11 @@ const HelpText = React.memo(
       return '→ insert reference • ↑↓ navigate • Tab cycle • Esc close'
     }
 
+    const moreCount =
+      selectedSuggestion?.type === 'command'
+        ? Number(selectedSuggestion.metadata?.moreCount ?? 0)
+        : 0
+
     const commandDescription =
       !emptyDirMessage &&
       selectedSuggestion?.type === 'command' &&
@@ -128,9 +133,11 @@ const HelpText = React.memo(
       const firstLine = (lines[0] ?? '').replace(/\s+$/g, '')
       const limited =
         lines.length > 1 && firstLine.length > 0 ? `${firstLine}…` : firstLine
+      const moreHint =
+        moreCount > 0 ? ` · ${moreCount} more, type to filter` : ''
       return (
         <Text dimColor wrap="truncate-end">
-          {`${limited} • Tab accept`}
+          {`${limited}${moreHint} • Tab accept`}
         </Text>
       )
     }

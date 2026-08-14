@@ -1,6 +1,5 @@
 import { Box, Text } from 'ink'
 import React, { useSyncExternalStore } from 'react'
-import { Cost } from '#ui-ink/components/Cost'
 import { MaxSizedText } from '#ui-ink/components/MaxSizedText'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
 import { CIRCLE } from '#core/constants/figures'
@@ -16,6 +15,9 @@ export function getLivePreviewHeightBudget(args: {
   hasText: boolean
   maxHeight: number
 }): { thinking: number; text: number } {
+  if (!args.hasThinking && !args.hasText) {
+    return { thinking: 0, text: 0 }
+  }
   if (args.maxHeight <= 1) {
     return args.hasText ? { thinking: 0, text: 1 } : { thinking: 1, text: 0 }
   }
@@ -84,6 +86,12 @@ export function AssistantStreamPreview({
     return null
   }
 
+  // The live stream gets its own reserved height at the bottom of the frame so
+  // completed transient messages (which can be arbitrarily tall) can never
+  // push streaming output out of the viewport.
+  const liveHeight = heightBudget.thinking + heightBudget.text
+  const completedHeight = Math.max(0, maxHeight - liveHeight)
+
   return (
     <Box
       flexDirection="column"
@@ -92,7 +100,17 @@ export function AssistantStreamPreview({
       overflow="hidden"
       width="100%"
     >
-      {transientItems.map(item => item.jsx)}
+      {transientItems.length > 0 && completedHeight > 0 && (
+        <Box
+          flexDirection="column"
+          height={completedHeight}
+          justifyContent="flex-end"
+          overflow="hidden"
+          width="100%"
+        >
+          {transientItems.map(item => item.jsx)}
+        </Box>
+      )}
       {hasLiveThinking && heightBudget.thinking > 0 && (
         <AssistantStreamThinking
           text={snapshot.thinking}
@@ -102,7 +120,6 @@ export function AssistantStreamPreview({
       {hasLiveText && heightBudget.text > 0 && (
         <AssistantStreamText
           text={snapshot.text}
-          debug={debug}
           addMargin={transientItems.length > 0}
           maxHeight={heightBudget.text}
         />
@@ -123,12 +140,10 @@ export function AssistantStreamPreview({
  */
 const AssistantStreamText = React.memo(function AssistantStreamText({
   text,
-  debug,
   addMargin,
   maxHeight,
 }: {
   text: string
-  debug: boolean
   addMargin: boolean
   maxHeight: number
 }): React.ReactNode {
@@ -161,7 +176,9 @@ const AssistantStreamText = React.memo(function AssistantStreamText({
           />
         </Box>
       </Box>
-      <Cost costUSD={0} durationMs={0} debug={debug} />
+      {/* No cost row here: the live stream store has no real usage/cost data,
+          and a hardcoded $0.0000 would mislead debug-mode users. The completed
+          message renders the real cost. */}
     </Box>
   )
 })

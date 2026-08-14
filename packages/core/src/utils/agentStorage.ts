@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
 import { getKodeRoot } from '#config/dataRoots'
-import { getEffectiveSessionId } from './sessionId'
+import { getEffectiveSessionId } from '@kode/runtime'
 
 /**
  * Agent Storage Utilities

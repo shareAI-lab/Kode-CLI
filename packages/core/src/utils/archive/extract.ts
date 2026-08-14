@@ -207,11 +207,7 @@ function createBoundedInflateDecoder(maxEntryBytes: number): {
       final: boolean,
     ) => void = () => {}
 
-    constructor(
-      _filename: string,
-      _size?: number,
-      originalSize?: number,
-    ) {
+    constructor(_filename: string, _size?: number, originalSize?: number) {
       this.budget =
         Number.isSafeInteger(originalSize) && (originalSize as number) > 0
           ? Math.min(originalSize as number, maxEntryBytes)
@@ -269,9 +265,7 @@ export async function extractZipBuffer(
   const unzip = new Unzip((file: UnzipFile) => {
     entryCount += 1
     if (entryCount > limits.maxEntries) {
-      throw new Error(
-        `Archive entry count exceeds limit ${limits.maxEntries}`,
-      )
+      throw new Error(`Archive entry count exceeds limit ${limits.maxEntries}`)
     }
 
     const normalized = normalizeArchivePath(file.name)

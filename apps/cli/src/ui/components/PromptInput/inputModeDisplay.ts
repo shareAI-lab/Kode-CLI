@@ -39,6 +39,8 @@ export function buildPromptInputStatusLine(args: {
 
   if (args.editorMode === 'vim' && args.vimMode === 'INSERT') {
     parts.unshift('-- INSERT --')
+  } else if (args.editorMode === 'vim' && args.vimMode === 'NORMAL') {
+    parts.unshift('-- NORMAL --')
   }
 
   if (args.isLoading) {

@@ -122,9 +122,13 @@ function stringifyToolInput(input: unknown): string {
 }
 
 function formatHistoricalToolUse(block: AnthropicToolUseBlock): string {
+  // Deliberately NOT formatted like the tool-calling protocol: models have
+  // been observed to mimic "Tool call X (id) / Input: {...}" text verbatim in
+  // their replies instead of invoking the tool. Frame it as a completed past
+  // event in plain prose so it reads as history, not as an output template.
   return [
-    `Tool call ${block.name} (${block.id})`,
-    `Input: ${stringifyToolInput(block.input)}`,
+    `[Previously attempted tool call ${block.name} was not completed]`,
+    `Arguments: ${stringifyToolInput(block.input)}`,
   ].join('\n')
 }
 

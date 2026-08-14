@@ -54,30 +54,49 @@ export function generateFileSuggestions(args: {
     const showHidden = nameFilter.startsWith('.') || userPath.includes('/.')
     const lowerNameFilter = nameFilter.toLowerCase()
     const useFuzzy = lowerNameFilter.length >= 2
-    const entries = readdirSync(searchDir, { withFileTypes: true })
-      .filter(entry => {
-        if (!showHidden && entry.name.startsWith('.')) return false
-        if (!nameFilter) return true
-        const lower = entry.name.toLowerCase()
-        if (lower.startsWith(lowerNameFilter)) return true
-        // Fuzzy fallback (abbreviations/subsequences) so e.g. "pkg" matches
-        // "package.json". Gated on 2+ chars and capped below to avoid noise.
-        return useFuzzy && matchAdvanced(entry.name, nameFilter).matched
-      })
-      .map(entry => {
-        const isDir = isDirectoryEntry(entry, searchDir)
-        const lower = entry.name.toLowerCase()
-        const prefixMatch = lower.startsWith(lowerNameFilter)
-        const fuzzyScore = prefixMatch
-          ? 0
-          : matchAdvanced(entry.name, nameFilter).score
-        return {
-          entry: entry.name,
-          isDir,
-          prefixMatch,
-          fuzzyScore,
-        }
-      })
+    // Single pass: compute the expensive fuzzy match once per entry instead of
+    // running it twice (once to filter, once to score) for every fuzzy hit.
+    const matches: Array<{
+      entry: Dirent
+      isDir: boolean
+      prefixMatch: boolean
+      fuzzyScore: number
+    }> = []
+    for (const entry of readdirSync(searchDir, { withFileTypes: true })) {
+      if (!showHidden && entry.name.startsWith('.')) continue
+      if (!nameFilter) {
+        matches.push({
+          entry,
+          isDir: isDirectoryEntry(entry, searchDir),
+          prefixMatch: false,
+          fuzzyScore: 0,
+        })
+        continue
+      }
+      const lower = entry.name.toLowerCase()
+      if (lower.startsWith(lowerNameFilter)) {
+        matches.push({
+          entry,
+          isDir: isDirectoryEntry(entry, searchDir),
+          prefixMatch: true,
+          fuzzyScore: 0,
+        })
+        continue
+      }
+      // Fuzzy fallback (abbreviations/subsequences) so e.g. "pkg" matches
+      // "package.json". Gated on 2+ chars to avoid noise.
+      if (!useFuzzy) continue
+      const fuzzy = matchAdvanced(entry.name, nameFilter)
+      if (fuzzy.matched) {
+        matches.push({
+          entry,
+          isDir: isDirectoryEntry(entry, searchDir),
+          prefixMatch: false,
+          fuzzyScore: fuzzy.score,
+        })
+      }
+    }
+    const entries = matches
       .sort((a, b) => {
         if (a.isDir && !b.isDir) return -1
         if (!a.isDir && b.isDir) return 1
@@ -88,38 +107,41 @@ export function generateFileSuggestions(args: {
         if (a.fuzzyScore !== b.fuzzyScore) {
           return b.fuzzyScore - a.fuzzyScore
         }
-        return a.entry.toLowerCase().localeCompare(b.entry.toLowerCase())
+        return a.entry.name
+          .toLowerCase()
+          .localeCompare(b.entry.name.toLowerCase())
       })
       .slice(0, 25)
       .map(({ entry, isDir }) => {
+        const entryName = entry.name
         const icon = isDir ? '📁' : '📄'
 
         let value: string
 
         if (userPath.includes('/')) {
           if (endsWithSlash) {
-            value = userPath + entry + (isDir ? '/' : '')
+            value = userPath + entryName + (isDir ? '/' : '')
           } else if (searchStat?.isDirectory()) {
-            value = userPath + '/' + entry + (isDir ? '/' : '')
+            value = userPath + '/' + entryName + (isDir ? '/' : '')
           } else {
             const userDir = userPath.includes('/')
               ? userPath.substring(0, userPath.lastIndexOf('/'))
               : ''
             value = userDir
-              ? userDir + '/' + entry + (isDir ? '/' : '')
-              : entry + (isDir ? '/' : '')
+              ? userDir + '/' + entryName + (isDir ? '/' : '')
+              : entryName + (isDir ? '/' : '')
           }
         } else {
           if (searchStat?.isDirectory()) {
-            value = userPath + '/' + entry + (isDir ? '/' : '')
+            value = userPath + '/' + entryName + (isDir ? '/' : '')
           } else {
-            value = entry + (isDir ? '/' : '')
+            value = entryName + (isDir ? '/' : '')
           }
         }
 
         return {
           value,
-          displayValue: `${icon} ${entry}${isDir ? '/' : ''}`,
+          displayValue: `${icon} ${entryName}${isDir ? '/' : ''}`,
           type: 'file' as const,
           score: isDir ? 80 : 70,
         }

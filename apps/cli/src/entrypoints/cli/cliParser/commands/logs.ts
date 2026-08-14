@@ -5,6 +5,7 @@ import type { Command } from '@commander-js/extra-typings'
 import type { RenderOptions } from 'ink'
 
 import { getCurrentProjectConfig } from '#config'
+import type { Message } from '#core/query'
 import {
   dateToFilename,
   getNextAvailableLogForkNumber,
@@ -125,15 +126,14 @@ export function registerLogCommands(
           const isLegacyNumber = /^-?\\d+$/.test(rawIdentifier)
           const isLegacyPath = !isLegacyNumber && existsSync(rawIdentifier)
 
-          let messages: unknown[] | undefined
+          let messages: Message[] | undefined
           let messageLogName: string = dateToFilename(new Date())
           let initialForkNumber: number | undefined = undefined
 
           try {
             if (isLegacyNumber || isLegacyPath) {
-              const { loadMessagesFromLog } = await import(
-                '#core/utils/conversationRecovery'
-              )
+              const { loadMessagesFromLog } =
+                await import('#core/utils/conversationRecovery')
               const logs = await loadLogList(CACHE_PATHS.messages())
               if (isLegacyNumber) {
                 const number = Math.abs(parseInt(rawIdentifier, 10))

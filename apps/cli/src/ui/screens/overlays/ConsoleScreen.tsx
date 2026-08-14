@@ -216,6 +216,22 @@ export function ConsoleScreen({
         return true
       }
 
+      // j/k scrolling, matching the footer and the Help/Status screens.
+      if (input === 'j') {
+        setFollow(false)
+        setScrollTop(prev => clamp(prev - 1, 0, maxScrollTop))
+        return true
+      }
+
+      if (input === 'k') {
+        setScrollTop(prev => {
+          const next = clamp(prev + 1, 0, maxScrollTop)
+          if (next >= maxScrollTop) setFollow(true)
+          return next
+        })
+        return true
+      }
+
       if (input === 'r') {
         refresh()
         return true

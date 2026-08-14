@@ -7,7 +7,7 @@ import {
 } from '#core/types/modelCapabilities'
 import { ModelProfile } from '#core/utils/config'
 import { Tool, getToolDescription } from '#core/tooling/Tool'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
 
@@ -319,7 +319,7 @@ export abstract class OpenAIAdapter extends ModelAPIAdapter {
       function: {
         name: tool.name,
         description: getToolDescription(tool),
-        parameters: zodToJsonSchema(tool.inputSchema),
+        parameters: toInputJsonSchema(tool.inputSchema),
       },
     }))
   }

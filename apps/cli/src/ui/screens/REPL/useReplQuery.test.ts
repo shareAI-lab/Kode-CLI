@@ -6,12 +6,15 @@ import {
 } from '#core/utils/messages'
 import type { Message } from '#core/query'
 import {
+  __updateRequestStatusFromAssistantStreamForTests,
   appendMessagesForReplState,
   appendKodingSaveFailureMessage,
   appendReplQueryFailureMessage,
+  CODEX_APP_SERVER_TIMEOUT_MESSAGE,
   REPL_QUERY_FAILURE_MESSAGE,
   shouldAppendReplQueryFailure,
 } from './useReplQuery'
+import { getRequestStatus, setRequestStatus } from '#core/utils/requestStatus'
 
 function makeProgress(toolUseID: string, text: string): Message {
   return createProgressMessage(
@@ -68,6 +71,50 @@ describe('appendMessagesForReplState', () => {
   })
 })
 
+describe('REPL stream request status', () => {
+  test('shows Thinking and Writing response from the main assistant stream', () => {
+    setRequestStatus({ kind: 'idle' })
+    try {
+      __updateRequestStatusFromAssistantStreamForTests({
+        type: 'thinking_delta',
+        delta: 'Assessing the repository',
+        agentId: 'main',
+      })
+      expect(getRequestStatus()).toMatchObject({
+        kind: 'thinking',
+        detail: 'Thinking',
+      })
+
+      __updateRequestStatusFromAssistantStreamForTests({
+        type: 'text_delta',
+        delta: 'I found the issue.',
+        agentId: 'main',
+      })
+      expect(getRequestStatus()).toMatchObject({ kind: 'streaming' })
+      expect(getRequestStatus().detail).toBeUndefined()
+    } finally {
+      setRequestStatus({ kind: 'idle' })
+    }
+  })
+
+  test('does not let a subagent overwrite the main request status', () => {
+    setRequestStatus({ kind: 'thinking', detail: 'Thinking' })
+    try {
+      __updateRequestStatusFromAssistantStreamForTests({
+        type: 'text_delta',
+        delta: 'hidden subagent output',
+        agentId: 'worker-1',
+      })
+      expect(getRequestStatus()).toMatchObject({
+        kind: 'thinking',
+        detail: 'Thinking',
+      })
+    } finally {
+      setRequestStatus({ kind: 'idle' })
+    }
+  })
+})
+
 describe('REPL query failures', () => {
   test('adds a safe, retryable API error to the transcript', () => {
     const user = createUserMessage('hello')
@@ -112,6 +159,73 @@ describe('REPL query failures', () => {
         error: new DOMException('cancelled', 'AbortError'),
       }),
     ).toBe(false)
+  })
+
+  test('explains a Codex app-server timeout without exposing its raw error', () => {
+    const error = new Error('provider token: secret')
+    error.name = 'CodexAppServerTimeoutError'
+
+    const result = appendReplQueryFailureMessage(
+      [createUserMessage('review code')],
+      error,
+    )
+    const failure = result.at(-1)
+    if (!failure || failure.type !== 'assistant') {
+      throw new Error('Expected an assistant API error message')
+    }
+
+    expect(failure.message.content).toEqual([
+      {
+        type: 'text',
+        text: CODEX_APP_SERVER_TIMEOUT_MESSAGE,
+        citations: [],
+      },
+    ])
+    expect(CODEX_APP_SERVER_TIMEOUT_MESSAGE).not.toContain('secret')
+  })
+
+  test('preserves the safe reason from a failed Codex turn', () => {
+    const error = new Error('Codex app-server turn failed: Provider limit.')
+    error.name = 'CodexAppServerTurnError'
+
+    const result = appendReplQueryFailureMessage(
+      [createUserMessage('review code')],
+      error,
+    )
+    const failure = result.at(-1)
+    if (!failure || failure.type !== 'assistant') {
+      throw new Error('Expected an assistant API error message')
+    }
+
+    expect(failure.message.content).toEqual([
+      {
+        type: 'text',
+        text: 'API Error: Codex app-server turn failed: Provider limit. Your prompt is saved; no project inspection or action was performed.',
+        citations: [],
+      },
+    ])
+  })
+
+  test('does not expose redacted runtime diagnostics in the transcript', () => {
+    const error = new Error('provider token: [REDACTED]')
+    error.name = 'CodexAppServerRuntimeError'
+
+    const result = appendReplQueryFailureMessage(
+      [createUserMessage('review code')],
+      error,
+    )
+    const failure = result.at(-1)
+    if (!failure || failure.type !== 'assistant') {
+      throw new Error('Expected an assistant API error message')
+    }
+
+    expect(failure.message.content).toEqual([
+      {
+        type: 'text',
+        text: 'Codex / ChatGPT OAuth runtime stopped before the model completed. Your prompt is saved; no project inspection or action was performed. Check the local error log for redacted runtime diagnostics, then retry.',
+        citations: [],
+      },
+    ])
   })
 
   test('keeps unclassified errors visible without exposing their details', () => {

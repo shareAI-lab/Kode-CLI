@@ -202,7 +202,7 @@ export async function runKodeAgentStreamJsonSession<
       try {
         const fenced = String(resultText).trim()
         const unfenced = (() => {
-          const m = fenced.match(/^```(?:json)?\\s*([\\s\\S]*?)\\s*```$/i)
+          const m = fenced.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
           return m ? m[1]!.trim() : fenced
         })()
 

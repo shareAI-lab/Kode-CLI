@@ -4,7 +4,9 @@ import { normalizePermissionMode } from '#core/types/PermissionMode'
 import { isPlanModeEnabled } from '#core/utils/planMode'
 
 const DEFAULT_CONVERSATION_KEY = 'default'
-const ACTUAL_DEFAULT_MODE: PermissionMode = 'yolo'
+// Keep the non-UI fallback aligned with createDefaultToolPermissionContext.
+// This path is used by headless, ACP, and provider-backed conversations too.
+const ACTUAL_DEFAULT_MODE: PermissionMode = 'plan'
 
 const permissionModeByConversationKey = new Map<string, PermissionMode>()
 

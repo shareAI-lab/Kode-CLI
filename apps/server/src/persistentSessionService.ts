@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path'
 
 import type { Session } from '@kode/protocol'
 import type { Message } from '@kode/core/query'
-import { isUuid } from '@kode/core/utils/uuid'
+import { isUuid } from '@kode/runtime'
 import {
   appendSessionCustomTitleRecord,
   appendSessionSessionSummaryRecord,

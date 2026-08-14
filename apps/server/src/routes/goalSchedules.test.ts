@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { GoalService } from '@kode/core/goals'
+import { GoalService } from '@kode/goals'
 
 import { routeGoalSchedules } from './goalSchedules'
 

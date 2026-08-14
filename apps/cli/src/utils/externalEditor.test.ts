@@ -225,9 +225,9 @@ describe('external editor terminal suspension', () => {
 
     // The unsafe command line is never spawned; the built-in candidate is used.
     expect(result.text).toBe('draft')
-    expect(
-      lifecycle.some(entry => entry.startsWith('spawn:test-editor')),
-    ).toBe(false)
+    expect(lifecycle.some(entry => entry.startsWith('spawn:test-editor'))).toBe(
+      false,
+    )
     expect(lastSpawn?.command).toBe('code')
   })
 
@@ -243,9 +243,20 @@ describe('external editor terminal suspension', () => {
     })
     expect(lastSpawn?.args.slice(0, -1)).toEqual(['--wait'])
 
-    process.env.EDITOR = '$HOME/bin/editor'
-    await launchExternalEditor('draft')
-    expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+    const originalHome = process.env.HOME
+    delete process.env.HOME
+    try {
+      process.env.EDITOR = '$HOME/bin/editor'
+      await launchExternalEditor('draft')
+      expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+
+      process.env.EDITOR = '${HOME}/bin/editor'
+      await launchExternalEditor('draft')
+      expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME
+      else process.env.HOME = originalHome
+    }
   })
 
   test('falls back to built-in editors when the configured command cannot spawn', async () => {

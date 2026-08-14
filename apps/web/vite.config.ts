@@ -20,6 +20,35 @@ export default defineConfig({
     outDir: resolve(rootDir, 'dist'),
     emptyOutDir: true,
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (
+            id.includes('react') ||
+            id.includes('scheduler') ||
+            id.includes('jsx-runtime')
+          ) {
+            return 'vendor-react'
+          }
+          if (id.includes('lucide-react')) return 'vendor-icons'
+          if (
+            id.includes('markdown') ||
+            id.includes('remark') ||
+            id.includes('rehype') ||
+            id.includes('unified') ||
+            id.includes('micromark') ||
+            id.includes('highlight')
+          ) {
+            return 'vendor-markdown'
+          }
+          if (id.includes('zod') || id.includes('@kode/')) {
+            return 'vendor-kode'
+          }
+          return 'vendor-other'
+        },
+      },
+    },
   },
   server: {
     port: 5173,

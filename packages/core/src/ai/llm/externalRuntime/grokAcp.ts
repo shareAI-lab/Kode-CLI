@@ -1,6 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createRequire } from 'node:module'
 
+import {
+  appendExternalRuntimeStderr,
+  formatExternalRuntimeCloseMessage,
+} from './diagnostics'
+
 const require = createRequire(import.meta.url)
 const INITIALIZE_REQUEST_ID = 1
 const MAX_STDOUT_BYTES = 1024 * 1024
@@ -18,6 +23,13 @@ type PendingRequest = {
   resolve: (result: unknown) => void
   reject: (error: Error) => void
   timeout: ReturnType<typeof setTimeout>
+}
+
+export class GrokAcpRuntimeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'GrokAcpRuntimeError'
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,6 +87,7 @@ function getGrokCommand(): { command: string; args: string[] } {
 export class GrokAcpClient {
   private child: ChildProcess | null = null
   private buffer = ''
+  private stderr = ''
   private stdoutBytes = 0
   private nextRequestId = 2
   private readonly pending = new Map<number, PendingRequest>()
@@ -94,19 +107,39 @@ export class GrokAcpClient {
 
   async start(): Promise<void> {
     if (this.child) return
+    this.buffer = ''
+    this.stderr = ''
+    this.stdoutBytes = 0
     const command = getGrokCommand()
     const child = spawn(command.command, command.args, {
       shell: process.platform === 'win32',
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     })
     this.child = child
     child.stdout?.setEncoding('utf8')
     child.stdout?.on('data', chunk => this.handleOutput(chunk))
-    child.once('error', error => this.failAll(error))
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', chunk => {
+      this.stderr = appendExternalRuntimeStderr(this.stderr, chunk)
+    })
+    child.once('error', error =>
+      this.failAll(
+        new GrokAcpRuntimeError(
+          formatExternalRuntimeCloseMessage(
+            `Grok ACP runtime failed: ${error.message}`,
+            this.stderr,
+          ),
+        ),
+      ),
+    )
     child.once('close', () => {
       if (this.child === child) this.child = null
-      this.failAll(new Error('Grok ACP runtime closed unexpectedly'))
+      this.failAll(
+        new GrokAcpRuntimeError(
+          formatExternalRuntimeCloseMessage('Grok ACP runtime', this.stderr),
+        ),
+      )
     })
 
     try {

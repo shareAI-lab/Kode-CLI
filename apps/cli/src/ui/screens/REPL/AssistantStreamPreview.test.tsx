@@ -193,3 +193,34 @@ test('does not reparse the accumulated markdown on every live delta', async () =
     applyMarkdownSpy.mockRestore()
   }
 })
+
+test('keeps the live stream visible when completed transient items overflow', async () => {
+  const store = createAssistantStreamStore({ frameIntervalMs: 1 })
+  const turn = new AbortController()
+  store.beginTurn(turn)
+  store.handleUpdate(turn, { type: 'text_delta', delta: 'LIVE-STREAM-ANSWER' })
+
+  const tallCompletedItems = Array.from({ length: 4 }, (_, i) => ({
+    key: `completed-${i}`,
+    jsx: (
+      <Box key={`completed-${i}`} flexDirection="column">
+        {Array.from({ length: 40 }, (_, j) => (
+          <Text key={j}>{`completed-${i}-line-${j}`}</Text>
+        ))}
+      </Box>
+    ),
+  }))
+
+  const output = await renderToText(
+    <AssistantStreamPreview
+      store={store}
+      transientItems={tallCompletedItems}
+      maxHeight={10}
+      isVisible
+      isActive
+      debug={false}
+    />,
+  )
+
+  expect(output).toContain('LIVE-STREAM-ANSWER')
+})

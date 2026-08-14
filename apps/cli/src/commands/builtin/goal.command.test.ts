@@ -72,6 +72,37 @@ describe('/goal', () => {
     expect(list).toContain('Ship the focused goal integration')
   })
 
+  test('limits stats to the requested session goal', async () => {
+    const service = new GoalService()
+    const first = service.createGoal({
+      id: 'stats-first-goal',
+      cwd: workspace,
+      sessionId: 'goal-command-session',
+      objective: 'Count only this goal',
+      schedule: {
+        kind: 'once',
+        prompt: 'Count only this goal',
+        runAt: Date.now() + 60_000,
+      },
+    })
+    service.createGoal({
+      id: 'stats-second-goal',
+      cwd: workspace,
+      sessionId: 'goal-command-session',
+      objective: 'Do not include this goal',
+      schedule: {
+        kind: 'once',
+        prompt: 'Do not include this goal',
+        runAt: Date.now() + 60_000,
+      },
+    })
+
+    expect(await goal.call(`stats ${first.id}`)).toContain('Total: 1')
+    expect(await goal.call('stats missing-goal')).toBe(
+      'Goal not found for this session: missing-goal',
+    )
+  })
+
   test('pauses and resumes a running goal through explicit controls', async () => {
     await goal.call('start Pause this active goal')
     const service = new GoalService()

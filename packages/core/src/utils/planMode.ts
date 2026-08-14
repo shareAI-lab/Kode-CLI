@@ -1,1 +1,1 @@
-export * from '#core/plan/mode'
+export * from '@kode/plan/mode'

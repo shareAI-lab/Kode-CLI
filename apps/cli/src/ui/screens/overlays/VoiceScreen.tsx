@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 
-import { createMiMoVoiceProvider, VoiceConfigurationError } from '@kode/ai'
+import {
+  createMiMoVoiceProvider,
+  VoiceConfigurationError,
+  VoiceProviderError,
+} from '@kode/ai'
 import {
   startMacOSVoiceRecording,
   type ActiveVoiceRecording,
@@ -43,11 +47,25 @@ export type VoiceTranscriptSubmission = {
   submit(transcript: string): Promise<string> | string
 }
 
-function toSafeMessage(error: unknown): string {
+export function getSafeVoiceErrorMessage(error: unknown): string {
   if (error instanceof VoiceConfigurationError) return error.message
+  if (error instanceof VoiceProviderError) return error.message
   if (error instanceof Error && error.name === 'VoiceRuntimeError')
     return error.message
   return 'Voice could not complete. Check your network, MiMo configuration, and microphone permission.'
+}
+
+/**
+ * Whether Esc/Ctrl+C may close the whole screen in the given state. A send
+ * that is already in flight cannot be aborted (`submission.submit` has no
+ * cancellation signal), so closing during `submitting` would strand the
+ * transcript in its destination while telling the user it was cancelled.
+ * Transcription, by contrast, is abortable and is handled separately.
+ */
+export function __canCloseVoiceScreenOnEscapeForTests(
+  stateKind: VoiceScreenState['kind'],
+): boolean {
+  return stateKind !== 'submitting'
 }
 
 export function VoiceScreen({
@@ -124,7 +142,7 @@ export function VoiceScreen({
       if (!closedRef.current)
         setState({
           kind: 'error',
-          message: toSafeMessage(error),
+          message: getSafeVoiceErrorMessage(error),
           recovery: 'retry',
         })
     }
@@ -167,7 +185,7 @@ export function VoiceScreen({
       if (!closedRef.current && !controller.signal.aborted) {
         setState({
           kind: 'error',
-          message: toSafeMessage(error),
+          message: getSafeVoiceErrorMessage(error),
           recovery: 'retry',
         })
       }
@@ -228,6 +246,11 @@ export function VoiceScreen({
           setState({ kind: 'ready' })
           return true
         }
+        if (!__canCloseVoiceScreenOnEscapeForTests(state.kind)) {
+          // The send cannot be cancelled; keep the screen open so the result
+          // is reported instead of silently discarding the in-flight submit.
+          return true
+        }
         close()
         return true
       }
@@ -235,7 +258,14 @@ export function VoiceScreen({
         void startRecording(true)
         return true
       }
-      if (!key.return) return undefined
+      // From any error state, 's' jumps straight into Voice settings so the
+      // user can fix the network/credential/microphone configuration.
+      if ((input === 's' || input === 'S') && state.kind === 'error') {
+        setMode('settings')
+        return true
+      }
+      const isRecordingToggle = key.return || key.name === 'f10'
+      if (!isRecordingToggle) return undefined
       if (state.kind === 'error' && state.recovery === 'configure') {
         setMode('settings')
         return true
@@ -258,11 +288,11 @@ export function VoiceScreen({
 
   const stateLine =
     state.kind === 'ready'
-      ? 'Press Enter to begin recording.'
+      ? 'Press Enter or F10 to begin recording.'
       : state.kind === 'preparing'
         ? 'Preparing the macOS microphone recorder…'
         : state.kind === 'recording'
-          ? `Recording. Press Enter to stop (maximum ${configRef.current?.maxRecordingSeconds ?? '?'} seconds).`
+          ? `Recording. Press Enter or F10 to stop (maximum ${configRef.current?.maxRecordingSeconds ?? '?'} seconds).`
           : state.kind === 'transcribing'
             ? 'Transcribing securely with MiMo…'
             : state.kind === 'review'
@@ -276,16 +306,18 @@ export function VoiceScreen({
     state.kind === 'review'
       ? 'Ctrl+R records another segment and appends it · Esc/Ctrl+C close'
       : state.kind === 'recording'
-        ? 'Enter stops recording · Esc/Ctrl+C cancels and closes'
+        ? 'Enter/F10 stops recording · Esc/Ctrl+C cancels and closes'
         : state.kind === 'transcribing'
           ? 'Esc/Ctrl+C cancels transcription and closes'
           : state.kind === 'error' && state.recovery === 'configure'
             ? 'Enter opens settings · paste the key and press Enter to continue · Esc/Ctrl+C closes'
             : state.kind === 'error'
-              ? 'Enter tries again · Esc/Ctrl+C closes'
+              ? 'Enter tries again · s opens settings · Esc/Ctrl+C closes'
               : state.kind === 'ready'
-                ? 'Enter starts recording · Esc/Ctrl+C closes'
-                : 'Esc/Ctrl+C cancels and closes'
+                ? 'Enter/F10 starts recording · Esc/Ctrl+C closes'
+                : state.kind === 'submitting'
+                  ? 'Sending… please wait — the send cannot be cancelled once started'
+                  : 'Esc/Ctrl+C cancels and closes'
 
   if (mode === 'settings') {
     return (

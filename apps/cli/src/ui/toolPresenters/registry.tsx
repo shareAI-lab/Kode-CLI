@@ -16,6 +16,7 @@ import {
   renderFileWriteToolResultMessage,
   renderFileWriteToolUseRejectedMessage,
 } from './FileWriteToolPresenter'
+import { renderWebSearchToolResultMessage } from './WebSearchToolPresenter'
 
 type ResultOptions = { verbose: boolean }
 type RejectOptions = {
@@ -81,6 +82,14 @@ const inkPresentersByToolName: Record<string, InkToolPresenter> = {
         input as Parameters<typeof renderFileWriteToolUseRejectedMessage>[0],
         options,
       ),
+  },
+  WebSearch: {
+    renderToolResultMessage: (output, options) =>
+      renderWebSearchToolResultMessage(output, options),
+  },
+  web_search: {
+    renderToolResultMessage: (output, options) =>
+      renderWebSearchToolResultMessage(output, options),
   },
 }
 

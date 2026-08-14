@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
 import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import type {
@@ -193,7 +193,7 @@ export async function queryOpenAI(
             parameters:
               'inputJSONSchema' in _ && _.inputJSONSchema
                 ? _.inputJSONSchema
-                : (zodToJsonSchema(_.inputSchema) as Record<string, unknown>),
+                : toInputJsonSchema(_.inputSchema),
           },
         }) as OpenAI.ChatCompletionTool,
     ),

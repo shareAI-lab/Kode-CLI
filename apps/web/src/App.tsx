@@ -17,9 +17,16 @@ import {
   loadTokenFromStorage,
   persistToken,
 } from './lib/token'
-import { ChatPage } from './pages/Chat'
-import { ConnectPage } from './pages/Connect'
-
+const ChatPage = React.lazy(() =>
+  import('./pages/Chat').then(module => ({
+    default: module.ChatPage,
+  })),
+)
+const ConnectPage = React.lazy(() =>
+  import('./pages/Connect').then(module => ({
+    default: module.ConnectPage,
+  })),
+)
 const SchedulesPage = React.lazy(() =>
   import('./pages/Schedules').then(module => ({
     default: module.SchedulesPage,
@@ -146,16 +153,18 @@ export default function App() {
 
   if (!token) {
     return (
-      <ConnectPage
-        token={token}
-        onTokenChange={setToken}
-        onSave={() => {
-          const next = token.trim()
-          if (!next) return
-          persistToken(next)
-          setToken(next)
-        }}
-      />
+      <React.Suspense fallback={<PageLoading />}>
+        <ConnectPage
+          token={token}
+          onTokenChange={setToken}
+          onSave={() => {
+            const next = token.trim()
+            if (!next) return
+            persistToken(next)
+            setToken(next)
+          }}
+        />
+      </React.Suspense>
     )
   }
 

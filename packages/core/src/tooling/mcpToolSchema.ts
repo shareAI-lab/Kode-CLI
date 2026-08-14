@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 
 import type { ToolSpec } from './splitTool'
 
@@ -15,7 +15,7 @@ export function getMcpToolDescription(
 export function getMcpToolInputSchema(
   tool: Pick<ToolSpec, 'inputSchema'>,
 ): McpToolInputSchema {
-  const schema = zodToJsonSchema(tool.inputSchema) as unknown
+  const schema = toInputJsonSchema(tool.inputSchema)
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return {}
   return schema as McpToolInputSchema
 }

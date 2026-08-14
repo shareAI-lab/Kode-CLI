@@ -7,8 +7,12 @@ import {
 import { buildRuntimeEnvironmentPrompt } from '#core/utils/runtimeEnvironment'
 import { getCwd } from '#core/utils/state'
 import { release as osRelease, type as osType } from 'os'
-import { PRODUCT_NAME, PROJECT_FILE, PRODUCT_COMMAND } from './product'
-import { MACRO } from './macros'
+import {
+  PRODUCT_NAME,
+  PROJECT_FILE,
+  PRODUCT_COMMAND,
+} from '@kode/constants/product'
+import { MACRO } from '@kode/constants/macros'
 import { getSessionStartAdditionalContext } from '@kode/hooks'
 import type { ToolUseContext } from '#core/tooling/Tool'
 
@@ -354,6 +358,7 @@ ${doingTasks}- Tool results and user messages may include application-injected <
 # Tool usage policy${toolUsagePolicyTaskExtras}${toolUsagePolicyWebFetchExtras}
 - If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Run dependent calls sequentially. Never use placeholders or guess missing parameters in tool calls.
 - If the user explicitly requests parallel tool use, send the independent calls together in one response.
+- Invoke tools through the tool-calling mechanism only. Never write tool calls as plain text (for example, never output lines like "Tool call X (id)" or "Input: {...}"); if you need to mention a tool in prose, describe it in your own words.
 - Prefer specialized tools. Use ${READ_TOOL}, ${EDIT_TOOL}, and ${WRITE_TOOL} for file operations; reserve ${BASH_TOOL} for terminal operations that require a shell.
 `
 

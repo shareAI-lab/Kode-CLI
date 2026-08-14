@@ -1,6 +1,6 @@
 import type { Message } from '@kode/core/query'
 import type { ToolUseContext } from '@kode/core/tooling/Tool'
-import type { ToolPermissionContext } from '@kode/core/types/toolPermissionContext'
+import type { ToolPermissionContext } from '@kode/types/toolPermissionContext'
 import type { AgentEvent, DaemonEventMetadata } from '#protocol/agentEvent'
 
 export type DaemonClient = {

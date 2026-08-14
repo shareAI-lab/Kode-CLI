@@ -3,12 +3,14 @@ import { Box, Text } from 'ink'
 
 import { getAgentByType, type AgentConfig } from '@kode/agent'
 import {
+  acquireWorkspaceLease,
   executeAgentPlanEvents,
   planAgentExecution,
   type AgentExecutionOutcome,
   type AgentWorkItem,
 } from '#core/automation'
 import { createAssistantMessage } from '#core/utils/messages'
+import { getCwd } from '#core/utils/state'
 import { getTheme } from '#core/utils/theme'
 import type {
   Tool,
@@ -130,44 +132,56 @@ async function runTask(args: {
   context: TaskBatchToolUseContext
   voiceIntent?: VoiceIntent
 }): Promise<BatchTaskResult> {
-  let result: TaskOutput | null = null
-  const isolatedContext: ToolUseContext = {
-    ...args.context,
-    options: {
-      ...args.context.options,
-      ...(args.voiceIntent ? { voiceIntentPrepared: true } : {}),
-    },
-    // Each nested run has a distinct logical tool-use id. This prevents
-    // transcript/progress collisions while retaining the parent permission
-    // context, working directory, cancellation signal, and model policy.
-    toolUseId: `${args.context.toolUseId ?? 'TaskBatch'}:${args.task.id}`,
-  }
-  const taskRunner = args.context.__testCallTaskTool ?? callTaskTool
-  for await (const event of taskRunner(
-    {
-      description: args.task.description,
-      prompt: args.voiceIntent
-        ? formatVoiceTaskPrompt({
-            task: args.task,
-            voiceIntent: args.voiceIntent,
-          })
-        : args.task.prompt,
-      subagent_type: args.task.subagent_type,
-      ...(args.task.resume_agent_id
-        ? { resume: args.task.resume_agent_id }
-        : {}),
-      model: args.task.model,
-      max_turns: args.task.max_turns,
-      run_in_background: false,
-    },
-    isolatedContext,
-  )) {
-    if (event.type === 'result') result = event.data
-  }
-  if (!result) throw new Error(`Task ${args.task.id} ended without a result.`)
-  return {
-    ...summarizeTaskOutput(result),
-    resumed: Boolean(args.task.resume_agent_id),
+  // The plan is only local to this TaskBatch invocation. Acquire a canonical
+  // workspace lease at the actual child-execution boundary so batches and
+  // sessions cannot overlap a potential writer in the same checkout.
+  const workspaceLease = await acquireWorkspaceLease({
+    workspacePath: getCwd(),
+    mode: args.task.mode,
+    signal: args.context.abortController.signal,
+  })
+  try {
+    let result: TaskOutput | null = null
+    const isolatedContext: ToolUseContext = {
+      ...args.context,
+      options: {
+        ...args.context.options,
+        ...(args.voiceIntent ? { voiceIntentPrepared: true } : {}),
+      },
+      // Each nested run has a distinct logical tool-use id. This prevents
+      // transcript/progress collisions while retaining the parent permission
+      // context, working directory, cancellation signal, and model policy.
+      toolUseId: `${args.context.toolUseId ?? 'TaskBatch'}:${args.task.id}`,
+    }
+    const taskRunner = args.context.__testCallTaskTool ?? callTaskTool
+    for await (const event of taskRunner(
+      {
+        description: args.task.description,
+        prompt: args.voiceIntent
+          ? formatVoiceTaskPrompt({
+              task: args.task,
+              voiceIntent: args.voiceIntent,
+            })
+          : args.task.prompt,
+        subagent_type: args.task.subagent_type,
+        ...(args.task.resume_agent_id
+          ? { resume: args.task.resume_agent_id }
+          : {}),
+        model: args.task.model,
+        max_turns: args.task.max_turns,
+        run_in_background: false,
+      },
+      isolatedContext,
+    )) {
+      if (event.type === 'result') result = event.data
+    }
+    if (!result) throw new Error(`Task ${args.task.id} ended without a result.`)
+    return {
+      ...summarizeTaskOutput(result),
+      resumed: Boolean(args.task.resume_agent_id),
+    }
+  } finally {
+    await workspaceLease.release()
   }
 }
 

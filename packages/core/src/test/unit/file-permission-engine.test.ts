@@ -171,6 +171,7 @@ describe('Compatibility: filesystem permission engine', () => {
     try {
       const base = createDefaultToolPermissionContext({
         isBypassPermissionsModeAvailable: true,
+        mode: 'acceptEdits',
       })
       const ctx = makeContext({ toolPermissionContext: base })
 
@@ -214,6 +215,7 @@ describe('Compatibility: filesystem permission engine', () => {
     try {
       const toolPermissionContext = createDefaultToolPermissionContext({
         isBypassPermissionsModeAvailable: true,
+        mode: 'acceptEdits',
       })
       const ctx = makeContext({
         toolPermissionContext,
@@ -334,6 +336,7 @@ describe('Compatibility: filesystem permission engine', () => {
     try {
       const toolPermissionContext = createDefaultToolPermissionContext({
         isBypassPermissionsModeAvailable: true,
+        mode: 'acceptEdits',
       })
       const ctx = makeContext({ toolPermissionContext })
 

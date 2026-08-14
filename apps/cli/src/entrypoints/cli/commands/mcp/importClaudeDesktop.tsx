@@ -1,8 +1,31 @@
 import type { Command } from '@commander-js/extra-typings'
 
 import type { McpServerConfig } from '#config'
-import { addMcpServer, ensureConfigScope, getMcpServer } from '#core/mcp/client'
 import { renderWithTuiStdio } from '#ui-ink/utils/inkRender'
+
+function loadMcpClient() {
+  return import('#core/mcp/client')
+}
+
+/**
+ * User-facing name for the config scope this import writes to. The success
+ * message must match the actual target: `--scope global` writes the user
+ * config, `--scope mcprc` writes .mcprc, etc.
+ */
+export function __scopeDisplayForImportForTests(scope: string): string {
+  switch (scope) {
+    case 'project':
+      return 'local'
+    case 'global':
+      return 'user'
+    case 'mcpjson':
+      return 'project'
+    case 'mcprc':
+      return 'mcprc'
+    default:
+      return scope
+  }
+}
 
 export function registerMcpImportClaudeDesktopCommand(args: {
   mcp: Command
@@ -18,8 +41,9 @@ export function registerMcpImportClaudeDesktopCommand(args: {
       'project',
     )
     .action(async options => {
+      const mcpClient = await loadMcpClient()
       try {
-        const scope = ensureConfigScope(options.scope)
+        const scope = mcpClient.ensureConfigScope(options.scope)
         const platform = process.platform
 
         const { existsSync, readFileSync } = await import('fs')
@@ -121,9 +145,9 @@ export function registerMcpImportClaudeDesktopCommand(args: {
               for (const name of selectedServers) {
                 try {
                   const server = mcpServers[name]
-                  const existingServer = getMcpServer(name)
+                  const existingServer = mcpClient.getMcpServer(name)
                   if (existingServer) continue
-                  addMcpServer(name, server as McpServerConfig, scope)
+                  mcpClient.addMcpServer(name, server as McpServerConfig, scope)
                   results.push({ name, success: true })
                 } catch {
                   results.push({ name, success: false })
@@ -140,19 +164,23 @@ export function registerMcpImportClaudeDesktopCommand(args: {
 
             const handleConfirm = async (selectedServers: string[]) => {
               const existingServers = selectedServers.filter(name =>
-                getMcpServer(name),
+                mcpClient.getMcpServer(name),
               )
 
               if (existingServers.length > 0) {
                 const results: Array<{ name: string; success: boolean }> = []
 
                 const newServers = selectedServers.filter(
-                  name => !getMcpServer(name),
+                  name => !mcpClient.getMcpServer(name),
                 )
                 for (const name of newServers) {
                   try {
                     const server = mcpServers[name]
-                    addMcpServer(name, server as McpServerConfig, scope)
+                    mcpClient.addMcpServer(
+                      name,
+                      server as McpServerConfig,
+                      scope,
+                    )
                     results.push({ name, success: true })
                   } catch {
                     results.push({ name, success: false })
@@ -162,7 +190,11 @@ export function registerMcpImportClaudeDesktopCommand(args: {
                 for (const name of existingServers) {
                   try {
                     const server = mcpServers[name]
-                    addMcpServer(name, server as McpServerConfig, scope)
+                    mcpClient.addMcpServer(
+                      name,
+                      server as McpServerConfig,
+                      scope,
+                    )
                     results.push({ name, success: true })
                   } catch {
                     results.push({ name, success: false })
@@ -216,7 +248,8 @@ export function registerMcpImportClaudeDesktopCommand(args: {
                   {isFinished ? (
                     <Text color={theme.success} wrap="truncate-end">
                       Imported {importResults.filter(r => r.success).length}{' '}
-                      servers to local config.
+                      servers to {__scopeDisplayForImportForTests(scope)}{' '}
+                      config.
                     </Text>
                   ) : null}
                 </Box>

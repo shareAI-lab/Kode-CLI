@@ -34,7 +34,10 @@ export const TaskTool = {
     return true
   },
   isReadOnly() {
-    return true
+    // A standalone Task can select an arbitrary agent configuration. It must
+    // therefore be treated as mutating until a constrained read-only task is
+    // represented explicitly (TaskBatch has that input-level check).
+    return false
   },
   workspaceMutationScope(_input?: Input, output?: Output) {
     // The child pipeline owns mutation detection and verification. Requiring

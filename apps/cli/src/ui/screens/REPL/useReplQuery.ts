@@ -14,6 +14,7 @@ import {
   HASH_COMMAND_SAVE_FAILURE_MESSAGE,
 } from '#core/utils/hashCommand'
 import { getToolPermissionContextForConversationKey } from '#core/utils/toolPermissionContextState'
+import { getRequestStatus, setRequestStatus } from '#core/utils/requestStatus'
 import type {
   AssistantMessage,
   BinaryFeedbackResult,
@@ -123,6 +124,25 @@ const REPL_TURN_TIMEOUT_MESSAGE =
   'Request timed out before the model or a tool completed. The turn was cancelled; check the provider or tool and retry.'
 export const REPL_QUERY_FAILURE_MESSAGE =
   'API Error: Request ended before completion. Your last prompt is saved in history; press Up Arrow to restore it and retry after checking the model configuration or connection.'
+export const CODEX_APP_SERVER_TIMEOUT_MESSAGE =
+  'Codex / ChatGPT OAuth timed out before the model completed. Your prompt is saved; no project inspection or action was performed. Check the connection, then retry or use /model to switch models.'
+
+function getExternalRuntimeFailureMessage(error: unknown): string | null {
+  if (!(error instanceof Error)) return null
+  if (error.name === 'CodexAppServerTurnError') {
+    const detail = error.message.endsWith('.')
+      ? error.message
+      : `${error.message}.`
+    return `API Error: ${detail} Your prompt is saved; no project inspection or action was performed.`
+  }
+  if (error.name === 'CodexAppServerRuntimeError') {
+    return 'Codex / ChatGPT OAuth runtime stopped before the model completed. Your prompt is saved; no project inspection or action was performed. Check the local error log for redacted runtime diagnostics, then retry.'
+  }
+  if (error.name === 'GrokAcpRuntimeError') {
+    return 'Grok OAuth runtime stopped before the model completed. Your prompt is saved; no project inspection or action was performed. Check the local error log for redacted runtime diagnostics, then retry.'
+  }
+  return null
+}
 
 export function shouldAppendReplQueryFailure(args: {
   timedOut: boolean
@@ -138,9 +158,14 @@ export function shouldAppendReplQueryFailure(args: {
 
 export function appendReplQueryFailureMessage(
   oldMessages: MessageType[],
+  error?: unknown,
 ): MessageType[] {
+  const content =
+    error instanceof Error && error.name === 'CodexAppServerTimeoutError'
+      ? CODEX_APP_SERVER_TIMEOUT_MESSAGE
+      : (getExternalRuntimeFailureMessage(error) ?? REPL_QUERY_FAILURE_MESSAGE)
   return appendMessagesForReplState(oldMessages, [
-    createAssistantAPIErrorMessage(REPL_QUERY_FAILURE_MESSAGE),
+    createAssistantAPIErrorMessage(content),
   ])
 }
 
@@ -153,6 +178,30 @@ export function appendKodingSaveFailureMessage(
     ),
   ])
 }
+
+function updateRequestStatusFromAssistantStream(
+  event: AssistantStreamUpdateEvent,
+): void {
+  if (event.agentId !== undefined && event.agentId !== 'main') return
+
+  if (event.type === 'start') {
+    if (getRequestStatus().kind !== 'waiting') {
+      setRequestStatus({ kind: 'waiting', detail: undefined })
+    }
+    return
+  }
+
+  if (event.delta.trim().length === 0) return
+  const kind = event.type === 'thinking_delta' ? 'thinking' : 'streaming'
+  const detail = kind === 'thinking' ? 'Thinking' : undefined
+  const current = getRequestStatus()
+  if (current.kind !== kind || current.detail !== detail) {
+    setRequestStatus({ kind, detail })
+  }
+}
+
+export const __updateRequestStatusFromAssistantStreamForTests =
+  updateRequestStatusFromAssistantStream
 
 export async function runReplQueryWithCleanup<T>(args: {
   controller: AbortController
@@ -289,6 +338,8 @@ export function useReplQuery(args: {
 
             if (lastMessage.type === 'assistant') return
 
+            setRequestStatus({ kind: 'waiting', detail: 'Preparing request' })
+
             const outputStyle = getCurrentOutputStyleDefinition()
             const [systemPrompt, context, maxThinkingTokens] =
               await Promise.all([
@@ -332,6 +383,7 @@ export function useReplQuery(args: {
               ],
               onAssistantStreamUpdate: (event: AssistantStreamUpdateEvent) => {
                 assistantStreamStore.handleUpdate(controllerToUse, event)
+                updateRequestStatusFromAssistantStream(event)
               },
             }
 
@@ -428,7 +480,9 @@ export function useReplQuery(args: {
                 error,
               })
             ) {
-              setMessages(appendReplQueryFailureMessage)
+              setMessages(oldMessages =>
+                appendReplQueryFailureMessage(oldMessages, error),
+              )
             }
             logError(error)
             debugLogger.error('REPL_QUERY_ERROR', { error })

@@ -55,6 +55,7 @@ describe('TUI E2E regression (Ink render): cross-project resume', () => {
       listKodeAgentSessions: () => [],
     }))
     mock.module('#cli-utils/clipboard', () => ({
+      readTextFromClipboard: async () => null,
       copyTextToClipboard: () =>
         new Promise<{ method: 'system'; truncated: false }>(
           (resolve, reject) => {

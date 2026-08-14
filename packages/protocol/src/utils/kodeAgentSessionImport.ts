@@ -1,4 +1,14 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, statSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import type { KodeAgentSessionListItem } from './kodeAgentSessionResume'
@@ -96,11 +106,22 @@ export function importLegacySession(args: {
   })
   if (!sourcePath) return { kind: 'not_found', sessionId: args.sessionId }
 
+  const sourceSessionDir = join(dirname(sourcePath), args.sessionId)
+
+  // Copy through a sibling temp file and atomically rename so a crash or a
+  // partial copy can never leave a truncated destination .jsonl that would
+  // permanently block re-import as `already_present`.
+  const temporaryPath = join(
+    dirname(destinationPath),
+    `.${process.pid}.${randomUUID()}.import.tmp`,
+  )
+  let committed = false
   try {
     mkdirSync(dirname(destinationPath), { recursive: true })
-    copyFileSync(sourcePath, destinationPath)
+    copyFileSync(sourcePath, temporaryPath)
+    renameSync(temporaryPath, destinationPath)
+    committed = true
 
-    const sourceSessionDir = join(dirname(sourcePath), args.sessionId)
     if (
       existsSync(sourceSessionDir) &&
       statSync(sourceSessionDir).isDirectory()
@@ -119,6 +140,30 @@ export function importLegacySession(args: {
       destinationPath,
     }
   } catch (error) {
+    try {
+      unlinkSync(temporaryPath)
+    } catch {
+      /* no-op */
+    }
+    if (committed) {
+      // A failure after the commit point (e.g. the session-directory copy)
+      // must not leave a half-imported destination behind: remove the
+      // committed log and any partial session directory so a later call can
+      // retry from scratch.
+      try {
+        unlinkSync(destinationPath)
+      } catch {
+        /* no-op */
+      }
+      try {
+        rmSync(join(dirname(destinationPath), args.sessionId), {
+          recursive: true,
+          force: true,
+        })
+      } catch {
+        /* no-op */
+      }
+    }
     return {
       kind: 'failed',
       sessionId: args.sessionId,

@@ -75,6 +75,7 @@ import {
   updateHookTranscriptForMessages,
 } from '@kode/hooks'
 import { queryWithBinaryFeedback } from './query-executor'
+import { createExternalToolCallBridge } from './pipeline/external-tool-bridge'
 import { ToolUseQueue } from './pipeline/tool-use-queue'
 import type {
   AssistantMessage,
@@ -385,7 +386,7 @@ async function* messagePipelineCore(
   hookState?: PipelineRetryState,
 ): AsyncGenerator<Message, void> {
   setRequestStatus({
-    kind: 'thinking',
+    kind: 'waiting',
     detail: __getInitialRequestStatusDetailForTests(messages),
     inputTokens: undefined,
     outputTokens: undefined,
@@ -475,10 +476,9 @@ async function* messagePipelineCore(
     const shouldDeferAutoCompact =
       preCompactVerificationState.hasMutation &&
       !preCompactVerificationState.hasTerminalEvidence
-    const { messages: processedMessages, wasCompacted } =
-      shouldDeferAutoCompact
-        ? { messages, wasCompacted: false as const }
-        : await checkAutoCompact(messages, toolUseContext)
+    const { messages: processedMessages, wasCompacted } = shouldDeferAutoCompact
+      ? { messages, wasCompacted: false as const }
+      : await checkAutoCompact(messages, toolUseContext)
     if (wasCompacted) {
       messages = processedMessages
     }
@@ -700,6 +700,12 @@ async function* messagePipelineCore(
     if (requiresToolUse) {
       fullSystemPrompt.push(createRequiredToolUseInstruction())
     }
+
+    // External runtimes such as Codex app-server request dynamic tool calls
+    // while their turn is still in flight. Give them a bridge into the same
+    // Kode execution path instead of letting them bypass permissions.
+    toolUseContext.options.executeExternalToolCall ??=
+      createExternalToolCallBridge({ canUseTool, toolUseContext })
 
     // Durable memory is deliberately conservative: only explicit preference /
     // convention-like statements are extracted, and ephemeral calls opt out by
@@ -952,7 +958,10 @@ async function* messagePipelineCore(
         return
       }
 
-      if (requiresToolUse) {
+      if (
+        requiresToolUse &&
+        (toolUseContext.options.externalToolCallCount ?? 0) === 0
+      ) {
         if (requiredToolUseAttempts < MAX_REQUIRED_TOOL_USE_RECOVERIES) {
           yield* await messagePipelineCore(
             [

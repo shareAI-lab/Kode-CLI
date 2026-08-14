@@ -4,7 +4,7 @@ import {
   normalizeMcpScopeForCli,
   normalizeMcpTransport,
   parseMcpHeaders,
-} from '../../services/mcpCliUtils'
+} from '@kode/mcp/cliUtils'
 
 describe('mcpCliUtils', () => {
   test('looksLikeMcpUrl detects common MCP URL patterns', () => {

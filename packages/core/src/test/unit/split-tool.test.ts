@@ -12,6 +12,8 @@ test('splitLegacyTool preserves legacy tool behavior via adapter', async () => {
     description: 'mock',
     inputSchema,
     inputJSONSchema: { type: 'object' },
+    readModeAccess: 'always' as const,
+    readModeInputSchema: z.strictObject({ x: z.string() }),
     prompt: async () => 'prompt',
     isEnabled: async () => true,
     isReadOnly: () => true,
@@ -28,6 +30,8 @@ test('splitLegacyTool preserves legacy tool behavior via adapter', async () => {
 
   expect(split.spec.name).toBe('MockTool')
   expect(split.spec.inputSchema).toBe(inputSchema)
+  expect(split.spec.readModeAccess).toBe('always')
+  expect(split.spec.readModeInputSchema).toBe(tool.readModeInputSchema)
   expect(await split.spec.isEnabled()).toBe(true)
   expect(
     split.presenter.renderToolUseMessage({ x: 'y' }, { verbose: false }),

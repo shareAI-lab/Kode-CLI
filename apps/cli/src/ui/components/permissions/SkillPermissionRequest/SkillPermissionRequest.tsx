@@ -15,7 +15,10 @@ import { env } from '#core/utils/env'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { PermissionRequestDetails } from '#ui-ink/components/permissions/PermissionRequestDetails'
-import { permissionSelectFocusScope } from '#ui-ink/components/permissions/permissionFocusScope'
+import {
+  defaultPermissionFocusValue,
+  permissionSelectFocusScope,
+} from '#ui-ink/components/permissions/permissionFocusScope'
 
 export function SkillPermissionRequest({
   toolUseConfirm,
@@ -67,6 +70,7 @@ export function SkillPermissionRequest({
             <Text>Allow this skill?</Text>
             <Select
               focusScope={permissionSelectFocusScope(toolUseConfirm, 'choice')}
+              focusValue={defaultPermissionFocusValue(toolUseConfirm.riskScore)}
               options={[
                 { label: 'Allow once', value: 'yes' },
                 {

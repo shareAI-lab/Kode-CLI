@@ -3,8 +3,6 @@ import { cwd } from 'process'
 import type { Command } from '@commander-js/extra-typings'
 
 import { PRODUCT_NAME } from '#core/constants/product'
-import { startMCPServer } from '#host-mcp'
-import { getAllTools } from '#tools'
 
 import { setup } from '../../setup'
 
@@ -25,6 +23,10 @@ export function registerMcpServeCommand(args: {
 
       try {
         await setup(providedCwd, false)
+        const [{ startMCPServer }, { getAllTools }] = await Promise.all([
+          import('#host-mcp'),
+          import('#tools'),
+        ])
         await startMCPServer(providedCwd, getAllTools())
       } catch (error) {
         console.error('Error: Failed to start MCP server:', error)

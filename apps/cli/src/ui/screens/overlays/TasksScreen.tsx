@@ -429,6 +429,14 @@ export function TasksScreen({
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [status, setStatus] = useState<string | null>(null)
+  // 'k' kills without confirmation in other overlays? No — in Tasks, 'k' is
+  // the kill key, which collides with the j/k navigation convention used by
+  // every other overlay. Killing stays on 'k' but requires a second press on
+  // the same task (armed state) so a stray navigation key cannot kill.
+  const [confirmKillId, setConfirmKillId] = useState<string | null>(null)
+  const confirmKillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const [scrollTop, setScrollTop] = useState(0)
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all')
@@ -625,16 +633,54 @@ export function TasksScreen({
   const killSelected = useCallback(() => {
     if (!selected || selected.kind === 'group') return
 
+    if (confirmKillId !== selected.id) {
+      setConfirmKillId(selected.id)
+      setStatus(`Press k again to kill task: ${selected.id}`)
+      if (confirmKillTimeoutRef.current) {
+        clearTimeout(confirmKillTimeoutRef.current)
+      }
+      confirmKillTimeoutRef.current = setTimeout(() => {
+        confirmKillTimeoutRef.current = null
+        setConfirmKillId(null)
+        setStatus(null)
+      }, 5000)
+      return
+    }
+
+    if (confirmKillTimeoutRef.current) {
+      clearTimeout(confirmKillTimeoutRef.current)
+      confirmKillTimeoutRef.current = null
+    }
+    setConfirmKillId(null)
     const killed = killBackgroundTask(selected.id)
     setStatus(killed ? `Killed task: ${selected.id}` : 'Task not running')
-  }, [selected])
+  }, [confirmKillId, selected])
 
   const killDetailTask = useCallback(() => {
     if (!detailTarget) return
 
+    if (confirmKillId !== detailTarget.id) {
+      setConfirmKillId(detailTarget.id)
+      setStatus(`Press k again to kill task: ${detailTarget.id}`)
+      if (confirmKillTimeoutRef.current) {
+        clearTimeout(confirmKillTimeoutRef.current)
+      }
+      confirmKillTimeoutRef.current = setTimeout(() => {
+        confirmKillTimeoutRef.current = null
+        setConfirmKillId(null)
+        setStatus(null)
+      }, 5000)
+      return
+    }
+
+    if (confirmKillTimeoutRef.current) {
+      clearTimeout(confirmKillTimeoutRef.current)
+      confirmKillTimeoutRef.current = null
+    }
+    setConfirmKillId(null)
     const killed = killBackgroundTask(detailTarget.id)
     setStatus(killed ? `Killed task: ${detailTarget.id}` : 'Task not running')
-  }, [detailTarget])
+  }, [confirmKillId, detailTarget])
 
   useKeypress(
     (input, key) => {
@@ -780,7 +826,7 @@ export function TasksScreen({
   )
 
   const shortcutLine =
-    '↑/↓ select · ←/→ collapse · Enter view · f filter · k kill · o output · l log · Esc close'
+    '↑/↓ select · ←/→ collapse · Enter view · f filter · k kill (twice) · o output · l log · Esc close'
 
   const detailLines: string[] = []
   if (!selected) {

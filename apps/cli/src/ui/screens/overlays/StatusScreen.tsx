@@ -9,7 +9,6 @@ import { getModelManager } from '#core/utils/model'
 import { getTheme } from '#core/utils/theme'
 import { getCwd } from '#core/utils/state'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
-import { useExitOnCtrlCD } from '#ui-ink/hooks/useExitOnCtrlCD'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
@@ -166,7 +165,9 @@ function buildMcpLines(context: ToolUseContext): string[] {
 export function StatusScreen({ context, onDone }: Props): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = useExitOnCtrlCD(() => onDone('Status dialog dismissed'))
+  // Single Ctrl+C closes this read-only diagnostic screen, consistent with
+  // the other overlays (double-press protection added no value here).
+  const exitState = { pending: false, keyName: null as null } as const
 
   const [tabIndex, setTabIndex] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
@@ -253,6 +254,10 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
     (input, key) => {
       const inputChar = input.length === 1 ? input : ''
       if (key.escape) {
+        onDone('Status dialog dismissed')
+        return true
+      }
+      if (key.ctrl && input === 'c') {
         onDone('Status dialog dismissed')
         return true
       }

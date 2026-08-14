@@ -1,6 +1,7 @@
-const t = (label) => {
+const t = label => {
   const start = performance.now()
-  return () => console.log(`${label}: ${Math.round(performance.now() - start)}ms`)
+  return () =>
+    console.log(`${label}: ${Math.round(performance.now() - start)}ms`)
 }
 
 process.env.NODE_ENV = 'test'
@@ -22,7 +23,9 @@ let done3 = t('import #cli-services/skillMarketplace')
 await import('#cli-services/skillMarketplace')
 done3()
 
-let done4 = t('session utils: kodeAgentSessionLoad/Resume/uuid/sessionId/ForkInfo')
+let done4 = t(
+  'session utils: kodeAgentSessionLoad/Resume/uuid/sessionId/ForkInfo',
+)
 await Promise.all([
   import('#protocol/utils/kodeAgentSessionLoad'),
   import('#protocol/utils/kodeAgentSessionResume'),

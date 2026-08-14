@@ -9,9 +9,14 @@ const help = {
   isEnabled: true,
   isHidden: false,
   ui: { displayMode: 'fullscreen' },
-  async call(onDone, context) {
+  async call(onDone, context, args) {
+    const showAll = args?.trim().toLowerCase() === 'all'
     return (
-      <HelpScreen commands={context.options?.commands || []} onDone={onDone} />
+      <HelpScreen
+        commands={context.options?.commands || []}
+        onDone={onDone}
+        showAll={showAll}
+      />
     )
   },
   userFacingName() {

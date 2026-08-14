@@ -5,9 +5,9 @@ export {
   isSensitiveFilePath,
   isWriteProtectedPath,
   resolveLikeCliPath,
-} from './fileToolPermissionEngine/paths'
+} from '@kode/permissions/fileToolPermissionEngine'
 
-export { matchPermissionRuleForPath } from './fileToolPermissionEngine/rules'
+export { matchPermissionRuleForPath } from '@kode/permissions/fileToolPermissionEngine'
 
 export {
   getPlanFileWritePrivilegeForContext,
@@ -18,4 +18,4 @@ export {
   isPlanFileForContext,
 } from './fileToolPermissionEngine/plan'
 
-export { suggestFilePermissionUpdates } from './fileToolPermissionEngine/suggest'
+export { suggestFilePermissionUpdates } from '@kode/permissions/fileToolPermissionEngine'

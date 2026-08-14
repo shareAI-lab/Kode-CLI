@@ -59,8 +59,7 @@
         "which": "^6.0.0",
         "wrap-ansi": "10.0.0",
         "ws": "8.21.0",
-        "zod": "^3.25.76",
-        "zod-to-json-schema": "^3.25.2",
+        "zod": "4.4.3",
       },
       "devDependencies": {
         "@codemirror/lang-css": "^6.3.1",
@@ -122,17 +121,29 @@
       "dependencies": {
         "@kode/agent": "workspace:*",
         "@kode/ai": "workspace:*",
+        "@kode/automation": "workspace:*",
+        "@kode/checkpoints": "workspace:*",
         "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/engine": "workspace:*",
+        "@kode/goals": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/mcp": "workspace:*",
+        "@kode/memory": "workspace:*",
         "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/sandbox": "workspace:*",
         "@kode/server": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
         "@kode/tools": "workspace:*",
+        "@kode/types": "workspace:*",
+        "@kode/worktrees": "workspace:*",
       },
     },
     "apps/server": {
@@ -141,12 +152,19 @@
       "dependencies": {
         "@kode/agent": "workspace:*",
         "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/engine": "workspace:*",
+        "@kode/goals": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/mcp": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tools": "workspace:*",
+        "@kode/types": "workspace:*",
       },
     },
     "apps/web": {
@@ -174,9 +192,24 @@
         "@kode/tool-interface": "workspace:*",
       },
     },
+    "packages/automation": {
+      "name": "@kode/automation",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/tasks": "workspace:*",
+      },
+    },
     "packages/builtin-skills": {
       "name": "@kode/builtin-skills",
       "version": "0.0.0",
+    },
+    "packages/checkpoints": {
+      "name": "@kode/checkpoints",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+      },
     },
     "packages/client": {
       "name": "@kode/client",
@@ -188,6 +221,10 @@
     "packages/config": {
       "name": "@kode/config",
       "version": "0.0.0",
+    },
+    "packages/constants": {
+      "name": "@kode/constants",
+      "version": "2.2.1",
     },
     "packages/context": {
       "name": "@kode/context",
@@ -202,12 +239,20 @@
       "version": "0.0.0",
       "dependencies": {
         "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/memory": "workspace:*",
+        "@kode/message-utils": "workspace:*",
         "@kode/permissions": "workspace:*",
+        "@kode/plan": "workspace:*",
         "@kode/protocol": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/sandbox": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
+        "@kode/types": "workspace:*",
       },
     },
     "packages/engine": {
@@ -216,10 +261,24 @@
       "dependencies": {
         "@kode/config": "workspace:*",
         "@kode/core": "workspace:*",
+        "@kode/goals": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/memory": "workspace:*",
+        "@kode/message-utils": "workspace:*",
+        "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/goals": {
+      "name": "@kode/goals",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/core": "workspace:*",
       },
     },
     "packages/hooks": {
@@ -288,11 +347,62 @@
       "name": "@shareai-lab/kode-ripgrep-win32-x64",
       "version": "2.2.1",
     },
+    "packages/logging": {
+      "name": "@kode/logging",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
+        "@kode/plan": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/types": "workspace:*",
+      },
+    },
+    "packages/mcp": {
+      "name": "@kode/mcp",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
+        "@kode/core": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/memory": {
+      "name": "@kode/memory",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/runtime": "workspace:*",
+      },
+    },
+    "packages/message-utils": {
+      "name": "@kode/message-utils",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/protocol": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
     "packages/permissions": {
       "name": "@kode/permissions",
       "version": "0.0.0",
       "dependencies": {
         "@kode/config": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/plan": {
+      "name": "@kode/plan",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/protocol": "workspace:*",
         "@kode/runtime": "workspace:*",
         "@kode/tool-interface": "workspace:*",
       },
@@ -304,11 +414,41 @@
         "@kode/config": "workspace:*",
       },
     },
+    "packages/runs": {
+      "name": "@kode/runs",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/memory": "workspace:*",
+      },
+    },
     "packages/runtime": {
       "name": "@kode/runtime",
       "version": "0.0.0",
       "dependencies": {
         "@kode/config": "workspace:*",
+        "@kode/protocol": "workspace:*",
+      },
+    },
+    "packages/sandbox": {
+      "name": "@kode/sandbox",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/tasks": {
+      "name": "@kode/tasks",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/message-utils": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
       },
     },
     "packages/tool-interface": {
@@ -320,13 +460,31 @@
       "version": "0.0.0",
       "dependencies": {
         "@kode/agent": "workspace:*",
+        "@kode/automation": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/engine": "workspace:*",
+        "@kode/mcp": "workspace:*",
         "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/sandbox": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
+        "@kode/types": "workspace:*",
+      },
+    },
+    "packages/types": {
+      "name": "@kode/types",
+      "version": "2.2.1",
+    },
+    "packages/worktrees": {
+      "name": "@kode/worktrees",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
       },
     },
   },
@@ -620,7 +778,11 @@
 
     "@kode/ai": ["@kode/ai@workspace:packages/ai"],
 
+    "@kode/automation": ["@kode/automation@workspace:packages/automation"],
+
     "@kode/builtin-skills": ["@kode/builtin-skills@workspace:packages/builtin-skills"],
+
+    "@kode/checkpoints": ["@kode/checkpoints@workspace:packages/checkpoints"],
 
     "@kode/cli": ["@kode/cli@workspace:apps/cli"],
 
@@ -628,29 +790,53 @@
 
     "@kode/config": ["@kode/config@workspace:packages/config"],
 
+    "@kode/constants": ["@kode/constants@workspace:packages/constants"],
+
     "@kode/context": ["@kode/context@workspace:packages/context"],
 
     "@kode/core": ["@kode/core@workspace:packages/core"],
 
     "@kode/engine": ["@kode/engine@workspace:packages/engine"],
 
+    "@kode/goals": ["@kode/goals@workspace:packages/goals"],
+
     "@kode/hooks": ["@kode/hooks@workspace:packages/hooks"],
 
     "@kode/host": ["@kode/host@workspace:packages/host"],
 
+    "@kode/logging": ["@kode/logging@workspace:packages/logging"],
+
+    "@kode/mcp": ["@kode/mcp@workspace:packages/mcp"],
+
+    "@kode/memory": ["@kode/memory@workspace:packages/memory"],
+
+    "@kode/message-utils": ["@kode/message-utils@workspace:packages/message-utils"],
+
     "@kode/permissions": ["@kode/permissions@workspace:packages/permissions"],
+
+    "@kode/plan": ["@kode/plan@workspace:packages/plan"],
 
     "@kode/protocol": ["@kode/protocol@workspace:packages/protocol"],
 
+    "@kode/runs": ["@kode/runs@workspace:packages/runs"],
+
     "@kode/runtime": ["@kode/runtime@workspace:packages/runtime"],
 
+    "@kode/sandbox": ["@kode/sandbox@workspace:packages/sandbox"],
+
     "@kode/server": ["@kode/server@workspace:apps/server"],
+
+    "@kode/tasks": ["@kode/tasks@workspace:packages/tasks"],
 
     "@kode/tool-interface": ["@kode/tool-interface@workspace:packages/tool-interface"],
 
     "@kode/tools": ["@kode/tools@workspace:packages/tools"],
 
+    "@kode/types": ["@kode/types@workspace:packages/types"],
+
     "@kode/web": ["@kode/web@workspace:apps/web"],
+
+    "@kode/worktrees": ["@kode/worktrees@workspace:packages/worktrees"],
 
     "@koromix/koffi-darwin-arm64": ["@koromix/koffi-darwin-arm64@3.1.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-/9o0uahf25sNXz7CczfMAsgdHrrrkDK3/d1W5ygJUC7QnpWo80103yTYpYahWP3vTABK5yjzKtURgssv1paskA=="],
 
@@ -1850,7 +2036,7 @@
 
     "yoga-layout": ["yoga-layout@3.2.1", "", {}, "sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ=="],
 
-    "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+    "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
@@ -2030,13 +2216,13 @@
 
     "@aws-sdk/xml-builder/@smithy/types": ["@smithy/types@4.15.1", "", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-x3L0XSACF6UYzKpa9biqiRMgvH5+wnFFew9Tm/grFYqgaupPwx/+ojDPpPJM8dZON3S9tjz5U+PQYsCBd1Mw5Q=="],
 
-    "@github/copilot-sdk/zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
-
     "@jest/pattern/@types/node": ["@types/node@24.13.2", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA=="],
 
     "@jest/types/@types/node": ["@types/node@24.13.2", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA=="],
 
     "@jest/types/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
+
+    "@modelcontextprotocol/sdk/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@smithy/core/@smithy/types": ["@smithy/types@4.15.1", "", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-x3L0XSACF6UYzKpa9biqiRMgvH5+wnFFew9Tm/grFYqgaupPwx/+ojDPpPJM8dZON3S9tjz5U+PQYsCBd1Mw5Q=="],
 

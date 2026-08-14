@@ -42,10 +42,28 @@ export class VoiceRuntimeError extends Error {
 }
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024
+const WAV_HEADER_BYTES = 44
+
+/**
+ * The recorder always writes a canonical 16-bit PCM WAV. An all-zero payload
+ * means macOS delivered no microphone signal (commonly a denied permission or
+ * an inactive input device), so sending it to ASR can produce a fabricated
+ * transcript instead of a useful error.
+ */
+function hasPcm16WavSignal(bytes: Uint8Array): boolean {
+  if (bytes.length <= WAV_HEADER_BYTES) return false
+  for (let offset = WAV_HEADER_BYTES; offset + 1 < bytes.length; offset += 2) {
+    if (bytes[offset] !== 0 || bytes[offset + 1] !== 0) return true
+  }
+  return false
+}
 
 // A deliberately tiny Swift helper keeps microphone permission and AVFoundation
-// out of the terminal renderer. It produces a 16 kHz mono PCM WAV: compact
-// enough for MiMo's 10 MB input cap, and a broadly interoperable format.
+// out of the terminal renderer. It produces a standard 16 kHz mono PCM WAV:
+// compact enough for MiMo's 10 MB input cap, and a broadly interoperable
+// format. The WAV header is written manually: AVAudioFile's streaming writer
+// emits a non-standard layout (JUNK/FLLR chunks, stale RIFF size) that MiMo's
+// ASR endpoint rejects with HTTP 500.
 const RECORDER_SOURCE = String.raw`
 import AVFoundation
 import Foundation
@@ -80,17 +98,12 @@ do {
   ), let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
     throw NSError(domain: "kode.voice", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unable to create an audio converter"])
   }
-  let file = try AVAudioFile(
-    forWriting: outputURL,
-    settings: outputFormat.settings,
-    commonFormat: .pcmFormatInt16,
-    interleaved: true
-  )
   let lock = NSLock()
+  var pcmData = Data()
   var writtenFrames: AVAudioFramePosition = 0
   var tapError: Error?
 
-  input.installTap(onBus: 0, bufferSize: 1_024, format: inputFormat) { buffer, _ in
+  input.installTap(onBus: 0, bufferSize: 4_096, format: inputFormat) { buffer, _ in
     guard tapError == nil else { return }
     guard let converted = AVAudioPCMBuffer(
       pcmFormat: outputFormat,
@@ -108,14 +121,12 @@ do {
       return buffer
     }
     if status == .haveData, converted.frameLength > 0 {
-      do {
-        try file.write(from: converted)
-        lock.lock()
-        writtenFrames += AVAudioFramePosition(converted.frameLength)
-        lock.unlock()
-      } catch {
-        tapError = error
-      }
+      let frames = converted.int16ChannelData![0]
+      let bytes = Data(bytes: frames, count: Int(converted.frameLength) * 2)
+      lock.lock()
+      pcmData.append(bytes)
+      writtenFrames += AVAudioFramePosition(converted.frameLength)
+      lock.unlock()
     } else if let error = error {
       tapError = error
     }
@@ -123,12 +134,18 @@ do {
 
   try engine.start()
   emit(["event": "ready"])
-  let stopper = DispatchSemaphore(value: 0)
+
+  // Keep the main run loop alive so AVAudioEngine keeps delivering tap
+  // buffers; blocking the main thread with a semaphore stalls audio capture.
+  var stopRequested = false
   DispatchQueue.global().async {
     _ = readLine()
-    stopper.signal()
+    stopRequested = true
   }
-  _ = stopper.wait(timeout: .now() + maximumSeconds)
+  let startedAt = Date()
+  while !stopRequested && Date().timeIntervalSince(startedAt) < maximumSeconds {
+    RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
+  }
   input.removeTap(onBus: 0)
   engine.stop()
   if let error = tapError { throw error }
@@ -138,6 +155,38 @@ do {
   if durationMs <= 0 {
     throw NSError(domain: "kode.voice", code: 2, userInfo: [NSLocalizedDescriptionKey: "No microphone audio was captured"])
   }
+
+  // Write a canonical 44-byte WAV header followed by the PCM payload.
+  var sampleRate: UInt32 = 16_000
+  var channels: UInt16 = 1
+  var bitsPerSample: UInt16 = 16
+  var byteRate = sampleRate * UInt32(channels) * UInt32(bitsPerSample / 8)
+  var blockAlign = channels * UInt16(bitsPerSample / 8)
+  var header = Data()
+  func append(_ bytes: [UInt8]) { header.append(contentsOf: bytes) }
+  append(Array("RIFF".utf8))
+  var riffSize = UInt32(36 + pcmData.count).littleEndian
+  withUnsafeBytes(of: &riffSize) { header.append(contentsOf: $0) }
+  append(Array("WAVE".utf8))
+  append(Array("fmt ".utf8))
+  var fmtSize: UInt32 = 16
+  withUnsafeBytes(of: &fmtSize) { header.append(contentsOf: $0) }
+  var audioFormat: UInt16 = 1
+  withUnsafeBytes(of: &audioFormat) { header.append(contentsOf: $0) }
+  withUnsafeBytes(of: &channels) { header.append(contentsOf: $0) }
+  withUnsafeBytes(of: &sampleRate) { header.append(contentsOf: $0) }
+  withUnsafeBytes(of: &byteRate) { header.append(contentsOf: $0) }
+  withUnsafeBytes(of: &blockAlign) { header.append(contentsOf: $0) }
+  withUnsafeBytes(of: &bitsPerSample) { header.append(contentsOf: $0) }
+  append(Array("data".utf8))
+  var dataSize = UInt32(pcmData.count).littleEndian
+  withUnsafeBytes(of: &dataSize) { header.append(contentsOf: $0) }
+
+  try header.write(to: outputURL)
+  let handle = try FileHandle(forWritingTo: outputURL)
+  handle.seekToEndOfFile()
+  handle.write(pcmData)
+  try handle.close()
   emit(["event": "complete", "durationMs": durationMs])
 } catch {
   emit(["event": "error", "message": error.localizedDescription])
@@ -571,6 +620,11 @@ export async function startMacOSVoiceRecording(args: {
             'Recorded audio exceeded the safe 10 MB upload limit.',
           )
         }
+        if (!hasPcm16WavSignal(bytes)) {
+          throw new VoiceRuntimeError(
+            'No microphone signal was captured. Check macOS microphone permission and the selected input device.',
+          )
+        }
         return { bytes, mimeType: 'audio/wav', durationMs }
       } finally {
         recorderProtocol.dispose()
@@ -592,6 +646,10 @@ export async function startMacOSVoiceRecording(args: {
     await cleanup()
     throw safeError(error, 'Voice recorder could not be prepared.')
   }
+}
+
+export const __macOSVoiceForTests = {
+  hasPcm16WavSignal,
 }
 
 function writePcmFrame(child: ChildProcess, bytes: Uint8Array): Promise<void> {

@@ -1,5 +1,6 @@
 export * from './commandSource'
 export * from './permissions'
 export * from './Tool'
+export * from './jsonSchema'
 export * from './canUseTool'
 export * from './assistantStreamUpdate'

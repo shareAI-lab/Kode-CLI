@@ -43,6 +43,7 @@ export function useTranscriptItems(args: {
   toolUseConfirm: unknown | null
   isMessageSelectorVisible: boolean
   forkNumber: number
+  keepRecentInFrame?: boolean
 }): {
   normalizedMessages: NormalizedMessage[]
   orderedMessages: NormalizedMessage[]
@@ -96,8 +97,14 @@ export function useTranscriptItems(args: {
         orderedMessages,
         normalizedMessages,
         unresolvedToolUseIDs,
+        args.keepRecentInFrame,
       ),
-    [orderedMessages, normalizedMessages, unresolvedToolUseIDs],
+    [
+      orderedMessages,
+      normalizedMessages,
+      unresolvedToolUseIDs,
+      args.keepRecentInFrame,
+    ],
   )
 
   const chunked = useMemo(

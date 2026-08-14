@@ -1,6 +1,8 @@
 import type { Command } from '@commander-js/extra-typings'
 
-import { addMcpServer, ensureConfigScope } from '#core/mcp/client'
+function loadMcpClient() {
+  return import('#core/mcp/client')
+}
 
 export function registerMcpServerAddJsonCommand(args: { mcp: Command }): void {
   args.mcp
@@ -12,8 +14,9 @@ export function registerMcpServerAddJsonCommand(args: { mcp: Command }): void {
       'project',
     )
     .action(async (name, jsonStr, options) => {
+      const mcpClient = await loadMcpClient()
       try {
-        const scope = ensureConfigScope(options.scope)
+        const scope = mcpClient.ensureConfigScope(options.scope)
 
         let serverConfig: any
         try {
@@ -32,7 +35,7 @@ export function registerMcpServerAddJsonCommand(args: { mcp: Command }): void {
           process.exit(1)
         }
 
-        addMcpServer(name, serverConfig, scope)
+        mcpClient.addMcpServer(name, serverConfig, scope)
 
         switch (serverConfig.type) {
           case 'http':

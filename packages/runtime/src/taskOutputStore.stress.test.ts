@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 import {
   appendTaskOutput,
+  flushAllTaskOutputs,
   readTaskOutputTail,
   touchTaskOutputFile,
 } from './taskOutputStore'
@@ -23,12 +24,30 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  flushAllTaskOutputs()
   for (const key of ENV_KEYS) {
     const previous = previousEnv[key]
     if (previous === undefined) delete process.env[key]
     else process.env[key] = previous
   }
   rmSync(temporaryRoot, { recursive: true, force: true })
+})
+
+test('coalesces high-frequency small chunks before writing task output', () => {
+  const taskId = 'small-chunks'
+  const chunk = 'x'.repeat(1024)
+  touchTaskOutputFile(taskId)
+
+  const startedAt = performance.now()
+  for (let index = 0; index < 1_024; index += 1) {
+    appendTaskOutput(taskId, chunk)
+  }
+  const appendDurationMs = performance.now() - startedAt
+  flushAllTaskOutputs()
+
+  const tail = readTaskOutputTail(taskId, 2_048)
+  expect(appendDurationMs).toBeLessThan(150)
+  expect(tail.content).toHaveLength(2_048)
 })
 
 test('100 MB task output is read with bounded latency and memory', () => {

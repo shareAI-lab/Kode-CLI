@@ -284,7 +284,7 @@ export async function runPrintMode({
           totalCostUsd: totalCost,
         })
         process.stdout.write(`Error: Exceeded USD budget (${maxBudgetUsd})\n`)
-        process.exit(0)
+        process.exit(1)
       }
 
       finishHeadlessRun(headlessRun, {
@@ -312,7 +312,7 @@ export async function runPrintMode({
           error,
         })
         process.stdout.write(`Error: Exceeded USD budget (${budget})\n`)
-        process.exit(0)
+        process.exit(1)
       }
       if (error instanceof MaxTurnsExceededError) {
         finishHeadlessRun(headlessRun, {
@@ -323,7 +323,7 @@ export async function runPrintMode({
         process.stdout.write(
           `Error: Reached max turns limit (${error.maxTurns})\n`,
         )
-        process.exit(0)
+        process.exit(1)
       }
 
       finishHeadlessRun(headlessRun, {

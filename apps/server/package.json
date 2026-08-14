@@ -6,12 +6,19 @@
   "dependencies": {
     "@kode/agent": "workspace:*",
     "@kode/config": "workspace:*",
+    "@kode/constants": "workspace:*",
     "@kode/context": "workspace:*",
     "@kode/core": "workspace:*",
     "@kode/engine": "workspace:*",
+    "@kode/goals": "workspace:*",
     "@kode/hooks": "workspace:*",
+    "@kode/mcp": "workspace:*",
     "@kode/protocol": "workspace:*",
-    "@kode/tools": "workspace:*"
+    "@kode/runtime": "workspace:*",
+    "@kode/runs": "workspace:*",
+    "@kode/tasks": "workspace:*",
+    "@kode/tools": "workspace:*",
+    "@kode/types": "workspace:*"
   },
   "scripts": {
     "dev": "bun run src/index.ts",

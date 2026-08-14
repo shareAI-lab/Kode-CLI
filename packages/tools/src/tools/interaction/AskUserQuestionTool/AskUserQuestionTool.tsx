@@ -23,7 +23,7 @@ const inputSchema = z
   .object({
     questions: z.array(questionSchema).min(1).max(4),
     answers: z
-      .record(z.string())
+      .record(z.string(), z.string())
       .optional()
       .describe('User answers collected by the permission component'),
     metadata: z

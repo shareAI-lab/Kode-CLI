@@ -8,7 +8,8 @@ export default () =>
   ({
     type: 'local-jsx',
     name: 'login',
-    description: 'Configure Codex, OpenAI, or another model provider',
+    description:
+      'Configure Codex, GitHub Copilot, OpenAI, or another model provider',
     isEnabled: true,
     isHidden: false,
     ui: { displayMode: 'fullscreen' },

@@ -1,4 +1,5 @@
 import type { Cursor } from '#cli-utils/Cursor'
+import { readTextFromClipboard } from '#cli-utils/clipboard'
 import {
   CLIPBOARD_ERROR_MESSAGE,
   getImageFromClipboard,
@@ -63,16 +64,28 @@ export async function resolveImagePastePlaceholder({
   onMessage?.(true, 'Reading image from clipboard...')
   try {
     const image = await getImageFromClipboardAsync()
-    if (image === null) {
-      onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
-      clearImagePasteErrorTimeout()
-      scheduleImagePasteErrorClear()
-      return null
+    if (image !== null) {
+      onMessage?.(false)
+      const placeholder = onImagePaste?.(image)
+      return typeof placeholder === 'string' ? placeholder : IMAGE_PLACEHOLDER
     }
 
-    onMessage?.(false)
-    const placeholder = onImagePaste?.(image)
-    return typeof placeholder === 'string' ? placeholder : IMAGE_PLACEHOLDER
+    // No image in the clipboard. On terminals that forward Ctrl+V to the app
+    // (kitty, alacritty, wezterm, ...) the user's intent is a text paste, so
+    // insert clipboard text instead of failing with an image error. macOS is
+    // excluded: Cmd+V already pastes text there and Ctrl+V stays image-only.
+    if (process.platform !== 'darwin') {
+      const text = await readTextFromClipboard()
+      if (text) {
+        onMessage?.(false)
+        return text
+      }
+    }
+
+    onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
+    clearImagePasteErrorTimeout()
+    scheduleImagePasteErrorClear()
+    return null
   } catch {
     onMessage?.(true, IMAGE_PASTE_FAILED_MESSAGE)
     clearImagePasteErrorTimeout()

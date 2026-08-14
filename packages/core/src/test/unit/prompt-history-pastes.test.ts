@@ -8,6 +8,7 @@ import {
   getGlobalHistoryWithPastes,
   getHistoryWithPastes,
 } from '#core/history'
+import { flushPendingSync } from '#core/utils/jsonlWriter'
 import { setCwd } from '#core/utils/state'
 
 describe('prompt history (pasted content replay)', () => {
@@ -67,6 +68,7 @@ describe('prompt history (pasted content replay)', () => {
     })
 
     const historyFile = join(configDir, 'history.jsonl')
+    flushPendingSync(historyFile)
     expect(existsSync(historyFile)).toBe(true)
 
     const rawLine = readFileSync(historyFile, 'utf8').trim()

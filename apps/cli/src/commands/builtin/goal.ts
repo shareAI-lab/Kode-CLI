@@ -12,7 +12,7 @@ import { getCwd } from '#core/utils/state'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 
 const USAGE =
-  'Usage: /goal [start] <objective> [--accept <criterion>] [--max-iterations <1-64>] | /goal edit <goal-id> <objective> [options] | /goal status|history [goal-id] | /goal pause|resume|retry|run|cancel <goal-id> | /goal list'
+  'Usage: /goal [start] <objective> [--accept <criterion>] [--max-iterations <1-64>] | /goal edit <goal-id> <objective> [options] | /goal status|history|stats [goal-id] | /goal pause|resume|retry|run|cancel <goal-id> | /goal list'
 
 function formatTimestamp(value: number | null | undefined): string {
   if (typeof value !== 'number') return '—'
@@ -167,7 +167,7 @@ function controlFailure(reason: string): string {
 }
 
 function formatGoalHistory(service: GoalService, goal: Goal, limit: number) {
-  const events = service.storage.listEvents(goal.id, { limit })
+  const events = service.listGoalEvents(goal.id, { limit })
   if (events.length === 0) return `No events recorded for goal ${goal.id}.`
   return [
     `Goal ${goal.id} history (latest ${events.length})`,
@@ -181,13 +181,77 @@ function formatGoalHistory(service: GoalService, goal: Goal, limit: number) {
   ].join('\n')
 }
 
+const TERMINAL_STATUSES: GoalStatus[] = ['completed', 'failed', 'cancelled']
+
+function formatDurationMs(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000))
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  if (minutes < 60) return `${minutes}m ${totalSeconds % 60}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
+}
+
+export function formatGoalStats(
+  goals: Goal[],
+  countContinuations?: (goalId: string) => number,
+): string {
+  if (goals.length === 0) return 'No goals recorded for this session.'
+
+  const counts = new Map<GoalStatus, number>()
+  for (const goal of goals) {
+    counts.set(goal.status, (counts.get(goal.status) ?? 0) + 1)
+  }
+  const completed = goals.filter(goal => goal.status === 'completed')
+  const terminal = goals.filter(goal => TERMINAL_STATUSES.includes(goal.status))
+  const completionRate =
+    terminal.length > 0
+      ? Math.round((completed.length / terminal.length) * 100)
+      : 0
+
+  const durations = goals.flatMap(goal =>
+    goal.completedAt !== undefined ? [goal.completedAt - goal.createdAt] : [],
+  )
+  const averageDuration =
+    durations.length > 0
+      ? durations.reduce((sum, value) => sum + value, 0) / durations.length
+      : null
+
+  const turnCounts = completed.flatMap(goal =>
+    countContinuations !== undefined
+      ? [countContinuations(goal.id)]
+      : [goal.loop.maxIterations],
+  )
+  const averageContinuations =
+    turnCounts.length > 0
+      ? turnCounts.reduce((sum, value) => sum + value, 0) / turnCounts.length
+      : null
+
+  const statusSummary = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([status, count]) => `${status} ${count}`)
+    .join(' · ')
+
+  const lines = ['Goal statistics', `Total: ${goals.length} · ${statusSummary}`]
+  if (terminal.length > 0) {
+    lines.push(`Completion rate: ${completionRate}%`)
+  }
+  if (averageDuration !== null) {
+    lines.push(`Avg completion time: ${formatDurationMs(averageDuration)}`)
+  }
+  if (averageContinuations !== null) {
+    lines.push(`Avg continuations: ${averageContinuations.toFixed(1)}`)
+  }
+  return lines.join('\n')
+}
+
 const goal = {
   type: 'local',
   name: 'goal',
   description:
     'Start, edit, inspect, run, retry, pause, or cancel a durable session goal',
   argumentHint:
-    '[start <objective> | edit <id> <objective> | status|history [id] | pause|resume|retry|run|cancel <id> | list]',
+    '[start <objective> | edit <id> <objective> | status|history|stats [id] | pause|resume|retry|run|cancel <id> | list]',
   isEnabled: true,
   isHidden: true,
   aliases: ['goals'],
@@ -232,6 +296,28 @@ const goal = {
           return 'History limit must be an integer between 1 and 100.'
         }
         return formatGoalHistory(service, selected, limit)
+      }
+
+      if (verb === 'stats') {
+        const service = new GoalService()
+        const requestedId = rest[0]?.trim()
+        const goals = requestedId
+          ? [findSessionGoal(service, requestedId)].filter(
+              (goal): goal is Goal => goal !== null,
+            )
+          : sessionGoals(service)
+        if (requestedId && goals.length === 0) {
+          return `Goal not found for this session: ${requestedId}`
+        }
+        return formatGoalStats(
+          goals,
+          goalId =>
+            service
+              .listGoalEvents(goalId, {
+                limit: MAX_GOAL_CONTINUATIONS + 10,
+              })
+              .filter(event => event.type === 'continued').length,
+        )
       }
 
       if (verb === 'edit') {

@@ -53,6 +53,17 @@ describe('/loop', () => {
     expect(parseLoopCreateArgs('Check CI --every 5m')).toEqual({
       objective: 'Check CI',
       everyMs: 300_000,
+      backgroundKeepAlive: false,
+    })
+    expect(parseLoopCreateArgs('Check CI --background --every 5m')).toEqual({
+      objective: 'Check CI',
+      everyMs: 300_000,
+      backgroundKeepAlive: true,
+    })
+    expect(parseLoopCreateArgs('Check CI --keep-alive --every 5m')).toEqual({
+      objective: 'Check CI',
+      everyMs: 300_000,
+      backgroundKeepAlive: true,
     })
     expect(parseLoopCreateArgs('Check CI')).toEqual({
       error: 'Missing --every interval (for example: --every 5m).',
@@ -72,6 +83,7 @@ describe('/loop', () => {
     expect(goal.status).toBe('scheduled')
     expect(goal.schedule.kind).toBe('interval')
     expect(goal.schedule.prompt).toBe('Check CI status')
+    expect(goal.metadata?.backgroundKeepAlive).toBeUndefined()
 
     const status = await loop.call(`status ${goal.id}`)
     expect(status).toContain('Status: scheduled')

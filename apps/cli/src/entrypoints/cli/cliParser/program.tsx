@@ -17,7 +17,8 @@ import { registerDoctorCommand } from './commands/doctor'
 import { registerLogCommands } from './commands/logs'
 import { registerPluginCommands } from './commands/plugins'
 import { registerUpdateCommand } from './commands/update'
-import { createRootAction } from './rootAction'
+import { registerVoiceCommands } from './commands/voice'
+import { registerGoalCommands } from './commands/goal'
 
 export function createCliProgram(
   stdinContent: string,
@@ -54,44 +55,40 @@ export function createCliProgram(
     .option('-e, --enable-architect', 'Enable the Architect tool', () => true)
     .option(
       '-p, --print',
-      'Print response and exit (useful for pipes). Note: non-interactive mode skips the trust dialog and defaults to bypassPermissions if no permission mode is configured (unless you set --safe or --permission-mode).',
+      'Print response and exit (useful for pipes)',
       () => true,
     )
     .option(
       '--headless',
-      'Run without the Ink TUI. Equivalent to --print, with text output by default.',
+      'Run without the Ink TUI (same as --print)',
       () => true,
     )
     .option(
       '--output-format <format>',
-      'Output format (only works with --print/--headless): "text" (default), "json", or "stream-json"',
+      'Output format for --print/--headless: text (default), json, stream-json',
       String,
       'text',
     )
     .option(
       '--json-schema <schema>',
-      'JSON Schema for structured output validation. Example: {"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}',
+      'JSON Schema for structured output validation',
       String,
     )
     .option(
       '--input-format <format>',
-      'Input format (only works with --print/--headless): "text" (default) or "stream-json"',
+      'Input format for --print/--headless: text (default) or stream-json',
       String,
       'text',
     )
-    .option(
-      '--mcp-debug',
-      '[DEPRECATED. Use --debug instead] Enable MCP debug mode (shows MCP server errors)',
-      () => true,
-    )
+    .option('--mcp-debug', '[DEPRECATED] Use --debug instead', () => true)
     .option(
       '--dangerously-skip-permissions',
-      'Bypass all permission checks. Recommended only for sandboxes with no internet access.',
+      'Bypass all permission checks (sandbox-only)',
       () => true,
     )
     .option(
       '--allow-dangerously-skip-permissions',
-      'Enable bypassing all permission checks as an option, without it being enabled by default. Recommended only for sandboxes with no internet access.',
+      'Allow --dangerously-skip-permissions as an option',
       () => true,
     )
     .addOption(
@@ -172,7 +169,7 @@ export function createCliProgram(
     )
     .option(
       '--permission-mode <mode>',
-      'Permission mode to use for the session (choices: "acceptEdits", "bypassPermissions", "default", "delegate", "dontAsk", "plan")',
+      'Permission mode: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan',
       String,
     )
     .addOption(
@@ -193,7 +190,7 @@ export function createCliProgram(
     )
     .option(
       '--trust',
-      'Enable permissive mode (auto-approve safe operations, skip permission prompts). Equivalent to the legacy YOLO mode.',
+      'Permissive mode (auto-approve safe operations)',
       () => true,
     )
     .option(
@@ -300,14 +297,29 @@ export function createCliProgram(
       'Use a specific session ID for the conversation (must be a valid UUID)',
       String,
     )
-    .action(
-      createRootAction({
+    .action(async (prompt?: string, options?: Record<string, unknown>) => {
+      const { createRootAction } = await import('./rootAction')
+      const rootAction = createRootAction({
         stdinContent,
         renderContext,
         renderContextWithExitOnCtrlC,
-      }),
-    )
+      })
+      await rootAction(prompt, options as never)
+    })
     .version(MACRO.VERSION, '-v, --version')
+    .addHelpText(
+      'afterAll',
+      [
+        '',
+        'Interactive slash commands (run inside the TUI):',
+        '  /model  Switch the active model   /config  Open configuration panel',
+        '  /voice  Record a voice prompt     /goal    Create a durable goal',
+        '  /agents Manage subagents          /skills  Manage skills & plugins',
+        '  /cost   Show token usage          /clear   Clear conversation',
+        '',
+        `Type /help inside the TUI for the full list of slash commands.`,
+      ].join('\n'),
+    )
 
   registerConfigCommands(program)
   registerModelsCommands(program)
@@ -320,6 +332,8 @@ export function createCliProgram(
   registerLogCommands(program, renderContextWithExitOnCtrlC)
   registerContextCommands(program)
   registerDaemonCommands(program)
+  registerVoiceCommands(program)
+  registerGoalCommands(program)
 
   return program
 }

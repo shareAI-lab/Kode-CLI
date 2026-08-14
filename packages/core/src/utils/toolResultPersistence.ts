@@ -1,7 +1,8 @@
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { getKodeBaseDir } from '#core/utils/env'
+import { appendJsonlAsync } from '#core/utils/jsonlWriter'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { sanitizeProjectNameForSessionStore } from '#protocol/utils/kodeAgentSessionLog'
 
@@ -58,8 +59,9 @@ export function appendMicrocompactRecord(args: {
   try {
     mkdirSync(dir, { recursive: true })
     const path = join(dir, 'microcompact.jsonl')
-    appendFileSync(path, `${JSON.stringify(args.record)}\n`, {
-      encoding: 'utf8',
+    appendJsonlAsync({
+      filePath: path,
+      entry: `${JSON.stringify(args.record)}\n`,
       mode: 0o600,
     })
   } catch {
