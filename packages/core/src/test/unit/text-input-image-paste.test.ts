@@ -8,6 +8,9 @@ describe('text input image paste', () => {
         getImageFromClipboard: (): null => null,
         getImageFromClipboardAsync: async (): Promise<null> => null,
       }))
+      mock.module('#cli-utils/clipboard', () => ({
+        readTextFromClipboard: async (): Promise<null> => null,
+      }))
 
       const { resolveImagePastePlaceholder } =
         await import('#ui-ink/hooks/useTextInputTryImagePaste')
@@ -50,6 +53,9 @@ describe('text input image paste', () => {
           data: 'image-data',
           mediaType: 'image/png' as const,
         }),
+      }))
+      mock.module('#cli-utils/clipboard', () => ({
+        readTextFromClipboard: async (): Promise<null> => null,
       }))
 
       const { resolveImagePastePlaceholder } =
