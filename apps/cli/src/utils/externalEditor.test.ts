@@ -243,9 +243,16 @@ describe('external editor terminal suspension', () => {
     })
     expect(lastSpawn?.args.slice(0, -1)).toEqual(['--wait'])
 
-    process.env.EDITOR = '$HOME/bin/editor'
-    await launchExternalEditor('draft')
-    expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+    const originalHome = process.env.HOME
+    delete process.env.HOME
+    try {
+      process.env.EDITOR = '$HOME/bin/editor'
+      await launchExternalEditor('draft')
+      expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME
+      else process.env.HOME = originalHome
+    }
   })
 
   test('falls back to built-in editors when the configured command cannot spawn', async () => {

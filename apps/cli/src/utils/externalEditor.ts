@@ -200,7 +200,8 @@ function expandEditorCommand(editorCommand: EditorCommand): EditorCommand {
     if (token.startsWith('~/')) return join(homedir(), token.slice(2))
     const envName = isEnvVarToken(token)
     if (envName) {
-      const value = process.env[envName]
+      const value =
+        process.env[envName] ?? (envName === 'HOME' ? homedir() : undefined)
       if (value) {
         return value + token.slice(token.indexOf(envName) + envName.length)
       }
