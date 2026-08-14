@@ -24,6 +24,19 @@ async function waitForOutput(
   throw new Error(`Timed out waiting for OAuth output: ${expected}`)
 }
 
+async function waitForCondition(
+  condition: () => boolean,
+  message: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) return
+    await Bun.sleep(20)
+  }
+  throw new Error(`Timed out waiting for OAuth state: ${message}`)
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -168,8 +181,10 @@ describe('TUI E2E regression (Ink render): OAuth flow', () => {
 
     await waitForOutput(h, 'Press Enter to login')
     h.stdin.write('\r')
-    await h.wait(25)
-    expect(resolveOAuth).toBeDefined()
+    await waitForCondition(
+      () => resolveOAuth !== undefined,
+      'OAuth flow to start',
+    )
 
     h.unmount()
     if (!resolveOAuth) throw new Error('OAuth flow did not start')

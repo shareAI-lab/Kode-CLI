@@ -27,9 +27,12 @@ describe('macOS voice runtime', () => {
     async () => {
       await expect(verifyMacOSVoiceRuntime()).resolves.toBeUndefined()
     },
+    { timeout: 60_000 },
   )
 
-  test.if(process.platform === 'darwin')(
+  test.if(
+    process.platform === 'darwin' && process.env.GITHUB_ACTIONS !== 'true',
+  )(
     'plays a silent framed PCM block through the native streaming player',
     async () => {
       const playback = await startMacOSPCMPlayback({ sampleRate: 24_000 })

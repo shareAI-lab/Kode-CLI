@@ -109,7 +109,8 @@
     "baseline:phase2": "bun run scripts/phase2-baseline.mjs",
     "build:npm": "bun run scripts/build.mjs",
     "postinstall": "node scripts/postinstall.js || true",
-    "test:unit": "bun test ./packages/core/src/test/unit ./apps/cli/src ./packages/config/src/test/unit ./packages/host/src/test/unit ./packages/protocol/src/test/unit ./packages/runtime/src/test/unit",
+    "test:unit": "bun run scripts/run-unit-tests.mjs",
+    "test:unit:coverage": "bun run scripts/run-unit-tests.mjs --coverage",
     "test:integration": "bun test ./packages/core/src/test/integration",
     "test:e2e": "bun test ./packages/core/src/test/e2e",
     "parity:reference": "bun run scripts/reference-parity-check.mjs"
