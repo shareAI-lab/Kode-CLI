@@ -49,6 +49,10 @@ jobs:
 
       - name: Test
         run: bun run test
+        env:
+          # Each file still runs in its own Bun process. Three workers shorten
+          # the CI critical path while remaining below the local default of four.
+          KODE_TEST_CONCURRENCY: '3'
 
       - name: Unit coverage gate
         if: runner.os == 'Linux'

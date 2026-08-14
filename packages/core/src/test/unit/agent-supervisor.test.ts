@@ -30,11 +30,28 @@ describe('AgentSupervisor', () => {
     })
     supervisor.attachAbortController(controller)
 
-    await new Promise<void>(resolve => {
-      controller.signal.addEventListener('abort', () => resolve(), {
-        once: true,
+    // AgentSupervisor deliberately unrefs its deadline so a leaked lease cannot
+    // keep the host alive. Keep this test's event loop alive until the signal
+    // arrives: Bun on Windows can otherwise leave an unref'd timer unscheduled
+    // and the workspace runner eventually kills the test after 120 seconds.
+    let failIfNotAborted: ReturnType<typeof setTimeout> | undefined
+    try {
+      await new Promise<void>((resolve, reject) => {
+        failIfNotAborted = setTimeout(() => {
+          reject(new Error('AgentSupervisor did not abort at its deadline'))
+        }, 1_000)
+        controller.signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(failIfNotAborted)
+            resolve()
+          },
+          { once: true },
+        )
       })
-    })
+    } finally {
+      clearTimeout(failIfNotAborted)
+    }
 
     expect(controller.signal.aborted).toBe(true)
     expect(controller.signal.reason).toBeInstanceOf(AgentTimeoutError)
