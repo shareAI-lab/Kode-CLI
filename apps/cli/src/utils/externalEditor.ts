@@ -100,7 +100,9 @@ export function parseExternalEditorCommand(
       : parse(commandLine, variableName => `$${variableName}`)
   if (
     !rawTokens?.length ||
-    rawTokens.some(token => typeof token !== 'string')
+    rawTokens.some(
+      token => typeof token !== 'string' || /[;&|<>`\r\n]/u.test(token),
+    )
   ) {
     return null
   }
@@ -233,27 +235,27 @@ export function resolveWindowsCommandPath(
 }
 
 /**
- * Applies platform-specific normalization to a user-configured editor command:
- * `~`/env expansion on Unix, and `.cmd`/`.bat` resolution on Windows.
+ * Expands shell-style home aliases without invoking a shell, then resolves
+ * Windows command shims when necessary.
  */
 function normalizeParsedEditorCommand(
   parsed: EditorCommand,
   dependencies: ExternalEditorDependencies,
 ): EditorCommand {
-  if (isWindows) {
-    const isCommandShim =
-      !extname(parsed.command) || /\.(cmd|bat)$/i.test(parsed.command)
-    if (isCommandShim) {
-      const resolved = resolveWindowsCommandPath(parsed.command, dependencies)
-      if (resolved && /\.(cmd|bat)$/i.test(resolved)) {
-        // `.cmd`/`.bat` shims cannot be spawned directly; route them through
-        // the shell like the built-in `code` candidate does.
-        return { ...parsed, command: resolved, shell: true }
-      }
+  const expanded = expandEditorCommand(parsed)
+  if (!isWindows) return expanded
+
+  const isCommandShim =
+    !extname(expanded.command) || /\.(cmd|bat)$/i.test(expanded.command)
+  if (isCommandShim) {
+    const resolved = resolveWindowsCommandPath(expanded.command, dependencies)
+    if (resolved && /\.(cmd|bat)$/i.test(resolved)) {
+      // `.cmd`/`.bat` shims cannot be spawned directly; route them through
+      // the shell like the built-in `code` candidate does.
+      return { ...expanded, command: resolved, shell: true }
     }
-    return parsed
   }
-  return expandEditorCommand(parsed)
+  return expanded
 }
 
 function buildEditorCommandCandidates(
