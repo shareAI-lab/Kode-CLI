@@ -1,6 +1,5 @@
 import { Box, Text } from 'ink'
 import React, { useSyncExternalStore } from 'react'
-import { Cost } from '#ui-ink/components/Cost'
 import { MaxSizedText } from '#ui-ink/components/MaxSizedText'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
 import { CIRCLE } from '#core/constants/figures'
@@ -121,7 +120,6 @@ export function AssistantStreamPreview({
       {hasLiveText && heightBudget.text > 0 && (
         <AssistantStreamText
           text={snapshot.text}
-          debug={debug}
           addMargin={transientItems.length > 0}
           maxHeight={heightBudget.text}
         />
@@ -142,12 +140,10 @@ export function AssistantStreamPreview({
  */
 const AssistantStreamText = React.memo(function AssistantStreamText({
   text,
-  debug,
   addMargin,
   maxHeight,
 }: {
   text: string
-  debug: boolean
   addMargin: boolean
   maxHeight: number
 }): React.ReactNode {
@@ -180,7 +176,9 @@ const AssistantStreamText = React.memo(function AssistantStreamText({
           />
         </Box>
       </Box>
-      <Cost costUSD={0} durationMs={0} debug={debug} />
+      {/* No cost row here: the live stream store has no real usage/cost data,
+          and a hardcoded $0.0000 would mislead debug-mode users. The completed
+          message renders the real cost. */}
     </Box>
   )
 })

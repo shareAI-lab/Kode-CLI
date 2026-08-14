@@ -105,6 +105,7 @@ function renderReplView(args: {
       showStartupHeader={args.showStartupHeader}
       transientItems={args.transientItems ?? []}
       assistantStreamStore={assistantStreamStore}
+      activeGoal={null}
       toolJSX={args.toolJSX ?? null}
       toolUseConfirm={null}
       setToolUseConfirm={() => {}}
@@ -411,7 +412,7 @@ describe('REPLView Static output epoch', () => {
     )
 
     await harness.wait(480)
-    expect(harness.getOutput()).toContain('Generating response')
+    expect(harness.getOutput()).toContain('Writing response')
 
     harness.clearOutput()
     harness.resize(80, 24)
@@ -424,10 +425,10 @@ describe('REPLView Static output epoch', () => {
       }),
     )
     await harness.wait(80)
-    expect(harness.getOutput()).toContain('Generating response')
+    expect(harness.getOutput()).toContain('Writing response')
 
     await harness.wait(450)
-    expect(harness.getOutput()).toContain('Generating response')
+    expect(harness.getOutput()).toContain('Writing response')
   })
 
   test('keeps running tasks mounted while resize measurement is settling', async () => {

@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import type { AssistantMessage, UserMessage } from '#core/query'
@@ -120,6 +120,7 @@ export async function queryOpenAI(
   const config = getGlobalConfig()
   const toolUseContext = options?.toolUseContext
   const thinkingMode = toolUseContext?.options?.thinkingMode
+  const isVoiceTurn = toolUseContext?.options?.voiceTurn === true
   const shouldRequestReasoningSummary = thinkingMode !== 'disabled'
 
   const modelProfile =
@@ -194,7 +195,7 @@ export async function queryOpenAI(
             parameters:
               'inputJSONSchema' in _ && _.inputJSONSchema
                 ? _.inputJSONSchema
-                : (zodToJsonSchema(_.inputSchema) as Record<string, unknown>),
+                : toInputJsonSchema(_.inputSchema),
           },
         }) as OpenAI.ChatCompletionTool,
     ),
@@ -271,6 +272,7 @@ export async function queryOpenAI(
         const reasoningEffort = shouldRequestReasoningSummary
           ? await getReasoningEffort(modelProfile, messages, {
               thinkingTokens: maxThinkingTokens,
+              isVoice: isVoiceTurn,
             })
           : null
 
@@ -379,8 +381,10 @@ export async function queryOpenAI(
           reasoningEffort: shouldRequestReasoningSummary
             ? await getReasoningEffort(modelProfile, messages, {
                 thinkingTokens: maxThinkingTokens,
+                isVoice: isVoiceTurn,
               })
             : undefined,
+          isVoice: isVoiceTurn,
         })
 
         const completionFunction = isGPT5Model(modelProfile?.modelName || '')

@@ -1,0 +1,19 @@
+{
+  "name": "@kode/plan",
+  "version": "2.2.1",
+  "private": true,
+  "description": "Plan-mode state, paths, and system prompt assembly for Kode (extracted from @kode/core).",
+  "type": "module",
+  "main": "./src/mode.ts",
+  "types": "./src/mode.ts",
+  "exports": {
+    ".": "./src/mode.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@kode/config": "workspace:*",
+    "@kode/protocol": "workspace:*",
+    "@kode/runtime": "workspace:*",
+    "@kode/tool-interface": "workspace:*"
+  }
+}

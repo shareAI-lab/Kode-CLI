@@ -38,14 +38,17 @@ afterEach(() => {
 })
 
 describe('voice configuration', () => {
-  test('keeps voice disabled unless the experimental flag is explicit', () => {
-    expect(isExperimentalVoiceEnabled({})).toBe(false)
+  test('keeps voice enabled by default with an explicit opt-out', () => {
+    expect(isExperimentalVoiceEnabled({})).toBe(true)
     expect(isExperimentalVoiceEnabled({ [EXPERIMENTAL_VOICE_ENV]: '1' })).toBe(
       true,
     )
     expect(
       isExperimentalVoiceEnabled({ [EXPERIMENTAL_VOICE_ENV]: 'false' }),
     ).toBe(false)
+    expect(isExperimentalVoiceEnabled({ [EXPERIMENTAL_VOICE_ENV]: '0' })).toBe(
+      false,
+    )
   })
 
   test('keeps MCP sampling disabled unless its own flag is explicit', () => {

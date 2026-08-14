@@ -225,9 +225,9 @@ describe('external editor terminal suspension', () => {
 
     // The unsafe command line is never spawned; the built-in candidate is used.
     expect(result.text).toBe('draft')
-    expect(
-      lifecycle.some(entry => entry.startsWith('spawn:test-editor')),
-    ).toBe(false)
+    expect(lifecycle.some(entry => entry.startsWith('spawn:test-editor'))).toBe(
+      false,
+    )
     expect(lastSpawn?.command).toBe('code')
   })
 

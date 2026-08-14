@@ -97,6 +97,7 @@ export const GrepTool = {
     return 'Search'
   },
   inputSchema,
+  readModeAccess: 'always',
   isReadOnly() {
     return true
   },

@@ -35,6 +35,7 @@ export const GlobTool = {
     return 'Search'
   },
   inputSchema,
+  readModeAccess: 'always',
   async isEnabled() {
     return true
   },

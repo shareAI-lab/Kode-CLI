@@ -16,3 +16,14 @@ export function transitionToolUseConfirmQueue(
   }
   return pending.length === 0 ? [next] : [...pending, next]
 }
+
+/**
+ * Clears the whole queue. Used when the running request is cancelled: every
+ * queued confirm belongs to tool calls of a dead turn, so they must all be
+ * released instead of leaving "zombie" dialogs behind the new head.
+ */
+export function transitionToolUseConfirmQueueClear(
+  pending: ToolUseConfirm[],
+): ToolUseConfirm[] {
+  return []
+}

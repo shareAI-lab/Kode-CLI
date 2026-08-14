@@ -5,10 +5,8 @@ import {
   ReasoningStreamingContext,
 } from '../internal/modelCapabilityTypes'
 import { Tool, getToolDescription } from '@kode/tool-interface/Tool'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import { processResponsesStream } from './responsesStreaming'
-import { debug as debugLogger } from '../internal/debug'
-import { logAiError } from '../internal/runtimeConfig'
 import {
   buildInstructions,
   convertMessagesToInput,
@@ -209,37 +207,28 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
     const isPlainObject = (obj: unknown): obj is Record<string, unknown> => {
       return obj !== null && typeof obj === 'object' && !Array.isArray(obj)
     }
+    const isZodSchema = (schema: unknown): boolean => {
+      return isPlainObject(schema) && '_zod' in schema
+    }
 
     return tools.map(tool => {
       // Prefer pre-built JSON schema if available
       let parameters: Record<string, unknown> | undefined = tool.inputJSONSchema
 
-      // Otherwise, check if inputSchema is already a JSON schema (not Zod)
-      if (!parameters && tool.inputSchema) {
+      if (!parameters) {
         const inputSchema: unknown = tool.inputSchema
-        if (
+        if (isZodSchema(inputSchema)) {
+          parameters = toInputJsonSchema(tool.inputSchema)
+        } else if (
           isPlainObject(inputSchema) &&
           ('type' in inputSchema || 'properties' in inputSchema)
         ) {
+          // Retain support for legacy callers that pass a JSON schema directly.
           parameters = inputSchema
         } else {
-          // Try to convert Zod schema
-          try {
-            const converted: unknown = zodToJsonSchema(tool.inputSchema)
-            parameters =
-              isPlainObject(converted) &&
-              ('type' in converted || 'properties' in converted)
-                ? converted
-                : { type: 'object', properties: {} }
-          } catch (error) {
-            logAiError(error)
-            debugLogger.warn('RESPONSES_API_TOOL_SCHEMA_CONVERSION_FAILED', {
-              toolName: tool.name,
-              error: error instanceof Error ? error.message : String(error),
-            })
-            // Use minimal schema as fallback
-            parameters = { type: 'object', properties: {} }
-          }
+          throw new TypeError(
+            `Tool "${tool.name}" must provide a Zod input schema or JSON Schema`,
+          )
         }
       }
 
@@ -247,7 +236,7 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
         type: 'function',
         name: tool.name,
         description: getToolDescription(tool),
-        parameters: parameters ?? { type: 'object', properties: {} },
+        parameters,
       }
     })
   }

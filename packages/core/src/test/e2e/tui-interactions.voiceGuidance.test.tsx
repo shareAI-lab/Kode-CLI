@@ -138,6 +138,45 @@ describe('TUI E2E: reviewed voice control delivery', () => {
     expect(doneResult).toBe('Guidance queued.')
   })
 
+  test('shows the microphone signal error instead of a generic voice failure', async () => {
+    const microphoneError =
+      'No microphone signal was captured. Check macOS microphone permission and the selected input device.'
+    mock.module('@kode/runtime', () => ({
+      startMacOSVoiceRecording: async () => ({
+        stop: async () => {
+          const error = new Error(microphoneError)
+          error.name = 'VoiceRuntimeError'
+          throw error
+        },
+        cancel: async () => {},
+      }),
+    }))
+    mock.module('@kode/ai', () => ({
+      VoiceConfigurationError: class VoiceConfigurationError extends Error {},
+      createMiMoVoiceProvider: () => ({
+        async *transcribeStream() {},
+      }),
+    }))
+    mock.module('#cli-services/voice', () => ({
+      interruptVoicePlayback: () => false,
+    }))
+
+    const { VoiceScreen } = await import('#ui-ink/screens/overlays/VoiceScreen')
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <VoiceScreen onDone={() => {}} />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Press Enter or F10 to begin recording')
+    h.stdin.write('\r')
+    await waitForOutput(h, '● Listening')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'No microphone signal was captured.')
+    expect(h.getOutput()).toContain('Enter tries again')
+  })
+
   test('opens credential settings from the error and starts recording after save', async () => {
     const previousConfigDir = process.env.KODE_CONFIG_DIR
     const credentialRoot = mkdtempSync(join(tmpdir(), 'kode-voice-recovery-'))

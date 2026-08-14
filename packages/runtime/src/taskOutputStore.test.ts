@@ -9,6 +9,7 @@ import {
   flushTaskOutput,
   getTaskOutputStoreFilePath,
   getTaskOutputsStoreDir,
+  MAX_OUTPUT_FILE_BYTES,
   readTaskOutputDelta,
   readTaskOutputTail,
   readTaskOutputTailLines,
@@ -117,4 +118,33 @@ test('large single-line output remains visible through the bounded line tail', (
   expect(lines[0]).toBe('[Earlier output omitted; showing partial final line]')
   expect(lines.at(-1)?.endsWith('THE-END')).toBe(true)
   expect(Buffer.byteLength(lines.join('\n'))).toBeLessThanOrEqual(4_200)
+})
+
+test('caps the on-disk output file at the byte budget and keeps the newest output', () => {
+  const taskId = 'capped-file'
+  touchTaskOutputFile(taskId)
+  const chunks = ['a', 'b', 'c', 'd', 'e'].map(letter =>
+    letter.repeat(300 * 1024),
+  )
+  for (const chunk of chunks) appendTaskOutput(taskId, chunk)
+  flushTaskOutput(taskId)
+
+  const filePath = getTaskOutputStoreFilePath(taskId)
+  expect(statSync(filePath).size).toBeLessThanOrEqual(MAX_OUTPUT_FILE_BYTES)
+  const content = readFileSync(filePath, 'utf8')
+  // The newest output always wins: the last chunk survives in full.
+  expect(content.endsWith(chunks.at(-1)!)).toBe(true)
+})
+
+test('never splits a multi-byte character at the output trim boundary', () => {
+  const taskId = 'capped-multibyte'
+  touchTaskOutputFile(taskId)
+  appendTaskOutput(taskId, '你好'.repeat(200 * 1024))
+  flushTaskOutput(taskId)
+
+  const fileContent = readFileSync(getTaskOutputStoreFilePath(taskId), 'utf8')
+  expect(Buffer.byteLength(fileContent)).toBeLessThanOrEqual(
+    MAX_OUTPUT_FILE_BYTES,
+  )
+  expect(fileContent.includes('\uFFFD')).toBe(false)
 })

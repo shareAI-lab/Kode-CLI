@@ -3,6 +3,11 @@ import type {
   MessageParam,
 } from '@anthropic-ai/sdk/resources/index.mjs'
 
+import type {
+  AssistantMessage as CoreAssistantMessage,
+  AssistantApiMessage as CoreAssistantApiMessage,
+  UserMessage as CoreUserMessage,
+} from '#core/query'
 import type { UUID } from 'crypto'
 import type { CanUseToolFn as InterfaceCanUseToolFn } from '@kode/tool-interface/canUseTool'
 import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
@@ -63,6 +68,10 @@ export interface ExtendedToolUseContext extends ToolUseContext {
     requestToolUsePermission?: NonNullable<
       ToolUseContext['options']
     >['requestToolUsePermission']
+    executeExternalToolCall?: NonNullable<
+      ToolUseContext['options']
+    >['executeExternalToolCall']
+    externalToolCallCount?: number
   }
   readFileTimestamps: { [filename: string]: number }
   setToolJSX: (jsx: any) => void
@@ -71,50 +80,9 @@ export interface ExtendedToolUseContext extends ToolUseContext {
 
 export type Response = { costUSD: number; response: string }
 
-export type UserMessage = {
-  message: MessageParam
-  type: 'user'
-  uuid: UUID
-  toolUseResult?: FullToolUseResult
-  options?: {
-    isKodingRequest?: boolean
-    kodingContext?: string
-    isCustomCommand?: boolean
-    commandName?: string
-    commandArgs?: string
-    requestStatusDetail?: string
-  }
-}
-
-export type AssistantApiMessage = Omit<
-  Partial<APIAssistantMessage>,
-  'content' | 'usage' | 'role' | 'type'
-> & {
-  id: string
-  model: string
-  role: 'assistant'
-  type: 'message'
-  content: any[]
-  usage: AnthropicUsage
-  stop_reason?: APIAssistantMessage['stop_reason'] | null
-  stop_sequence?: string | null
-}
-
-export type AssistantMessage = {
-  costUSD: number
-  durationMs: number
-  message: AssistantApiMessage
-  type: 'assistant'
-  uuid: UUID
-  isApiErrorMessage?: boolean
-  /**
-   * Synthetic/meta messages (not user/assistant conversational content).
-   * These should be excluded from API payloads.
-   */
-  isMeta?: boolean
-  requestId?: string
-  responseId?: string // For GPT-5 Responses API state management
-}
+export type UserMessage = CoreUserMessage
+export type AssistantApiMessage = CoreAssistantApiMessage
+export type AssistantMessage = CoreAssistantMessage
 
 export type BinaryFeedbackResult =
   | { message: AssistantMessage | null; shouldSkipPermissionCheck: false }

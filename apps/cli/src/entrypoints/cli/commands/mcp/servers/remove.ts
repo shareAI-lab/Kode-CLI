@@ -6,8 +6,10 @@ import {
   getProjectMcpServerDefinitions,
 } from '#config'
 import { PRODUCT_COMMAND } from '#core/constants/product'
-import { ensureConfigScope, removeMcpServer } from '#core/mcp/client'
-import { normalizeMcpScopeForCli } from '#core/services/mcpCliUtils'
+import { normalizeMcpScopeForCli } from '@kode/mcp/cliUtils'
+function loadMcpClient() {
+  return import('#core/mcp/client')
+}
 
 export function registerMcpServerRemoveCommand(args: { mcp: Command }): void {
   args.mcp
@@ -18,10 +20,11 @@ export function registerMcpServerRemoveCommand(args: { mcp: Command }): void {
       'Configuration scope (local, user, or project)',
     )
     .action(async (name: string, options: { scope?: string }) => {
+      const mcpClient = await loadMcpClient()
       try {
         if (options.scope) {
           const scopeInfo = normalizeMcpScopeForCli(options.scope)
-          removeMcpServer(name, scopeInfo.scope)
+          mcpClient.removeMcpServer(name, scopeInfo.scope)
           console.log(
             `Removed MCP server ${name} from ${scopeInfo.display} config`,
           )
@@ -29,21 +32,24 @@ export function registerMcpServerRemoveCommand(args: { mcp: Command }): void {
         }
 
         const matches: Array<{
-          scope: ReturnType<typeof ensureConfigScope>
+          scope: ReturnType<typeof mcpClient.ensureConfigScope>
           display: string
         }> = []
 
         const projectConfig = getCurrentProjectConfig()
         if (projectConfig.mcpServers?.[name]) {
           matches.push({
-            scope: ensureConfigScope('project'),
+            scope: mcpClient.ensureConfigScope('project'),
             display: 'local',
           })
         }
 
         const globalConfig = getGlobalConfig()
         if (globalConfig.mcpServers?.[name]) {
-          matches.push({ scope: ensureConfigScope('global'), display: 'user' })
+          matches.push({
+            scope: mcpClient.ensureConfigScope('global'),
+            display: 'user',
+          })
         }
 
         const projectFileDefinitions = getProjectMcpServerDefinitions()
@@ -51,12 +57,12 @@ export function registerMcpServerRemoveCommand(args: { mcp: Command }): void {
           const source = projectFileDefinitions.sources[name]
           if (source === '.mcp.json') {
             matches.push({
-              scope: ensureConfigScope('mcpjson'),
+              scope: mcpClient.ensureConfigScope('mcpjson'),
               display: 'project',
             })
           } else {
             matches.push({
-              scope: ensureConfigScope('mcprc'),
+              scope: mcpClient.ensureConfigScope('mcprc'),
               display: 'mcprc',
             })
           }
@@ -80,7 +86,7 @@ export function registerMcpServerRemoveCommand(args: { mcp: Command }): void {
         }
 
         const match = matches[0]!
-        removeMcpServer(name, match.scope)
+        mcpClient.removeMcpServer(name, match.scope)
         console.log(`Removed MCP server ${name} from ${match.display} config`)
         process.exit(0)
       } catch (error) {

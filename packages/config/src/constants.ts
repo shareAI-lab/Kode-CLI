@@ -63,7 +63,7 @@ export const ENGINE_DEFAULTS = {
   contextReserveCapTokens: 20_000,
   autoCompactMarginTokens: 13_000,
   warningMarginTokens: 20_000,
-  errorMarginTokens: 20_000,
+  errorMarginTokens: 5_000,
 } as const
 
 export const PRODUCT_NAME = 'Kode'

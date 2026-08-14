@@ -25,6 +25,7 @@ export async function* runToolUse(
   canUseTool: EngineCanUseToolFn,
   toolUseContext: ExtendedToolUseContext,
   shouldSkipPermissionCheck?: boolean,
+  enforceReadMode = false,
 ): AsyncGenerator<Message, void> {
   const currentRequest = getCurrentRequest()
   const aliasResolution = resolveToolNameAlias(toolUse.name)
@@ -93,6 +94,7 @@ export async function* runToolUse(
       canUseTool,
       assistantMessage,
       shouldSkipPermissionCheck,
+      enforceReadMode,
     )) {
       yield message
     }

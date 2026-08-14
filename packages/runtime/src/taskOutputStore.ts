@@ -8,6 +8,8 @@ import {
   openSync,
   readFileSync,
   readSync,
+  renameSync,
+  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
@@ -39,6 +41,13 @@ function getProjectRootForTaskOutputs(): string {
 
 const OUTPUT_FLUSH_INTERVAL_MS = 40
 const MAX_BUFFERED_OUTPUT_BYTES = 64 * 1024
+/**
+ * Hard cap for the on-disk `.output` file. Tail readers only ever surface the
+ * newest bytes, so keeping the whole history would grow the file without
+ * bound. The newest output always wins; a flush that would exceed the cap
+ * rewrites the file with its tail instead of appending.
+ */
+export const MAX_OUTPUT_FILE_BYTES = 1024 * 1024
 
 type TaskOutputBuffer = {
   filePath: string
@@ -195,6 +204,66 @@ export function appendTaskOutput(taskId: string, chunk: string): void {
 }
 
 /**
+ * Reads the newest `maxBytes` bytes of a file without loading the whole file.
+ * Returns '' when the file is missing, empty, or `maxBytes` is not positive.
+ */
+function readTailBytes(filePath: string, maxBytes: number): string {
+  if (maxBytes <= 0) return ''
+  try {
+    const size = statSync(filePath).size
+    if (size <= 0) return ''
+    const length = Math.min(size, maxBytes)
+    const start = size - length
+    const fd = openSync(filePath, 'r')
+    try {
+      const buf = Buffer.allocUnsafe(length)
+      const bytesRead = readSync(fd, buf, 0, length, start)
+      return buf.subarray(0, bytesRead).toString('utf8')
+    } finally {
+      closeSync(fd)
+    }
+  } catch {
+    return ''
+  }
+}
+
+/** Keeps only the newest `maxBytes` bytes, cutting at a UTF-8 boundary. */
+function trimUtf8Tail(content: string, maxBytes: number): string {
+  const buf = Buffer.from(content, 'utf8')
+  if (buf.length <= maxBytes) return content
+  let start = buf.length - maxBytes
+  // Skip continuation bytes so a multi-byte character is never split.
+  while (start < buf.length && (buf[start]! & 0xc0) === 0x80) start++
+  return buf.subarray(start).toString('utf8')
+}
+
+/**
+ * Writes the newest `maxBytes` bytes of the on-disk file plus `content`,
+ * atomically. Used by the flush path to keep `.output` files bounded without
+ * ever exposing a partially rewritten file to concurrent readers.
+ */
+function rewriteBoundedOutput(filePath: string, content: string): void {
+  const contentBytes = Buffer.byteLength(content)
+  const keptBytes = Math.max(0, MAX_OUTPUT_FILE_BYTES - contentBytes)
+  const combined = trimUtf8Tail(
+    readTailBytes(filePath, keptBytes) + content,
+    MAX_OUTPUT_FILE_BYTES,
+  )
+  const temporaryPath = `${filePath}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
+  writeFileSync(temporaryPath, combined, { encoding: 'utf8', mode: 0o600 })
+  try {
+    renameSync(temporaryPath, filePath)
+  } catch (error) {
+    try {
+      rmSync(temporaryPath, { force: true })
+    } catch {
+      // Best-effort cleanup.
+    }
+    throw error
+  }
+}
+
+/**
  * Flush one task's buffered stream chunks. Shell/agent completion paths call
  * this explicitly; read APIs also call it so their existing immediate-read
  * contract remains intact.
@@ -207,10 +276,18 @@ export function flushTaskOutput(taskId: string): void {
     buffer.timer = null
   }
   try {
-    appendFileSync(buffer.filePath, buffer.chunks.join(''), {
-      encoding: 'utf8',
-      mode: 0o600,
-    })
+    const content = buffer.chunks.join('')
+    const existingSize = existsSync(buffer.filePath)
+      ? statSync(buffer.filePath).size
+      : 0
+    if (existingSize + Buffer.byteLength(content) <= MAX_OUTPUT_FILE_BYTES) {
+      appendFileSync(buffer.filePath, content, {
+        encoding: 'utf8',
+        mode: 0o600,
+      })
+    } else {
+      rewriteBoundedOutput(buffer.filePath, content)
+    }
     ensurePrivateMode(buffer.filePath, 0o600)
     bufferedOutputByTask.delete(taskId)
   } catch {
@@ -242,6 +319,10 @@ export function readTaskOutputDelta(
   newOffset: number
 } {
   flushTaskOutput(taskId)
+  // NOTE: the underlying file is capped at MAX_OUTPUT_FILE_BYTES; once the
+  // newest output is trimmed, byte offsets from before the trim are stale and
+  // this API returns an empty delta. Callers that need the full history must
+  // re-sync from a fresh base (or use the tail readers).
   try {
     const filePath = getTaskOutputStoreFilePath(taskId)
     if (!existsSync(filePath)) return { content: '', newOffset: offset }

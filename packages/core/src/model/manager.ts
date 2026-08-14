@@ -20,6 +20,10 @@ import {
   chooseNextModelWithContextCheck,
   formatSwitchResult,
 } from './switching'
+import {
+  getSupportedReasoningEfforts,
+  type ReasoningEffort,
+} from './reasoningEffort'
 import type {
   ModelParam,
   SwitchResult,
@@ -196,6 +200,40 @@ export class ModelManager {
   getModelName(pointer: ModelPointerType): string | null {
     const profile = this.getModel(pointer)
     return profile ? profile.modelName : null
+  }
+
+  getSupportedReasoningEfforts(
+    pointer: ModelPointerType = 'main',
+  ): readonly ReasoningEffort[] {
+    const profile = this.getModel(pointer)
+    return profile ? getSupportedReasoningEfforts(profile) : []
+  }
+
+  setReasoningEffort(
+    pointer: ModelPointerType,
+    reasoningEffort: ReasoningEffort,
+  ): ModelProfile {
+    const profile = this.getModel(pointer)
+    if (!profile) {
+      throw new Error(`No model is configured for the ${pointer} pointer`)
+    }
+
+    const supported = getSupportedReasoningEfforts(profile)
+    if (!supported.includes(reasoningEffort)) {
+      const choices = supported.length > 0 ? supported.join(', ') : 'none'
+      throw new Error(
+        `Model '${profile.name}' does not support '${reasoningEffort}' reasoning effort. Available: ${choices}`,
+      )
+    }
+
+    const storedProfile = this.findByModelName(profile.modelName)
+    if (!storedProfile) {
+      throw new Error(`Model '${profile.modelName}' is not configured`)
+    }
+
+    storedProfile.reasoningEffort = reasoningEffort
+    this.saveConfig()
+    return redactModelProfileCredential(storedProfile)
   }
 
   getCompactModel(): string | null {

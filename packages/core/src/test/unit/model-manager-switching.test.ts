@@ -87,6 +87,39 @@ describe('ModelManager model switching', () => {
     )
   })
 
+  test('persists supported reasoning effort for the main model', () => {
+    const model = makeProfile({
+      name: 'GPT-5.6',
+      modelName: 'gpt-5.6',
+      contextLength: 128_000,
+      createdAt: 1,
+      reasoningEffort: 'medium',
+    })
+    const config: any = {
+      modelProfiles: [model],
+      modelPointers: {
+        main: model.modelName,
+        task: model.modelName,
+        compact: model.modelName,
+        quick: model.modelName,
+      },
+    }
+    const manager = new ModelManager(config)
+
+    expect(manager.getSupportedReasoningEfforts()).toEqual([
+      'none',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ])
+    expect(manager.setReasoningEffort('main', 'max')).toMatchObject({
+      reasoningEffort: 'max',
+    })
+    expect(config.modelProfiles[0]?.reasoningEffort).toBe('max')
+  })
+
   test('switchToNextModel skips incompatible models when possible', () => {
     const modelA = makeProfile({
       name: 'Model A',

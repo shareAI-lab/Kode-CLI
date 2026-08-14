@@ -16,7 +16,10 @@ import { toolUseOptions } from '#ui-ink/components/permissions/toolUseOptions'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { PermissionRequestDetails } from '#ui-ink/components/permissions/PermissionRequestDetails'
-import { permissionSelectFocusScope } from '#ui-ink/components/permissions/permissionFocusScope'
+import {
+  defaultPermissionFocusValue,
+  permissionSelectFocusScope,
+} from '#ui-ink/components/permissions/permissionFocusScope'
 
 type Props = {
   toolUseConfirm: ToolUseConfirm
@@ -52,7 +55,9 @@ export function BashPermissionRequest({
       >
         <Box flexDirection="column" gap={layout.gap}>
           <Box flexDirection="column">
-            <Text wrap="truncate-end">
+            {/* The full command must stay readable before approval: wrapping
+                beats truncation for multi-line and long commands. */}
+            <Text wrap="wrap">
               {BashTool.renderToolUseMessage({
                 command,
                 run_in_background,
@@ -69,6 +74,7 @@ export function BashPermissionRequest({
             <Text>Allow this command?</Text>
             <Select
               focusScope={permissionSelectFocusScope(toolUseConfirm, 'choice')}
+              focusValue={defaultPermissionFocusValue(toolUseConfirm.riskScore)}
               options={toolUseOptions({ toolUseConfirm, command })}
               onChange={newValue => {
                 switch (newValue) {

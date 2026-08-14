@@ -5,12 +5,19 @@
   "type": "module",
   "dependencies": {
     "@kode/agent": "workspace:*",
+    "@kode/automation": "workspace:*",
+    "@kode/constants": "workspace:*",
     "@kode/context": "workspace:*",
     "@kode/core": "workspace:*",
     "@kode/engine": "workspace:*",
+    "@kode/mcp": "workspace:*",
     "@kode/permissions": "workspace:*",
     "@kode/protocol": "workspace:*",
     "@kode/runtime": "workspace:*",
-    "@kode/tool-interface": "workspace:*"
+    "@kode/runs": "workspace:*",
+    "@kode/sandbox": "workspace:*",
+    "@kode/tasks": "workspace:*",
+    "@kode/tool-interface": "workspace:*",
+    "@kode/types": "workspace:*"
   }
 }

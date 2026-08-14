@@ -56,7 +56,11 @@ function formatCommandAliases(command: Command): string {
   return ` (aliases: ${command.aliases.map(alias => `/${alias}`).join(', ')})`
 }
 
-export function __buildHelpLinesForTests(commands: Command[]): string[] {
+export function __buildHelpLinesForTests(
+  commands: Command[],
+  options?: { showAll?: boolean },
+): string[] {
+  const showAll = options?.showAll === true
   const quickHints = getCommandShortcutHints()
   const shortcutModifier = getShortcutModifierLabel()
   const modelShortcut = quickHints.shortcuts[0] ?? {
@@ -73,14 +77,18 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   const builtInCommands = filteredCommands.filter(
     cmd => !isCustomCommandWithScope(cmd),
   )
-  // Keep the default help list focused on primary commands; full catalog stays
-  // available via command search / palette.
+  // Keep the default help list focused on primary commands; the full catalog
+  // stays available via command search / palette and /help all.
   const primaryBuiltIns = builtInCommands.filter(cmd =>
     isPrimaryCommandName(cmd.userFacingName()),
   )
-  const commandsForHelp =
-    primaryBuiltIns.length > 0 ? primaryBuiltIns : builtInCommands
-  commandsForHelp.sort(compareCommandsForDiscovery)
+  const commandsForHelp = (
+    showAll
+      ? builtInCommands
+      : primaryBuiltIns.length > 0
+        ? primaryBuiltIns
+        : builtInCommands
+  ).sort(compareCommandsForDiscovery)
 
   const dirs = getCustomCommandDirectories()
 
@@ -111,7 +119,7 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push('- F6: Transcript (scroll/copy)')
   lines.push('- F7: Command palette (search actions and commands)')
   lines.push('- F8: Tasks (background tasks)')
-  lines.push('- Ctrl+O: Toggle verbose transcript')
+  lines.push('- Ctrl+O: Transcript (scroll/copy)')
   lines.push('- Ctrl+T: Work tasks')
   lines.push('- Ctrl+R: History search')
   lines.push(
@@ -130,7 +138,6 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push('- Double Esc: Clear input')
   lines.push(`- ${modeCycleShortcut.displayText}: Cycle permission mode`)
   lines.push('- /: Browse common commands; type to narrow, Tab accepts')
-  lines.push('- Down Arrow (empty input): Tasks (when available)')
   lines.push('')
 
   lines.push('Quick commands')
@@ -149,17 +156,34 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push('')
 
   lines.push('Commands')
-  for (const cmd of commandsForHelp) {
-    const argumentHint = cmd.argumentHint ? ` ${cmd.argumentHint}` : ''
-    const category = getCommandCategory(cmd)
-    lines.push(
-      `- /${cmd.userFacingName()}${argumentHint} [${category.shortLabel}] — ${cmd.description}${formatCommandAliases(cmd)}`,
-    )
-  }
-  if (commandsForHelp.length < builtInCommands.length) {
-    lines.push(
-      `- … and ${builtInCommands.length - commandsForHelp.length} more (command palette / search)`,
-    )
+  if (showAll) {
+    // Full catalog grouped by category so /help all is actually browsable.
+    let lastCategory: string | null = null
+    for (const cmd of commandsForHelp) {
+      const category = getCommandCategory(cmd)
+      if (category.id !== lastCategory) {
+        lastCategory = category.id
+        lines.push('')
+        lines.push(`${category.label} [${category.shortLabel}]`)
+      }
+      const argumentHint = cmd.argumentHint ? ` ${cmd.argumentHint}` : ''
+      lines.push(
+        `- /${cmd.userFacingName()}${argumentHint} — ${cmd.description}${formatCommandAliases(cmd)}`,
+      )
+    }
+  } else {
+    for (const cmd of commandsForHelp) {
+      const argumentHint = cmd.argumentHint ? ` ${cmd.argumentHint}` : ''
+      const category = getCommandCategory(cmd)
+      lines.push(
+        `- /${cmd.userFacingName()}${argumentHint} [${category.shortLabel}] — ${cmd.description}${formatCommandAliases(cmd)}`,
+      )
+    }
+    if (commandsForHelp.length < builtInCommands.length) {
+      lines.push(
+        `- … and ${builtInCommands.length - commandsForHelp.length} more (/help all, command palette, or search)`,
+      )
+    }
   }
 
   if (customCommands.length > 0) {
@@ -198,9 +222,12 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
 export function HelpScreen({
   commands,
   onDone,
+  showAll = false,
 }: {
   commands: Command[]
   onDone: (result?: string) => void
+  /** Show the full command catalog grouped by category (/help all). */
+  showAll?: boolean
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
@@ -230,7 +257,10 @@ export function HelpScreen({
     }
   }, [])
 
-  const rawLines = useMemo(() => __buildHelpLinesForTests(commands), [commands])
+  const rawLines = useMemo(
+    () => __buildHelpLinesForTests(commands, { showAll }),
+    [commands, showAll],
+  )
   const wrapped = useMemo(() => {
     const width = Math.max(1, layout.columns - layout.paddingX * 2)
     return wrapLines(rawLines, width)

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { GoalService } from '@kode/core/goals'
+import { GoalService } from '@kode/goals'
 import { createDefaultToolPermissionContext } from '#core/types/toolPermissionContext'
 
 import { GoalScheduleRunner } from './goalScheduleRunner'
@@ -101,6 +101,62 @@ describe('GoalScheduleRunner', () => {
     }
   })
 
+  test('detached sessions claim only explicit background keep-alive loops', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'kode-background-only-runner-'))
+    try {
+      const service = new GoalService({
+        rootDir,
+        clock: { now: () => 1_000 },
+      })
+      const ordinary = service.createGoal({
+        cwd: '/workspace',
+        sessionId: 'session-1',
+        objective: 'Ordinary loop',
+        schedule: {
+          kind: 'interval',
+          prompt: 'Do not dispatch me in background.',
+          everyMs: 60_000,
+          anchorAt: 1_000,
+        },
+      })
+      const background = service.createGoal({
+        cwd: '/workspace',
+        sessionId: 'session-1',
+        objective: 'Background loop',
+        schedule: {
+          kind: 'interval',
+          prompt: 'Dispatch me in background.',
+          everyMs: 60_000,
+          anchorAt: 1_000,
+        },
+        metadata: { backgroundKeepAlive: true },
+      })
+      const delivered: string[] = []
+      const runner = new GoalScheduleRunner({
+        service,
+        listSessions: () => [session()],
+        canDispatch: () => true,
+        isBackgroundSession: () => true,
+        dispatch: async ({ schedule }) => {
+          delivered.push(schedule.prompt)
+        },
+      })
+
+      await runner.tick()
+
+      expect(delivered).toEqual(['Dispatch me in background.'])
+      expect(service.getGoal(ordinary.id)?.status).toBe('scheduled')
+      expect(
+        service.getGoal(ordinary.id)?.schedule.lastClaimedAt,
+      ).toBeUndefined()
+      expect(service.getGoal(background.id)).toMatchObject({
+        status: 'scheduled',
+      })
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true })
+    }
+  })
+
   test('pauses a direct goal when dispatch returns without a terminal decision', async () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'kode-goal-direct-runner-'))
     try {
@@ -172,6 +228,37 @@ describe('GoalScheduleRunner', () => {
       await runner.tick()
 
       expect(service.getGoal(goal.id)).toMatchObject({ status: 'completed' })
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true })
+    }
+  })
+
+  test('routes tick failures to onError instead of rejecting', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'kode-goal-runner-error-'))
+    try {
+      const service = new GoalService({
+        rootDir,
+        clock: { now: () => 1_000 },
+      })
+      const errors: unknown[] = []
+      const runner = new GoalScheduleRunner({
+        service,
+        // A malformed session id makes the poll throw synchronously; the
+        // runner must surface it via onError rather than letting the
+        // fire-and-forget timer tick become an unhandled rejection.
+        listSessions: () => [{ ...session(), sessionId: '   ' }],
+        canDispatch: () => true,
+        dispatch: async () => {},
+        onError: error => {
+          errors.push(error)
+        },
+      })
+
+      await runner.tick()
+      expect(errors).toHaveLength(1)
+      expect(String((errors[0] as Error).message)).toContain(
+        'sessionId cannot be empty',
+      )
     } finally {
       rmSync(rootDir, { recursive: true, force: true })
     }

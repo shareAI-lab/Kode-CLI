@@ -8,7 +8,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { UUID } from 'crypto'
 import { nanoid } from 'nanoid'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 
 import { getCLISyspromptPrefix } from '#core/constants/prompts'
 import type { AssistantMessage, UserMessage } from '#core/query'
@@ -244,7 +244,7 @@ export async function queryAnthropicNative(
           input_schema:
             'inputJSONSchema' in tool && tool.inputJSONSchema
               ? tool.inputJSONSchema
-              : (zodToJsonSchema(tool.inputSchema) as Record<string, unknown>),
+              : toInputJsonSchema(tool.inputSchema),
         }) as unknown as Anthropic.Beta.Messages.BetaTool,
     ),
   )

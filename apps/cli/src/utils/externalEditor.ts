@@ -184,9 +184,7 @@ function resolveEditorCommand(
 
 function isEnvVarToken(token: string): string | null {
   const match =
-    /^\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/.exec(
-      token,
-    )
+    /^\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/.exec(token)
   return match ? (match[1] ?? match[2]!) : null
 }
 
@@ -231,9 +229,7 @@ export function resolveWindowsCommandPath(
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(Boolean)
-  return (
-    lines.find(line => /\.(cmd|bat)$/i.test(line)) ?? lines[0] ?? null
-  )
+  return lines.find(line => /\.(cmd|bat)$/i.test(line)) ?? lines[0] ?? null
 }
 
 /**

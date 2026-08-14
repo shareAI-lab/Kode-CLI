@@ -7,7 +7,7 @@ describe('RequestStatusIndicator', () => {
     expect(
       __getRequestStatusLabelForTests(
         {
-          kind: 'thinking',
+          kind: 'waiting',
           detail: 'Capabilities: preparing audit',
           updatedAt: 0,
         },
@@ -18,7 +18,16 @@ describe('RequestStatusIndicator', () => {
 
   test('identifies an extended wait for the first model response', () => {
     expect(
-      __getRequestStatusLabelForTests({ kind: 'thinking', updatedAt: 0 }, 15),
+      __getRequestStatusLabelForTests({ kind: 'waiting', updatedAt: 0 }, 15),
     ).toBe('Waiting for model response · still waiting')
+  })
+
+  test('shows the active tool instead of hiding work in progress', () => {
+    expect(
+      __getRequestStatusLabelForTests(
+        { kind: 'tool', detail: 'Bash', updatedAt: 0 },
+        0,
+      ),
+    ).toBe('Working · Bash')
   })
 })

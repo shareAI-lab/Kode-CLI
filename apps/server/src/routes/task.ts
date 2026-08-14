@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 
-import { isUuid } from '@kode/core/utils/uuid'
+import { isUuid } from '@kode/runtime'
 
 import {
   TaskControlService,

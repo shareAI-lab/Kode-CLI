@@ -243,11 +243,13 @@ export function createRootAction(args: {
       }
     }
 
-    const [{ setFlagAgentsFromCliJson, clearAgentCache }, { clearOutputStyleCache }] =
-      await Promise.all([
-        import('@kode/agent'),
-        import('#cli-services/outputStyles'),
-      ])
+    const [
+      { setFlagAgentsFromCliJson, clearAgentCache },
+      { clearOutputStyleCache },
+    ] = await Promise.all([
+      import('@kode/agent'),
+      import('#cli-services/outputStyles'),
+    ])
     setFlagAgentsFromCliJson(agents)
     clearAgentCache()
     clearOutputStyleCache()
@@ -575,6 +577,7 @@ export function createRootAction(args: {
         shouldShowPromptInput: true,
         verbose,
         tools: [],
+        commands: [],
         safeMode: safe,
         mcpClients: [],
         isDefaultModel,

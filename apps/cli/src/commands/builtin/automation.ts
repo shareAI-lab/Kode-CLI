@@ -66,7 +66,7 @@ const automation = {
         if (!goal || !isGoalInCurrentSession(goal)) {
           return `No goal found for this session: ${goalId}`
         }
-        const events = service.storage.listEvents(goalId)
+        const events = service.listGoalEvents(goalId)
         if (events.length === 0) return `No events found for goal: ${goalId}`
         return events.map(formatAutomationEvent).join('\n')
       }

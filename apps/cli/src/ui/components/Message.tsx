@@ -1,6 +1,10 @@
-import { Box } from 'ink'
+import { Box, Text } from 'ink'
 import * as React from 'react'
-import type { AssistantMessage, Message, UserMessage } from '#core/query'
+import type {
+  AssistantMessage,
+  Message as CoreMessage,
+  UserMessage,
+} from '#core/query'
 import type {
   ContentBlock,
   DocumentBlockParam,
@@ -12,6 +16,8 @@ import type {
 } from '@anthropic-ai/sdk/resources/index.mjs'
 import { Tool } from '#core/tooling/Tool'
 import { logError } from '#core/utils/log'
+import { getTheme } from '#core/utils/theme'
+import { SentryErrorBoundary } from './SentryErrorBoundary'
 import { UserToolResultMessage } from './messages/UserToolResultMessage/UserToolResultMessage'
 import { AssistantToolUseMessage } from './messages/AssistantToolUseMessage'
 import { AssistantTextMessage } from './messages/AssistantTextMessage'
@@ -41,7 +47,7 @@ type Props = {
   isTransient?: boolean
 }
 
-export function Message({
+export const Message = React.memo(function Message({
   message,
   messages,
   addMargin,
@@ -60,25 +66,46 @@ export function Message({
   if (message.type === 'assistant') {
     return (
       <Box flexDirection="column" width="100%">
-        {message.message.content.map((_, index) => (
-          <AssistantMessage
-            key={getContentBlockRenderKey(message, _, index)}
-            param={_}
-            costUSD={message.costUSD}
-            durationMs={message.durationMs}
-            addMargin={addMargin}
-            tools={tools}
-            debug={debug}
-            options={{ verbose }}
-            erroredToolUseIDs={erroredToolUseIDs}
-            inProgressToolUseIDs={inProgressToolUseIDs}
-            unresolvedToolUseIDs={unresolvedToolUseIDs}
-            shouldAnimate={shouldAnimate}
-            shouldShowDot={shouldShowDot}
-            width={width}
-            isTransient={isTransient}
-          />
-        ))}
+        {groupAssistantContentBlocks(message, message.message.content).map(
+          (item, index) => (
+            <SentryErrorBoundary
+              key={
+                item.type === 'group'
+                  ? `${message.uuid}:group:${item.name}:${index}`
+                  : getContentBlockRenderKey(message, item.block, index)
+              }
+            >
+              {item.type === 'group' ? (
+                <AssistantToolUseGroupMessage
+                  name={item.name}
+                  params={item.blocks}
+                />
+              ) : (
+                <AssistantMessage
+                  key={getContentBlockRenderKey(message, item.block, index)}
+                  param={
+                    item.block as Parameters<
+                      typeof AssistantMessage
+                    >[0]['param']
+                  }
+                  costUSD={message.costUSD}
+                  durationMs={message.durationMs}
+                  addMargin={addMargin}
+                  tools={tools}
+                  debug={debug}
+                  options={{ verbose }}
+                  erroredToolUseIDs={erroredToolUseIDs}
+                  inProgressToolUseIDs={inProgressToolUseIDs}
+                  unresolvedToolUseIDs={unresolvedToolUseIDs}
+                  shouldAnimate={shouldAnimate}
+                  shouldShowDot={shouldShowDot}
+                  width={width}
+                  isTransient={isTransient}
+                />
+              )}
+            </SentryErrorBoundary>
+          ),
+        )}
       </Box>
     )
   }
@@ -102,6 +129,135 @@ export function Message({
           options={{ verbose }}
         />
       ))}
+    </Box>
+  )
+})
+
+// Tools whose repeated invocations in one assistant message are visually
+// aggregated into a single group row to reduce transcript noise.
+const AGGREGATABLE_TOOL_NAMES = new Set([
+  'web_search',
+  'WebSearch',
+  'Fetch',
+  'fetch',
+])
+
+export function normalizeAggregatedToolName(name: string): string {
+  if (name === 'web_search' || name === 'WebSearch') return 'Search'
+  if (name === 'fetch') return 'Fetch'
+  return name
+}
+
+type GroupedContentItem =
+  | { type: 'single'; block: unknown }
+  | { type: 'group'; name: string; blocks: unknown[] }
+
+export function groupAssistantContentBlocks(
+  _message: UserMessage | AssistantMessage,
+  content: unknown[],
+): GroupedContentItem[] {
+  const out: GroupedContentItem[] = []
+  let currentGroup: { name: string; blocks: unknown[] } | null = null
+  const flush = () => {
+    if (currentGroup) {
+      out.push({
+        type: 'group',
+        name: currentGroup.name,
+        blocks: currentGroup.blocks,
+      })
+      currentGroup = null
+    }
+  }
+  for (const block of content) {
+    const record = asRecord(block)
+    const isAggregatable =
+      record?.type === 'tool_use' &&
+      typeof record.name === 'string' &&
+      AGGREGATABLE_TOOL_NAMES.has(record.name)
+    if (!isAggregatable) {
+      flush()
+      out.push({ type: 'single', block })
+      continue
+    }
+    const name = record!.name as string
+    if (currentGroup && currentGroup.name === name) {
+      currentGroup.blocks.push(block)
+    } else {
+      flush()
+      currentGroup = { name, blocks: [block] }
+    }
+  }
+  flush()
+  return out
+}
+
+// Kept for tests only.
+export const __groupAssistantContentForTests = (
+  content: unknown[],
+): GroupedContentItem[] =>
+  groupAssistantContentBlocks(
+    {
+      type: 'assistant',
+      uuid: 'test',
+      costUSD: 0,
+      durationMs: 0,
+      message: {
+        id: 'm',
+        model: 'x',
+        role: 'assistant',
+        type: 'message',
+        content,
+        usage: {},
+      },
+    } as unknown as AssistantMessage,
+    content,
+  )
+export const __normalizeAggregatedToolNameForTests = normalizeAggregatedToolName
+
+function summarizeGroupedToolInput(block: unknown): string {
+  const record = asRecord(block) as { input?: unknown } | null
+  const input = record?.input
+  if (typeof input === 'string') return input
+  if (input && typeof input === 'object') {
+    const rec = input as Record<string, unknown>
+    const primary = rec.query ?? rec.url ?? rec.path ?? rec.description
+    if (typeof primary === 'string') return primary
+    return JSON.stringify(rec).slice(0, 120)
+  }
+  return ''
+}
+
+function AssistantToolUseGroupMessage({
+  name,
+  params,
+}: {
+  name: string
+  params: unknown[]
+}): React.ReactNode {
+  const theme = getTheme()
+  return (
+    <Box flexDirection="column" width="100%">
+      <Box flexDirection="row" width="100%">
+        <Text color={theme.secondaryText}>
+          {normalizeAggregatedToolName(name)} x {params.length}
+        </Text>
+      </Box>
+      {params.map((block, index) => {
+        const record = asRecord(block) as { id?: string } | null
+        const summary = summarizeGroupedToolInput(block)
+        if (!summary) return null
+        return (
+          <Box
+            key={record?.id ?? String(index)}
+            flexDirection="row"
+            width="100%"
+          >
+            <Text color={theme.text} wrap="truncate-end">
+              {summary}
+            </Text>
+          </Box>
+        )
+      })}
     </Box>
   )
 }
@@ -144,7 +300,7 @@ function UserMessage({
   options: { verbose },
 }: {
   message: UserMessage
-  messages: Message[]
+  messages: CoreMessage[]
   addMargin: boolean
   tools: Tool[]
   param:

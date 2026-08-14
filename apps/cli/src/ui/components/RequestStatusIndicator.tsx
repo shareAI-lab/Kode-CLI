@@ -1,68 +1,25 @@
-import { Box, Text } from 'ink'
-import React, { useEffect, useRef, useState } from 'react'
+import { Box, Text, useIsScreenReaderEnabled } from 'ink'
+import React, { useEffect, useState } from 'react'
 import { getTheme } from '#core/utils/theme'
 import {
+  formatRequestStatusDuration,
   getRequestStatus,
+  getRequestStatusLabel,
+  getRequestStatusPhaseLabel,
+  getRequestStatusTiming,
+  getRequestStatusTokenDisplay,
+  REQUEST_STATUS_ESC_CANCEL_HINT,
   subscribeRequestStatus,
   type RequestStatus,
 } from '#core/utils/requestStatus'
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-const FIRST_RESPONSE_WARNING_SECONDS = 15
 
 export function __getRequestStatusLabelForTests(
-  status: RequestStatus,
+  status: Parameters<typeof getRequestStatusLabel>[0],
   elapsedSeconds: number,
 ): string {
-  switch (status.kind) {
-    case 'thinking': {
-      const detail = status.detail?.trim()
-      if (!detail) {
-        return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
-          ? 'Waiting for model response · still waiting'
-          : 'Waiting for model response'
-      }
-      return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
-        ? `${detail} · waiting for first model response`
-        : detail
-    }
-    case 'streaming':
-      return 'Generating response'
-    default:
-      return ''
-  }
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`
-  }
-  if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${minutes}m ${secs}s`
-  }
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  return `${hours}h ${minutes}m ${secs}s`
-}
-
-function formatTokens(tokens: number): string {
-  if (tokens >= 1000) {
-    return `${(tokens / 1000).toFixed(1)}k`
-  }
-  return tokens.toString()
-}
-
-function getTokenDisplay(status: RequestStatus): string {
-  if (status.kind === 'thinking' && status.inputTokens) {
-    return ` · ↑ ${formatTokens(status.inputTokens)}`
-  }
-  if (status.kind === 'streaming' && status.outputTokens !== undefined) {
-    return ` · ↓ ${formatTokens(status.outputTokens)}`
-  }
-  return ''
+  return getRequestStatusLabel(status, elapsedSeconds)
 }
 
 export function RequestStatusIndicator({
@@ -72,51 +29,40 @@ export function RequestStatusIndicator({
 } = {}): React.ReactNode {
   const frames = SPINNER_FRAMES
   const theme = getTheme()
+  const isScreenReaderEnabled = useIsScreenReaderEnabled()
 
   const [frame, setFrame] = useState(0)
-  const [elapsedTime, setElapsedTime] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   const [status, setStatus] = useState<RequestStatus>(() => getRequestStatus())
 
-  const requestStartTime = useRef<number>(Date.now())
-  const isVisible = status.kind !== 'tool' && status.kind !== 'idle'
+  const isVisible = status.kind !== 'idle'
+  const shouldAnimate = isVisible && !isScreenReaderEnabled
+  const timing = getRequestStatusTiming(status, now)
 
   useEffect(() => {
-    const initialStatus = getRequestStatus()
-    if (initialStatus.kind !== 'idle') {
-      requestStartTime.current = Date.now()
-    }
-
     return subscribeRequestStatus(next => {
       setStatus(next)
-      if (next.kind !== 'idle') {
-        setElapsedTime(
-          Math.floor((Date.now() - requestStartTime.current) / 1000),
-        )
-      }
-      if (next.kind === 'idle') {
-        requestStartTime.current = Date.now()
-        setElapsedTime(0)
-      }
+      setNow(Date.now())
     })
   }, [])
 
   useEffect(() => {
-    if (!isVisible) return undefined
+    if (!shouldAnimate) return undefined
 
     const timer = setInterval(() => {
       setFrame(f => (f + 1) % frames.length)
     }, 80)
     return () => clearInterval(timer)
-  }, [frames.length, isVisible])
+  }, [frames.length, shouldAnimate])
 
   useEffect(() => {
-    if (!isVisible) return undefined
+    if (!shouldAnimate) return undefined
 
     const timer = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - requestStartTime.current) / 1000))
+      setNow(Date.now())
     }, 1000)
     return () => clearInterval(timer)
-  }, [isVisible])
+  }, [shouldAnimate])
 
   if (!isVisible) {
     return null
@@ -125,12 +71,20 @@ export function RequestStatusIndicator({
   return (
     <Box flexDirection="row" marginTop={marginTop}>
       <Text color={theme.kode} bold>
-        {frames[frame]} {__getRequestStatusLabelForTests(status, elapsedTime)}
+        {frames[frame]}{' '}
+        {__getRequestStatusLabelForTests(
+          status,
+          Math.floor(timing.requestDurationMs / 1000),
+        )}
       </Text>
       <Text color={theme.secondaryText}>
         {' '}
-        :: {formatDuration(elapsedTime)} (Esc cancel)
-        {getTokenDisplay(status)}
+        · {getRequestStatusPhaseLabel(status, now)} · total{' '}
+        {formatRequestStatusDuration(
+          Math.floor(timing.requestDurationMs / 1000),
+        )}{' '}
+        {REQUEST_STATUS_ESC_CANCEL_HINT}
+        {getRequestStatusTokenDisplay(status)}
       </Text>
     </Box>
   )

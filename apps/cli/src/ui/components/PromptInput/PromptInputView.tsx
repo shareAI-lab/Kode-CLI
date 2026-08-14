@@ -29,6 +29,7 @@ type ModelInfo = {
   provider: string
   contextLength: number
   currentTokens: number
+  reasoningEffort?: string
 } | null
 
 export { formatTokenCount as formatPromptTokenCount }
@@ -175,6 +176,8 @@ export function PromptInputView({
   const modelStatusText =
     showModelInfo && modelInfo
       ? `${modelInfo.name}${
+          modelInfo.reasoningEffort ? ` (${modelInfo.reasoningEffort})` : ''
+        }${
           contextLimitLabel
             ? ` \u00b7 ${formatTokenCount(modelInfo.currentTokens)}/${contextLimitLabel}`
             : ''

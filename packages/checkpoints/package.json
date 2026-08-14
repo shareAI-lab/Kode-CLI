@@ -1,0 +1,16 @@
+{
+  "name": "@kode/checkpoints",
+  "version": "2.2.1",
+  "private": true,
+  "description": "Session checkpoint and git snapshot management for Kode (extracted from @kode/core).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@kode/config": "workspace:*"
+  }
+}

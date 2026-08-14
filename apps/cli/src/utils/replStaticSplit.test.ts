@@ -5,7 +5,10 @@ import {
   getReplStaticPrefixLength,
 } from './replStaticSplit'
 
-function makeMessage(id: string, type: 'user' | 'assistant' = 'user'): NormalizedMessage {
+function makeMessage(
+  id: string,
+  type: 'user' | 'assistant' = 'user',
+): NormalizedMessage {
   return {
     uuid: id,
     type,
@@ -29,9 +32,7 @@ function makeToolUseMessage(id: string): NormalizedMessage {
       id,
       role: 'assistant',
       type: 'message',
-      content: [
-        { type: 'tool_use', id: `tu-${id}`, name: 'Bash', input: {} },
-      ],
+      content: [{ type: 'tool_use', id: `tu-${id}`, name: 'Bash', input: {} }],
       usage: {} as never,
     },
   } as unknown as NormalizedMessage
@@ -41,9 +42,9 @@ describe('repl static prefix (bottom-anchored frame)', () => {
   test('keeps recent completed messages in the transient frame', () => {
     const messages = Array.from({ length: 10 }, (_, i) => makeMessage(`m${i}`))
 
-    expect(
-      getReplStaticPrefixLength(messages, messages, new Set()),
-    ).toBe(Math.max(0, 10 - RECENT_MESSAGES_KEPT_IN_FRAME))
+    expect(getReplStaticPrefixLength(messages, messages, new Set())).toBe(
+      Math.max(0, 10 - RECENT_MESSAGES_KEPT_IN_FRAME),
+    )
   })
 
   test('keeps short conversations entirely in the transient frame', () => {

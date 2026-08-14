@@ -64,6 +64,14 @@ Output: Create directory 'foo'`,
     .describe('Internal: pre-computed sed edit result from preview'),
 })
 
+const readModeInputSchema = inputSchema
+  .pick({
+    command: true,
+    timeout: true,
+    description: true,
+  })
+  .strict()
+
 type In = typeof inputSchema
 export type Out = {
   stdout: string
@@ -91,6 +99,8 @@ export const BashTool = {
   async prompt() {
     return getBashToolPrompt()
   },
+  readModeAccess: 'conditional',
+  readModeInputSchema,
   isReadOnly(input?: z.infer<typeof inputSchema>) {
     if (!input || typeof input.command !== 'string') return false
     return isBashCommandReadOnly(input.command)

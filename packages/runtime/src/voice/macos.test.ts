@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  __macOSVoiceForTests,
   isNativeVoiceSupported,
   startMacOSPCMPlayback,
   verifyMacOSVoiceRuntime,
@@ -9,6 +10,16 @@ import {
 describe('macOS voice runtime', () => {
   test('reports the platform capability consistently', () => {
     expect(isNativeVoiceSupported()).toBe(process.platform === 'darwin')
+  })
+
+  test('recognizes an all-zero PCM WAV payload as no microphone signal', () => {
+    expect(
+      __macOSVoiceForTests.hasPcm16WavSignal(new Uint8Array(48)),
+    ).toBeFalse()
+
+    const capturedAudio = new Uint8Array(48)
+    capturedAudio[45] = 1
+    expect(__macOSVoiceForTests.hasPcm16WavSignal(capturedAudio)).toBeTrue()
   })
 
   test.if(process.platform === 'darwin')(

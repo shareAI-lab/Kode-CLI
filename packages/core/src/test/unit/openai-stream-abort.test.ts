@@ -112,21 +112,16 @@ describe('OpenAI stream degradation', () => {
     ).rejects.toThrow('provider unavailable')
   })
 
-  test('marks malformed SSE chunks as degraded without blocking partial output', async () => {
+  test('throws a retryable error when malformed chunks degrade a partial stream', async () => {
     const validChunk = JSON.stringify(chunk({ content: 'partial' }))
     const body = sseBody([`data: ${validChunk}`, 'data: {bad json}'])
 
-    const result = await handleMessageStream(
-      createStreamProcessor(body as any) as any,
-      undefined,
-    )
-
-    expect(result.choices[0]?.message.content).toBe('partial')
-    expect(result.choices[0]?.finish_reason).toBe('stop')
-    expect(isOpenAIStreamDegradedResponse(result)).toBe(true)
+    await expect(
+      handleMessageStream(createStreamProcessor(body as any) as any, undefined),
+    ).rejects.toThrow(/OpenAI stream degraded/)
   })
 
-  test('marks stream read failures as degraded without blocking partial output', async () => {
+  test('throws a retryable error when a partial stream read fails', async () => {
     const encoder = new TextEncoder()
     const validChunk = JSON.stringify(chunk({ content: 'partial' }))
     let sent = false
@@ -141,34 +136,20 @@ describe('OpenAI stream degradation', () => {
       },
     })
 
-    const result = await handleMessageStream(
-      createStreamProcessor(body as any) as any,
-      undefined,
-    )
-
-    expect(result.choices[0]?.message.content).toBe('partial')
-    expect(result.choices[0]?.finish_reason).toBe('stop')
-    expect(isOpenAIStreamDegradedResponse(result)).toBe(true)
+    await expect(
+      handleMessageStream(createStreamProcessor(body as any) as any, undefined),
+    ).rejects.toThrow(/OpenAI stream degraded/)
   })
 
-  test('converts thinking-only degraded streams into a visible API error', async () => {
+  test('throws a retryable error for thinking-only degraded streams', async () => {
     const validChunk = JSON.stringify(
       chunk({ reasoning_content: 'planning next steps' }),
     )
     const body = sseBody([`data: ${validChunk}`, 'data: {bad json}'])
 
-    const result = await handleMessageStream(
-      createStreamProcessor(body as any) as any,
-      undefined,
-    )
-    const message = convertOpenAIResponseToAnthropic(result, [])
-    const textBlocks = message.content.filter(block => block.type === 'text')
-
-    expect(message.content.some(block => block.type === 'thinking')).toBe(true)
-    expect(
-      textBlocks.some(block => block.text.startsWith(API_ERROR_MESSAGE_PREFIX)),
-    ).toBe(true)
-    expect(textBlocks[0]?.text).toContain('json_parse_error')
+    await expect(
+      handleMessageStream(createStreamProcessor(body as any) as any, undefined),
+    ).rejects.toThrow(/OpenAI stream degraded/)
   })
 
   test('preserves reasoning-only completed streams for turn recovery', async () => {
@@ -189,7 +170,7 @@ describe('OpenAI stream degradation', () => {
     expect(textBlocks).toHaveLength(0)
   })
 
-  test('drops partial tool calls from degraded streams', async () => {
+  test('throws a retryable error when a partial tool call stream degrades', async () => {
     const validChunk = JSON.stringify(
       chunk({
         tool_calls: [
@@ -207,15 +188,9 @@ describe('OpenAI stream degradation', () => {
     )
     const body = sseBody([`data: ${validChunk}`, 'data: {bad json}'])
 
-    const result = await handleMessageStream(
-      createStreamProcessor(body as any) as any,
-      undefined,
-    )
-    const message = convertOpenAIResponseToAnthropic(result, [])
-    const textBlocks = message.content.filter(block => block.type === 'text')
-
-    expect(message.content.some(block => block.type === 'tool_use')).toBe(false)
-    expect(textBlocks[0]?.text).toContain('Partial tool calls were discarded')
+    await expect(
+      handleMessageStream(createStreamProcessor(body as any) as any, undefined),
+    ).rejects.toThrow(/OpenAI stream degraded/)
   })
 
   test('ignores empty deltas without degrading completed tool calls', async () => {
@@ -381,22 +356,15 @@ describe('OpenAI stream degradation', () => {
     })
   })
 
-  test('marks non-array tool call deltas as degraded without crashing conversion', async () => {
+  test('throws a retryable error for non-array tool call deltas', async () => {
     async function* stream() {
       yield chunk({ content: 'partial' })
       yield chunk({ tool_calls: { id: 'call_1' } })
     }
 
-    const result = await handleMessageStream(stream() as any, undefined)
-    const message = convertOpenAIResponseToAnthropic(result, [])
-    const textBlocks = message.content.filter(block => block.type === 'text')
-
-    expect(result.choices[0]?.message.content).toBe('partial')
-    expect(isOpenAIStreamDegradedResponse(result)).toBe(true)
-    expect(message.content.some(block => block.type === 'tool_use')).toBe(false)
-    expect(
-      textBlocks.some(block => block.text.startsWith(API_ERROR_MESSAGE_PREFIX)),
-    ).toBe(true)
+    await expect(
+      handleMessageStream(stream() as any, undefined),
+    ).rejects.toThrow(/OpenAI stream degraded/)
   })
 })
 

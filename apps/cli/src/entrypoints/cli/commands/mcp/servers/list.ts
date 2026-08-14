@@ -1,20 +1,20 @@
 import type { Command } from '@commander-js/extra-typings'
 
 import { PRODUCT_COMMAND } from '#core/constants/product'
-import {
-  getClients,
-  getMcprcServerStatus,
-  listMCPServers,
-} from '#core/mcp/client'
-import { getProjectMcpServerDefinitions } from '#config'
+
+function loadMcpClient() {
+  return import('#core/mcp/client')
+}
 
 export function registerMcpServerListCommand(args: { mcp: Command }): void {
   args.mcp
     .command('list')
     .description('List configured MCP servers')
     .action(async () => {
+      const mcpClient = await loadMcpClient()
+      const { getProjectMcpServerDefinitions } = await import('#config')
       try {
-        const servers = listMCPServers()
+        const servers = mcpClient.listMCPServers()
         if (Object.keys(servers).length === 0) {
           console.log(
             `No MCP servers configured. Use \`${PRODUCT_COMMAND} mcp add\` to add a server.`,
@@ -23,7 +23,7 @@ export function registerMcpServerListCommand(args: { mcp: Command }): void {
         }
 
         const projectFileServers = getProjectMcpServerDefinitions()
-        const clients = await getClients()
+        const clients = await mcpClient.getClients()
         const clientByName = new Map<string, (typeof clients)[number]>()
         for (const client of clients) {
           clientByName.set(client.name, client)
@@ -41,7 +41,7 @@ export function registerMcpServerListCommand(args: { mcp: Command }): void {
                 ? 'failed'
                 : projectFileServers.servers[name]
                   ? (() => {
-                      const approval = getMcprcServerStatus(name)
+                      const approval = mcpClient.getMcprcServerStatus(name)
                       if (approval === 'pending') return 'pending'
                       if (approval === 'rejected') return 'rejected'
                       return 'disconnected'

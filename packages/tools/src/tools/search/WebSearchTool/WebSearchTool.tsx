@@ -41,6 +41,8 @@ type Output = {
   query: string
   results: Array<WebSearchResultBlock | string>
   durationSeconds: number
+  /** Search engines that contributed hits (duckduckgo/bing/baidu). */
+  providers?: string[]
 }
 
 type AnthropicWebSearchToolConfig = {
@@ -213,6 +215,7 @@ async function* streamDuckDuckGoWebSearch(args: {
       query: args.query,
       results: [{ tool_use_id: 'duckduckgo', content: hits }],
       durationSeconds,
+      providers,
     },
   }
 }

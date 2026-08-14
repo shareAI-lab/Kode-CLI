@@ -11,8 +11,10 @@ import {
   buildRunningTasksLayoutSignature,
   RunningTasksPanel,
 } from '#ui-ink/components/RunningTasksPanel'
+import { GoalStatusPanel } from '#ui-ink/components/GoalStatusPanel'
 import { CostThresholdDialog } from '#ui-ink/components/CostThresholdDialog'
 import { BinaryFeedback } from '#ui-ink/components/binary-feedback/BinaryFeedback'
+import type { Goal } from '#core/goals'
 import { MessageSelector } from '#ui-ink/components/MessageSelector'
 import { PermissionProvider } from '#ui-ink/contexts/PermissionContext'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
@@ -54,6 +56,7 @@ export function REPLView({
   showStartupHeader = false,
   transientItems,
   assistantStreamStore,
+  activeGoal,
   toolJSX,
   toolUseConfirm,
   setToolUseConfirm,
@@ -89,6 +92,7 @@ export function REPLView({
   showStartupHeader?: boolean
   transientItems: TranscriptItem[]
   assistantStreamStore: AssistantStreamStore
+  activeGoal: Goal | null
   toolJSX: {
     jsx: ReactNode | null
     shouldHidePromptInput: boolean
@@ -519,6 +523,14 @@ export function REPLView({
                     maxWidth={columns}
                     tasks={backgroundTasks}
                   />
+                )}
+
+              {!toolUseConfirm &&
+                !toolJSX &&
+                !binaryFeedbackContext &&
+                !isMessageSelectorVisible &&
+                !showingCostDialog && (
+                  <GoalStatusPanel maxWidth={columns} goal={activeGoal} />
                 )}
 
               {toast &&

@@ -6,7 +6,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { render, Text } from 'ink'
 import stripAnsi from 'strip-ansi'
-import { normalizeStatusLineOutput, useStatusLine } from './useStatusLine'
+import {
+  normalizeStatusLineOutput,
+  nextStatusLineIntervalMs,
+  STATUS_LINE_BASE_INTERVAL_MS,
+  STATUS_LINE_MAX_INTERVAL_MS,
+  useStatusLine,
+} from './useStatusLine'
 
 function makeDelayedStatusLineCommand(label: string, delayMs: number): string {
   if (process.platform === 'win32') {
@@ -17,6 +23,65 @@ function makeDelayedStatusLineCommand(label: string, delayMs: number): string {
   const delaySeconds = Math.max(0.1, delayMs / 1000)
   return `sleep ${delaySeconds}; printf '${label}\\n'`
 }
+
+describe('nextStatusLineIntervalMs', () => {
+  test('keeps the base interval while output or input changes', () => {
+    expect(
+      nextStatusLineIntervalMs({
+        inputChanged: true,
+        outputChanged: false,
+        unchangedStreak: 5,
+        currentMs: STATUS_LINE_MAX_INTERVAL_MS,
+      }),
+    ).toBe(STATUS_LINE_BASE_INTERVAL_MS)
+    expect(
+      nextStatusLineIntervalMs({
+        inputChanged: false,
+        outputChanged: true,
+        unchangedStreak: 5,
+        currentMs: STATUS_LINE_MAX_INTERVAL_MS,
+      }),
+    ).toBe(STATUS_LINE_BASE_INTERVAL_MS)
+  })
+
+  test('holds the current interval before the grow streak is reached', () => {
+    expect(
+      nextStatusLineIntervalMs({
+        inputChanged: false,
+        outputChanged: false,
+        unchangedStreak: 1,
+        currentMs: STATUS_LINE_BASE_INTERVAL_MS,
+      }),
+    ).toBe(STATUS_LINE_BASE_INTERVAL_MS)
+  })
+
+  test('grows by 3x after two unchanged ticks and caps at 10s', () => {
+    expect(
+      nextStatusLineIntervalMs({
+        inputChanged: false,
+        outputChanged: false,
+        unchangedStreak: 2,
+        currentMs: STATUS_LINE_BASE_INTERVAL_MS,
+      }),
+    ).toBe(3_000)
+    expect(
+      nextStatusLineIntervalMs({
+        inputChanged: false,
+        outputChanged: false,
+        unchangedStreak: 4,
+        currentMs: 9_000,
+      }),
+    ).toBe(STATUS_LINE_MAX_INTERVAL_MS)
+    expect(
+      nextStatusLineIntervalMs({
+        inputChanged: false,
+        outputChanged: false,
+        unchangedStreak: 9,
+        currentMs: STATUS_LINE_MAX_INTERVAL_MS,
+      }),
+    ).toBe(STATUS_LINE_MAX_INTERVAL_MS)
+  })
+})
 
 describe('normalizeStatusLineOutput', () => {
   test('keeps status line output to the first non-empty line', () => {

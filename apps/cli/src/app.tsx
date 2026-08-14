@@ -1,17 +1,8 @@
 import '#core/utils/sanitizeAnthropicEnv'
 import { initDebugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
-import { probeDurableRunProcess, reconcileDurableRuns } from '#core/runs'
 import { ConfigParseError } from '#core/utils/errors'
-import { BunShell } from '#runtime/shell'
-import {
-  enableConfigs,
-  getGlobalConfig,
-  validateAndRepairAllGPT5Profiles,
-} from '#config'
-// NOTE: showInvalidConfigDialog and terminalCapabilityManager are loaded
-// lazily to avoid pulling in React/Ink on non-interactive (--print/--headless)
-// code paths. This saves ~200-300ms on cold start for headless invocations.
+import { enableConfigs, getGlobalConfig } from '#config'
 import { ensurePackagedRuntimeEnv, ensureYogaWasmPath } from './bootstrapEnv'
 import {
   enableLineWrapping,
@@ -40,6 +31,9 @@ let didEnterAlternateScreen = false
 
 // Cached reference for the exit handler (loaded lazily in runCli)
 let _terminalCapabilityManager: { disableAllModes(): void } | null = null
+// Loaded lazily once the interactive/repl path is reached; exit cleanup only
+// closes the shell when it was actually started (headless runs never import it).
+let shellCloser: (() => void) | null = null
 
 function wantsPrintMode(): boolean {
   const readFlagValue = (flag: string): string | null => {
@@ -109,21 +103,31 @@ export async function runCli(): Promise<void> {
     enableConfigs()
 
     queueMicrotask(() => {
-      try {
-        reconcileDurableRuns({ probeProcess: probeDurableRunProcess })
-      } catch (error) {
-        logError(error)
-      }
+      import('#core/runs')
+        .then(({ reconcileDurableRuns, probeDurableRunProcess }) => {
+          try {
+            reconcileDurableRuns({ probeProcess: probeDurableRunProcess })
+          } catch (error) {
+            logError(error)
+          }
+        })
+        .catch(error => logError(error))
     })
 
     // 🔧 Validate and auto-repair GPT-5 model profiles (best-effort, non-blocking)
     // Avoid printing during interactive render; log to file on failure.
     queueMicrotask(() => {
-      try {
-        validateAndRepairAllGPT5Profiles()
-      } catch (repairError) {
-        logError(`GPT-5 configuration validation failed: ${repairError}`)
-      }
+      import('#config')
+        .then(({ validateAndRepairAllGPT5Profiles }) => {
+          try {
+            validateAndRepairAllGPT5Profiles()
+          } catch (repairError) {
+            logError(`GPT-5 configuration validation failed: ${repairError}`)
+          }
+        })
+        .catch(repairError => {
+          logError(`GPT-5 configuration validation failed: ${repairError}`)
+        })
     })
   } catch (error: unknown) {
     if (error instanceof ConfigParseError) {
@@ -192,11 +196,23 @@ export async function runCli(): Promise<void> {
     terminalCapabilityManager.enableSupportedModes()
   }
   const { parseArgs } = await import('#host-cli')
+  preloadShellForExit()
   await parseArgs(inputPrompt, renderContext)
   if (isDaemonLifecycleCommand()) await exitDaemonLifecycleCommand()
 }
 
-// NOTE: stdin is currently buffered; streaming can be added if needed.
+// Preload the shell only for paths that can run background tasks (interactive
+// REPL or headless agent runs), so --version/--print/help stay lean.
+function preloadShellForExit(): void {
+  if (shellCloser) return
+  import('#runtime/shell')
+    .then(({ BunShell }) => {
+      shellCloser = () => BunShell.getInstance().close()
+    })
+    .catch(() => {
+      /* shell is optional for cleanup */
+    })
+} // NOTE: stdin is currently buffered; streaming can be added if needed.
 async function stdin() {
   if (process.stdin.isTTY) {
     return ''
@@ -227,7 +243,7 @@ process.on('exit', () => {
   if (didEnterAlternateScreen) {
     exitAlternateScreen()
   }
-  BunShell.getInstance().close()
+  shellCloser?.()
   _terminalCapabilityManager?.disableAllModes()
 })
 
@@ -295,7 +311,7 @@ async function gracefulExit(code = 0) {
     }
   }
   try {
-    BunShell.getInstance().close()
+    shellCloser?.()
   } catch {
     // Exit cleanup must not prevent process termination.
   }

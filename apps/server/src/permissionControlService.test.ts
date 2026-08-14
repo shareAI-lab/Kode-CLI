@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import {
   applyToolPermissionContextUpdate,
   createDefaultToolPermissionContext,
-} from '@kode/core/types/toolPermissionContext'
+} from '@kode/types/toolPermissionContext'
 
 import { PermissionControlService } from './permissionControlService'
 import { SessionRegistry } from './sessionRegistry'

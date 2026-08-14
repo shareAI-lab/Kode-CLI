@@ -245,9 +245,9 @@ export const DaemonPermissionSnapshotSchema = z
     ),
     rules: z
       .object({
-        allow: z.record(DaemonPermissionDestinationSchema, z.array(z.string())),
-        deny: z.record(DaemonPermissionDestinationSchema, z.array(z.string())),
-        ask: z.record(DaemonPermissionDestinationSchema, z.array(z.string())),
+        allow: z.record(z.string(), z.array(z.string())),
+        deny: z.record(z.string(), z.array(z.string())),
+        ask: z.record(z.string(), z.array(z.string())),
       })
       .strict(),
   })

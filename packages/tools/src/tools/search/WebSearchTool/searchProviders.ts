@@ -8,7 +8,11 @@ export interface SearchResult {
 
 export interface SearchProvider {
   name: string
-  search: (query: string, apiKey?: string) => Promise<SearchResult[]>
+  search: (
+    query: string,
+    apiKey?: string,
+    signal?: AbortSignal,
+  ) => Promise<SearchResult[]>
   isEnabled: (apiKey?: string) => boolean
 }
 
@@ -18,13 +22,18 @@ const SEARCH_USER_AGENT =
 const duckDuckGoSearchProvider: SearchProvider = {
   name: 'duckduckgo',
   isEnabled: () => true,
-  search: async (query: string): Promise<SearchResult[]> => {
+  search: async (
+    query: string,
+    _apiKey?: string,
+    signal?: AbortSignal,
+  ): Promise<SearchResult[]> => {
     const response = await fetch(
       `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
       {
         headers: {
           'User-Agent': SEARCH_USER_AGENT,
         },
+        signal,
       },
     )
 
@@ -80,7 +89,11 @@ const duckDuckGoSearchProvider: SearchProvider = {
 const bingSearchProvider: SearchProvider = {
   name: 'bing',
   isEnabled: () => true,
-  search: async (query: string): Promise<SearchResult[]> => {
+  search: async (
+    query: string,
+    _apiKey?: string,
+    signal?: AbortSignal,
+  ): Promise<SearchResult[]> => {
     const response = await fetch(
       `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=10&setlang=zh-hans`,
       {
@@ -88,6 +101,7 @@ const bingSearchProvider: SearchProvider = {
           'User-Agent': SEARCH_USER_AGENT,
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         },
+        signal,
       },
     )
 
@@ -122,7 +136,11 @@ const bingSearchProvider: SearchProvider = {
 const baiduSearchProvider: SearchProvider = {
   name: 'baidu',
   isEnabled: () => true,
-  search: async (query: string): Promise<SearchResult[]> => {
+  search: async (
+    query: string,
+    _apiKey?: string,
+    signal?: AbortSignal,
+  ): Promise<SearchResult[]> => {
     const response = await fetch(
       `https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`,
       {
@@ -130,6 +148,7 @@ const baiduSearchProvider: SearchProvider = {
           'User-Agent': SEARCH_USER_AGENT,
           'Accept-Language': 'zh-CN,zh;q=0.9',
         },
+        signal,
       },
     )
 
@@ -170,18 +189,33 @@ export const searchProviders = {
 }
 
 const SEARCH_TIMEOUT_MS = 6_000
+// Repeated identical queries (e.g. parallel searches by the model) reuse the
+// most recent results instead of hitting every provider again.
+const SEARCH_CACHE_TTL_MS = 30_000
+const searchCache = new Map<
+  string,
+  { expiresAt: number; results: SearchResult[]; providers: string[] }
+>()
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error('search provider timed out')),
-        ms,
-      )
-      timer.unref?.()
-    }),
-  ])
+function cachedSearch(query: string) {
+  const entry = searchCache.get(query)
+  if (entry && entry.expiresAt > Date.now()) return entry
+  return null
+}
+
+async function searchWithAbort(
+  provider: SearchProvider,
+  query: string,
+  ms: number,
+): Promise<SearchResult[]> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  timer.unref?.()
+  try {
+    return await provider.search(query, undefined, controller.signal)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -192,6 +226,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export async function searchWithFallback(
   query: string,
 ): Promise<{ results: SearchResult[]; providers: string[] }> {
+  const cached = cachedSearch(query)
+  if (cached) return cached
+
   const providers = [
     searchProviders.duckduckgo,
     searchProviders.bing,
@@ -200,7 +237,7 @@ export async function searchWithFallback(
 
   const settled = await Promise.allSettled(
     providers.map(provider =>
-      withTimeout(provider.search(query), SEARCH_TIMEOUT_MS),
+      searchWithAbort(provider, query, SEARCH_TIMEOUT_MS),
     ),
   )
 
@@ -223,5 +260,14 @@ export async function searchWithFallback(
     }
   })
 
-  return { results, providers: usedProviders }
+  const outcome = { results, providers: usedProviders }
+  searchCache.set(query, {
+    expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+    ...outcome,
+  })
+  if (searchCache.size > 64) {
+    const oldest = searchCache.keys().next().value
+    if (oldest) searchCache.delete(oldest)
+  }
+  return outcome
 }

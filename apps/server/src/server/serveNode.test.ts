@@ -179,9 +179,7 @@ describe('serveNode request limits', () => {
       )
 
       expect(response).toContain('413')
-      expect(response).toContain(
-        'Request body exceeds the size limit',
-      )
+      expect(response).toContain('Request body exceeds the size limit')
       expect(routeCalls).toBe(0)
     } finally {
       server.stop(true)
@@ -219,9 +217,7 @@ describe('serveNode request limits', () => {
       )
 
       expect(response).toContain('413')
-      expect(response).toContain(
-        'Request body exceeds the size limit',
-      )
+      expect(response).toContain('Request body exceeds the size limit')
       expect(routeCalls).toBe(0)
     } finally {
       server.stop(true)

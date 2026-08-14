@@ -264,6 +264,15 @@ export function CommandPaletteScreen({
   const onSpecialKey = useCallback(
     (_input: string, key: Key): boolean => {
       if (key.escape) {
+        // First Esc clears the query (like the model/theme/history pickers);
+        // only a second Esc closes the palette.
+        if (query.length > 0) {
+          setQuery('')
+          setCursorOffset(0)
+          setFocusedIndex(0)
+          setStatus(null)
+          return true
+        }
         onDone()
         return true
       }
@@ -324,7 +333,7 @@ export function CommandPaletteScreen({
 
       return false
     },
-    [filtered.length, onDone, runSelection, visibleOptionCount],
+    [filtered.length, onDone, query.length, runSelection, visibleOptionCount],
   )
 
   const visible = useMemo(
@@ -422,7 +431,7 @@ export function CommandPaletteScreen({
 
         <Box marginTop={layout.tightLayout ? 0 : 1}>
           <Text dimColor wrap="truncate-end">
-            Arrows - PgUp/PgDn - Home/End - Enter select - Esc close
+            Arrows - PgUp/PgDn - Home/End - Enter select - Esc clear/close
           </Text>
         </Box>
       </Box>

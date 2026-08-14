@@ -1,13 +1,15 @@
 import type { Command } from '@commander-js/extra-typings'
 
 import { PRODUCT_COMMAND } from '#core/constants/product'
-import { addMcpServer, parseEnvVars } from '#core/mcp/client'
 import {
   looksLikeMcpUrl,
   normalizeMcpScopeForCli,
   normalizeMcpTransport,
   parseMcpHeaders,
-} from '#core/services/mcpCliUtils'
+} from '@kode/mcp/cliUtils'
+function loadMcpClient() {
+  return import('#core/mcp/client')
+}
 
 export function registerMcpServerAddCommands(args: {
   mcp: Command
@@ -26,11 +28,12 @@ export function registerMcpServerAddCommands(args: {
       'Set headers (e.g. -H "X-Api-Key: abc123" -H "X-Custom: value")',
     )
     .action(async (name, url, options) => {
+      const mcpClient = await loadMcpClient()
       try {
         const scopeInfo = normalizeMcpScopeForCli(options.scope)
         const headers = parseMcpHeaders(options.header)
 
-        addMcpServer(
+        mcpClient.addMcpServer(
           name,
           { type: 'sse', url, ...(headers ? { headers } : {}) },
           scopeInfo.scope,
@@ -61,10 +64,11 @@ export function registerMcpServerAddCommands(args: {
       'Set headers (e.g. -H "X-Api-Key: abc123" -H "X-Custom: value")',
     )
     .action(async (name, url, options) => {
+      const mcpClient = await loadMcpClient()
       try {
         const scopeInfo = normalizeMcpScopeForCli(options.scope)
         const headers = parseMcpHeaders(options.header)
-        addMcpServer(
+        mcpClient.addMcpServer(
           name,
           { type: 'http', url, ...(headers ? { headers } : {}) },
           scopeInfo.scope,
@@ -91,9 +95,10 @@ export function registerMcpServerAddCommands(args: {
       'local',
     )
     .action(async (name, url, options) => {
+      const mcpClient = await loadMcpClient()
       try {
         const scopeInfo = normalizeMcpScopeForCli(options.scope)
-        addMcpServer(name, { type: 'ws', url }, scopeInfo.scope)
+        mcpClient.addMcpServer(name, { type: 'ws', url }, scopeInfo.scope)
         console.log(
           `Added WebSocket MCP server ${name} with URL ${url} to ${scopeInfo.display} config`,
         )
@@ -125,6 +130,7 @@ export function registerMcpServerAddCommands(args: {
       'Set environment variables (e.g. -e KEY=value)',
     )
     .action(async (name, commandOrUrl, args, options) => {
+      const mcpClient = await loadMcpClient()
       try {
         if (!name) {
           console.log('Interactive wizard mode: Enter the server details')
@@ -176,7 +182,7 @@ export function registerMcpServerAddCommands(args: {
             )
             if (envStr) {
               const envPairs = envStr.split(',').filter(Boolean)
-              serverEnv = parseEnvVars(envPairs.map(pair => pair))
+              serverEnv = mcpClient.parseEnvVars(envPairs.map(pair => pair))
             }
           }
 
@@ -194,7 +200,7 @@ export function registerMcpServerAddCommands(args: {
 
           switch (type) {
             case 'http':
-              addMcpServer(
+              mcpClient.addMcpServer(
                 serverName,
                 { type: 'http', url: commandOrUrlValue },
                 scopeInfo.scope,
@@ -204,7 +210,7 @@ export function registerMcpServerAddCommands(args: {
               )
               break
             case 'sse':
-              addMcpServer(
+              mcpClient.addMcpServer(
                 serverName,
                 { type: 'sse', url: commandOrUrlValue },
                 scopeInfo.scope,
@@ -214,7 +220,7 @@ export function registerMcpServerAddCommands(args: {
               )
               break
             case 'ws':
-              addMcpServer(
+              mcpClient.addMcpServer(
                 serverName,
                 { type: 'ws', url: commandOrUrlValue },
                 scopeInfo.scope,
@@ -225,7 +231,7 @@ export function registerMcpServerAddCommands(args: {
               break
             case 'stdio':
             default:
-              addMcpServer(
+              mcpClient.addMcpServer(
                 serverName,
                 {
                   type: 'stdio',
@@ -253,7 +259,7 @@ export function registerMcpServerAddCommands(args: {
               )
             }
 
-            const env = parseEnvVars(options.env)
+            const env = mcpClient.parseEnvVars(options.env)
             if (!transportInfo.explicit && looksLikeMcpUrl(commandOrUrl)) {
               console.warn(
                 `Warning: "${commandOrUrl}" looks like a URL. Default transport is stdio, so it will be treated as a command.`,
@@ -266,7 +272,7 @@ export function registerMcpServerAddCommands(args: {
               )
             }
 
-            addMcpServer(
+            mcpClient.addMcpServer(
               name,
               { type: 'stdio', command: commandOrUrl, args: args || [], env },
               scopeInfo.scope,
@@ -286,7 +292,7 @@ export function registerMcpServerAddCommands(args: {
             }
 
             const headers = parseMcpHeaders(options.header)
-            addMcpServer(
+            mcpClient.addMcpServer(
               name,
               {
                 type: transportInfo.transport,

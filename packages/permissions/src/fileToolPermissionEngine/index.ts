@@ -5,6 +5,7 @@ export {
   isSensitiveFilePath,
   isWriteProtectedPath,
   resolveLikeCliPath,
+  toPosixPath,
 } from './paths'
 
 export { matchPermissionRuleForPath } from './rules'

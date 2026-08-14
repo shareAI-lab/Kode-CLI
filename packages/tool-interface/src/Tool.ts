@@ -3,6 +3,16 @@ import type { CommandSource } from './commandSource'
 import type { PermissionMode, ToolPermissionContext } from './permissions'
 
 export type ToolRenderOutput = unknown
+export type AnyZodSchema = z.ZodType<any, any>
+
+/**
+ * Declares whether a tool may be exposed in a model-facing read-only profile.
+ *
+ * `always` tools are read-only for every valid input. `conditional` tools
+ * need their concrete input checked at call time (for example, Bash).
+ * Absence means the tool is not safe to expose in a read-only profile.
+ */
+export type ReadModeToolAccess = 'always' | 'conditional'
 
 /**
  * Describes who owns verification for a tool that can affect project files.
@@ -34,6 +44,19 @@ export type ToolKeypressHandler = (
   input: string,
   key: ToolKeypress,
 ) => boolean | void
+
+/** A tool invocation requested by an external model runtime. */
+export type ExternalRuntimeToolCall = Readonly<{
+  toolUseId: string
+  toolName: string
+  input: Record<string, unknown>
+}>
+
+/** A serializable result returned to an external model runtime. */
+export type ExternalRuntimeToolResult = Readonly<{
+  success: boolean
+  content: string
+}>
 
 export type AssistantStreamUpdate =
   | {
@@ -143,6 +166,15 @@ export interface ToolUseContext {
     __sandboxSeccompBpfPath?: string | null
     askUserQuestionAnswersByToolUseId?: Record<string, Record<string, string>>
     askUserQuestionAnswers?: Record<string, string>
+    /**
+     * Lets an external model runtime invoke Kode tools through the engine's
+     * normal validation, permission, hook, and result-persistence path.
+     */
+    executeExternalToolCall?: (
+      call: ExternalRuntimeToolCall,
+    ) => Promise<ExternalRuntimeToolResult>
+    /** Number of external-runtime tool calls completed in the current turn. */
+    externalToolCallCount?: number
   }
   responseState?: {
     previousResponseId?: string
@@ -162,7 +194,7 @@ export interface ValidationResult {
 }
 
 export interface ToolMetadata<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
   TOutput = any,
 > {
   name: string
@@ -177,6 +209,18 @@ export interface ToolMetadata<
   description?: string | ((input?: z.infer<TInput>) => Promise<string>)
   inputSchema: TInput
   inputJSONSchema?: Record<string, unknown>
+  /**
+   * Explicit exposure policy for a model-facing read-only tool profile.
+   * This is intentionally separate from `isReadOnly`, which can only be
+   * determined after a tool call supplies its input.
+   */
+  readModeAccess?: ReadModeToolAccess
+  /**
+   * Optional narrower schema for read-only mode. It is validated before the
+   * regular tool schema and prevents mode-incompatible parameters reaching the
+   * tool runner.
+   */
+  readModeInputSchema?: AnyZodSchema
   prompt: (options?: { safeMode?: boolean; tools?: Tool[] }) => Promise<string>
   userFacingName?: (input?: z.infer<TInput>) => string
   cachedDescription?: string
@@ -202,7 +246,7 @@ export interface ToolMetadata<
 }
 
 export interface ToolPresenter<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
   TOutput = any,
 > {
   name: string
@@ -218,7 +262,7 @@ export interface ToolPresenter<
 }
 
 export interface ToolRunner<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
   TOutput = any,
 > {
   name: string
@@ -246,14 +290,14 @@ export interface ToolRunner<
   >
 }
 
-export interface Tool<TInput extends z.ZodTypeAny = z.ZodTypeAny, TOutput = any>
+export interface Tool<TInput extends AnyZodSchema = AnyZodSchema, TOutput = any>
   extends
     ToolMetadata<TInput, TOutput>,
     ToolPresenter<TInput, TOutput>,
     ToolRunner<TInput, TOutput> {}
 
 export async function resolveToolDescription<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
 >(tool: Tool<TInput>, input?: z.infer<TInput>): Promise<string> {
   if (input === undefined && tool.cachedDescription) {
     return tool.cachedDescription

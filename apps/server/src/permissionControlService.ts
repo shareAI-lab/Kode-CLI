@@ -5,8 +5,8 @@ import {
   canUserModifyToolPermissionUpdate,
   type ToolPermissionContext,
   type ToolPermissionContextUpdate,
-} from '@kode/core/types/toolPermissionContext'
-import { isPersistableToolPermissionDestination } from '@kode/core/types/toolPermissionContext'
+} from '@kode/types/toolPermissionContext'
+import { isPersistableToolPermissionDestination } from '@kode/types/toolPermissionContext'
 import {
   loadToolPermissionContextFromDisk,
   persistToolPermissionUpdateToDisk,

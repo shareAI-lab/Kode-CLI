@@ -10,8 +10,8 @@ import {
   type ControlPlaneGoalScheduleInput,
   type Goal,
   type GoalEvent,
-} from '@kode/core/goals'
-import { isUuid } from '@kode/core/utils/uuid'
+} from '@kode/goals'
+import { isUuid } from '@kode/runtime'
 
 export type GoalScheduleSummary = {
   id: string

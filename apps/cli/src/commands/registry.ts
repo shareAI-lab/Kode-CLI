@@ -12,6 +12,7 @@ import addDir from './builtin/add-dir'
 import bash from './builtin/bash'
 import exit from './builtin/exit'
 import doctor from './builtin/doctor'
+import effort from './builtin/effort'
 import gateDump from './builtin/gate-dump'
 import help from './builtin/help'
 import hooks from './builtin/hooks'
@@ -98,6 +99,7 @@ const COMMANDS = memoize((): Command[] => [
   config,
   cost,
   doctor,
+  effort,
   exit,
   exportCommand,
   extensions,

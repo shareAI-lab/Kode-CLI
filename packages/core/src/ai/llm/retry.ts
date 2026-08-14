@@ -96,10 +96,7 @@ export async function withRetry<T>(
       return await operation(attempt)
     } catch (error) {
       lastError = error
-      if (
-        attempt > maxRetries ||
-        !isRetryableError(error)
-      ) {
+      if (attempt > maxRetries || !isRetryableError(error)) {
         throw error
       }
 

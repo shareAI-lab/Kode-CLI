@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import type { BackgroundTaskSnapshot } from '@kode/core/tasks/backgroundRegistry'
+import type { BackgroundTaskSnapshot } from '@kode/tasks/backgroundRegistry'
 
 import { TaskControlService } from '../taskControlService'
 import { routeTask } from './task'

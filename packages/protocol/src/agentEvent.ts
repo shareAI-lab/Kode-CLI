@@ -142,7 +142,7 @@ const ResultEventSchema = z
       'error_max_budget_usd',
     ]),
     result: z.string().optional(),
-    structured_output: z.record(z.unknown()).optional(),
+    structured_output: z.record(z.string(), z.unknown()).optional(),
     num_turns: z.number(),
     usage: z.unknown().optional(),
     total_cost_usd: z.number(),
@@ -172,7 +172,7 @@ const PermissionRequestEventSchema = z
     request_id: z.string(),
     tool_name: z.string(),
     tool_description: z.string(),
-    input: z.record(z.unknown()),
+    input: z.record(z.string(), z.unknown()),
   })
   .strict()
 

@@ -46,7 +46,13 @@ export function resolveShortcutOptionValue(
     )
   }
   if (lower === 'a') {
-    return optionWithValue(value => value.includes('dont-ask'))?.value ?? null
+    // "Always allow" style options carry values like yes-session, yes-exact,
+    // yes-prefix or yes-dont-ask-again-*; every one of them starts with "yes"
+    // but is not the plain allow-once value.
+    return (
+      optionWithValue(value => value.startsWith('yes') && value !== 'yes')
+        ?.value ?? null
+    )
   }
   if (lower === 'n') {
     return (

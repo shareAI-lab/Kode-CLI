@@ -176,6 +176,64 @@ async function runClipboardCommand(args: {
   })
 }
 
+async function runClipboardReadCommand(args: {
+  command: string
+  commandArgs: string[]
+}): Promise<string | null> {
+  return await new Promise<string | null>(resolve => {
+    const child = spawn(args.command, args.commandArgs, {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    })
+
+    let out = ''
+    const onStdout = (chunk: Buffer | string) => {
+      if (out.length >= 1_000_000) return
+      out += chunk.toString('utf8')
+    }
+
+    child.on('error', () => resolve(null))
+    child.stdout?.on('data', onStdout)
+    child.on('exit', code => {
+      resolve(code === 0 && out.trim() ? out : null)
+    })
+  })
+}
+
+/**
+ * Reads the current clipboard text via the platform tool. Returns null when no
+ * backend is available or the clipboard holds no text. Used as a fallback for
+ * Ctrl+V in terminals that forward the keypress to the app (kitty, alacritty,
+ * wezterm, ...) instead of pasting text themselves.
+ */
+export async function readTextFromClipboard(): Promise<string | null> {
+  const candidates: { command: string; commandArgs: string[] }[] =
+    process.platform === 'darwin'
+      ? [{ command: 'pbpaste', commandArgs: [] }]
+      : process.platform === 'win32'
+        ? [
+            {
+              command: 'powershell',
+              commandArgs: ['-NoProfile', '-Command', 'Get-Clipboard -Raw'],
+            },
+          ]
+        : [
+            { command: 'wl-paste', commandArgs: ['--no-newline'] },
+            {
+              command: 'xclip',
+              commandArgs: ['-selection', 'clipboard', '-o'],
+            },
+            { command: 'xsel', commandArgs: ['--clipboard', '--output'] },
+          ]
+
+  for (const candidate of candidates) {
+    if (!isCommandAvailable(candidate.command)) continue
+    const result = await runClipboardReadCommand(candidate)
+    if (result !== null) return result
+  }
+  return null
+}
+
 async function copyViaSystemClipboard(text: string): Promise<void> {
   if (process.platform === 'darwin') {
     await runClipboardCommand({ command: 'pbcopy', commandArgs: [], text })

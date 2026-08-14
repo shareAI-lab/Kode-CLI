@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 
-import type { DurableRun } from '@kode/core/runs'
-import type { BackgroundTaskSnapshot } from '@kode/core/tasks/backgroundRegistry'
+import type { DurableRun } from '@kode/runs'
+import type { BackgroundTaskSnapshot } from '@kode/tasks/backgroundRegistry'
 
 import { TaskControlService } from './taskControlService'
 

@@ -8,10 +8,10 @@ import {
   kodeMessageToSdkMessage,
 } from '#protocol/utils/kodeAgentStreamJson'
 import type { AgentEvent } from '#protocol/agentEvent'
-import { isUuid } from '@kode/core/utils/uuid'
+import { isUuid } from '@kode/runtime'
 import { setCwd, setOriginalCwd } from '@kode/core/utils/state'
 import { grantReadPermissionForOriginalDir } from '@kode/core/utils/permissions/filesystem'
-import type { WrappedClient } from '@kode/core/mcp/client'
+import type { WrappedClient } from '@kode/mcp/client'
 import { hasPermissionsToUseTool, savePermission } from '@kode/core/permissions'
 import { runBuiltinPreToolUseGuards } from '@kode/hooks/builtin/preToolUse'
 import {

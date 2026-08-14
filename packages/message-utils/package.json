@@ -1,0 +1,17 @@
+{
+  "name": "@kode/message-utils",
+  "version": "2.2.1",
+  "private": true,
+  "description": "Message construction and normalization utilities for Kode (extracted from @kode/core).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@kode/protocol": "workspace:*",
+    "@kode/tool-interface": "workspace:*"
+  }
+}

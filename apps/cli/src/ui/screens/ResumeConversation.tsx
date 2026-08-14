@@ -63,9 +63,6 @@ export function ResumeConversation({
 }: Props): React.ReactNode {
   async function onSelect(session: KodeAgentSessionListItem) {
     try {
-      context.unmount?.()
-      await clearViewport()
-
       const resumedFromSessionId = session.sessionId
       const effectiveCwd = session.cwd ?? cwd
 
@@ -94,6 +91,13 @@ export function ResumeConversation({
       const isDefaultModel = await isDefaultSlowAndCapableModel()
       const { getCommands } = await import('#cli-commands')
       const nextCommands = await getCommands()
+
+      // Tear down the selector only once everything is ready. Unmounting
+      // first left a blank screen during cwd switch + message load + command
+      // construction; the selector now shows "Resuming conversation…" while
+      // that async work runs.
+      context.unmount?.()
+      await clearViewport()
 
       renderWithTuiStdio(
         render,

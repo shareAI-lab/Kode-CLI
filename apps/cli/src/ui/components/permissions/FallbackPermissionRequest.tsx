@@ -22,7 +22,10 @@ import {
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { PermissionRequestDetails } from './PermissionRequestDetails'
-import { permissionSelectFocusScope } from './permissionFocusScope'
+import {
+  defaultPermissionFocusValue,
+  permissionSelectFocusScope,
+} from './permissionFocusScope'
 
 type Props = {
   toolUseConfirm: ToolUseConfirm
@@ -91,6 +94,7 @@ export function FallbackPermissionRequest({
             <Text>Allow this tool use?</Text>
             <Select
               focusScope={permissionSelectFocusScope(toolUseConfirm, 'choice')}
+              focusValue={defaultPermissionFocusValue(toolUseConfirm.riskScore)}
               options={[
                 {
                   label: 'Allow once',

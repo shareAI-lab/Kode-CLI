@@ -6,7 +6,7 @@ import {
 } from '#core/types/modelCapabilities'
 import { randomUUID } from 'crypto'
 import { Tool, getToolDescription } from '#core/tooling/Tool'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import { setRequestStatus } from '#core/utils/requestStatus'
 import {
   extractTextAndImageUrls,
@@ -186,7 +186,7 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       function: {
         name: tool.name,
         description: getToolDescription(tool),
-        parameters: tool.inputJSONSchema || zodToJsonSchema(tool.inputSchema),
+        parameters: tool.inputJSONSchema || toInputJsonSchema(tool.inputSchema),
       },
     }))
   }

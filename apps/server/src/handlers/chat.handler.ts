@@ -21,7 +21,7 @@ import {
   makeSdkResultMessage,
   makeSdkStreamEventMessage,
 } from '#protocol/utils/kodeAgentStreamJson'
-import { setSessionId } from '@kode/core/utils/sessionId'
+import { setSessionId } from '@kode/runtime'
 import { setKodeAgentSessionForkInfo } from '#protocol/utils/kodeAgentSessionForkInfo'
 import { appendSessionJsonlFromMessage } from '#protocol/utils/kodeAgentSessionLog'
 import { setCwd, setOriginalCwd } from '@kode/core/utils/state'
@@ -33,7 +33,7 @@ import {
 } from '@kode/core/tooling/Tool'
 import type { DaemonSession } from '../ws/types'
 import { waitForPermissionDecision } from '../ws/permissionRequests'
-import type { WrappedClient } from '@kode/core/mcp/client'
+import type { WrappedClient } from '@kode/mcp/client'
 
 type WsSend = (payload: AgentEvent) => void
 
@@ -99,6 +99,8 @@ export async function handleChatPrompt(args: {
   slashCommands: string[]
   mcpClients: WrappedClient[]
   persistSession?: boolean
+  /** A detached schedule cannot answer permission prompts; deny instead. */
+  shouldAvoidPermissionPrompts?: boolean
   /** Testable override; production uses a bounded 15 minute turn deadline. */
   requestTimeoutMs?: number
 }): Promise<void> {
@@ -410,7 +412,7 @@ export async function handleChatPrompt(args: {
       persistSession: shouldPersistSession,
       toolPermissionContext: session.toolPermissionContext,
       mcpClients,
-      shouldAvoidPermissionPrompts: false,
+      shouldAvoidPermissionPrompts: args.shouldAvoidPermissionPrompts === true,
       onStreamEvent: (event: unknown) => {
         if (!shouldForwardStreamEvent(event)) return
         wsSend(

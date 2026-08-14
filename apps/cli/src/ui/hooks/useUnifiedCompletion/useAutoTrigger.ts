@@ -65,8 +65,12 @@ export function __computeAutoTriggerActionForTests(args: {
     }
   }
 
-  const timeSinceLastInput = args.now - args.lastInputTime
-  const isPossiblyIMEInput = timeSinceLastInput > 0 && timeSinceLastInput < 150
+  // IME composition produces bursts of small, fast edits. A time-only
+  // heuristic misfires when users type ASCII quickly (e.g. "/cmd" right after
+  // a CJK sentence), which kept the completion panel from ever opening. Detect
+  // composition by content instead: only edits introducing non-ASCII text are
+  // treated as potentially IME-driven.
+  const isPossiblyIMEInput = /[^\x00-\x7f]/.test(args.input)
 
   const inputLengthChange = Math.abs(
     args.input.length - args.previousInput.length,

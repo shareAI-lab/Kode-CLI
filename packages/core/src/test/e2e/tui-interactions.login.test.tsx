@@ -31,6 +31,51 @@ afterEach(async () => {
 })
 
 describe('TUI E2E regression (Ink render): login selector', () => {
+  test('does not exit the Codex flow until its model profile has been saved', async () => {
+    let done = false
+    let resolveSave: (() => void) | undefined
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {
+            done = true
+          }}
+          codexAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {},
+          }}
+          saveProfile={async () => {
+            await new Promise<void>(resolve => {
+              resolveSave = resolve
+            })
+            return 'codex-oauth:gpt-runtime-default'
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Codex is already signed in.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Activating its model for Kode')
+
+    h.stdin.write('\r')
+    await h.wait(50)
+    expect(done).toBe(false)
+
+    resolveSave?.()
+    await waitForOutput(h, 'Kode is now using GPT Runtime Default')
+    h.stdin.write('\r')
+    await h.wait(20)
+    expect(done).toBe(true)
+  })
+
   test('OAuth model setup saves a Kode profile and explicitly switches the main model', async () => {
     let done = false
     const saves: Array<{ activateAsMain: boolean; model: string }> = []
@@ -120,6 +165,41 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     expect(saves).toEqual([false])
   })
 
+  test('opens GitHub Copilot OAuth from the login selector', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {}}
+          codexAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {},
+          }}
+          copilotAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getAvailableModels: async () => [
+              { model: 'auto', displayName: 'Auto' },
+            ],
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Use the installed Codex CLI browser sign-in')
+    h.stdin.write('\u001B[B')
+    await waitForOutput(h, 'official GitHub Copilot browser or device OAuth')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'GitHub Copilot OAuth')
+    await waitForOutput(h, 'Already signed in.')
+  })
+
   test('opens the OpenAI API-key setup directly from the login selector', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
@@ -140,7 +220,7 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     )
     harnessManager.track(h)
 
-    await waitForOutput(h, 'Reuse the installed Codex CLI browser sign-in')
+    await waitForOutput(h, 'Use the installed Codex CLI browser sign-in')
     h.stdin.write('\u001B[B')
     h.stdin.write('\u001B[B')
     h.stdin.write('\u001B[B')

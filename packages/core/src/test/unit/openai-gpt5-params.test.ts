@@ -32,7 +32,7 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
     expect(params.max_completion_tokens).toBeUndefined()
   })
 
-  test('MiMo tool calls disable thinking and use max_completion_tokens', () => {
+  test('MiMo tool calls keep thinking and use max_completion_tokens', () => {
     const params = buildOpenAIChatCompletionCreateParams({
       model: 'mimo-v2.5-pro',
       maxTokens: 789,
@@ -54,36 +54,51 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
     expect(params.max_completion_tokens).toBe(789)
     expect(params.max_tokens).toBeUndefined()
     expect(params.tool_choice).toBe('auto')
-    expect((params as { thinking?: unknown }).thinking).toEqual({
-      type: 'disabled',
-    })
+    expect((params as { thinking?: unknown }).thinking).toBeUndefined()
   })
 
-  test('MiMo disables thinking by default (low/unset effort) to protect completion budget', () => {
-    const plain = buildOpenAIChatCompletionCreateParams({
+  test('MiMo keeps thinking enabled without sending OpenAI reasoning effort', () => {
+    for (const effort of ['low', 'high', 'xhigh', 'max'] as const) {
+      const params = buildOpenAIChatCompletionCreateParams({
+        model: 'mimo-v2.5-pro',
+        maxTokens: 64,
+        messages: [{ role: 'user', content: 'hi' }],
+        temperature: 0,
+        stream: false,
+        toolSchemas: [],
+        reasoningEffort: effort,
+      })
+      expect((params as { thinking?: unknown }).thinking).toBeUndefined()
+      expect(params.reasoning_effort).toBeUndefined()
+    }
+  })
+
+  test('MiMo disables thinking only for none/minimal effort or voice', () => {
+    const none = buildOpenAIChatCompletionCreateParams({
       model: 'mimo-v2.5-pro',
       maxTokens: 64,
       messages: [{ role: 'user', content: 'hi' }],
       temperature: 0,
       stream: false,
       toolSchemas: [],
-      reasoningEffort: 'low',
+      reasoningEffort: 'none',
     })
-    expect((plain as { thinking?: unknown }).thinking).toEqual({
+    expect((none as { thinking?: unknown }).thinking).toEqual({
       type: 'disabled',
     })
 
-    const high = buildOpenAIChatCompletionCreateParams({
+    const voice = buildOpenAIChatCompletionCreateParams({
       model: 'mimo-v2.5-pro',
-      maxTokens: 512,
+      maxTokens: 64,
       messages: [{ role: 'user', content: 'hi' }],
       temperature: 0,
       stream: false,
       toolSchemas: [],
-      reasoningEffort: 'high',
+      isVoice: true,
     })
-    // MiMo: high effort leaves thinking enabled (no thinking:disabled flag)
-    expect((high as { thinking?: unknown }).thinking).toBeUndefined()
+    expect((voice as { thinking?: unknown }).thinking).toEqual({
+      type: 'disabled',
+    })
   })
 
   test('DeepSeek preserves system message boundaries and uses max_tokens', () => {
@@ -108,9 +123,7 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
       { role: 'system', content: 'part-b' },
       { role: 'user', content: 'q' },
     ])
-    expect((params as { thinking?: unknown }).thinking).toEqual({
-      type: 'disabled',
-    })
+    expect((params as { thinking?: unknown }).thinking).toBeUndefined()
   })
 
   test('DeepSeek cache hits and misses preserve token and billing semantics', () => {

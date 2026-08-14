@@ -434,6 +434,9 @@ describe('WebSocket turn state', () => {
   test('rejects an auto-allowed operation when cancellation wins permission preflight', async () => {
     const sessionRegistry = new SessionRegistry()
     const session = sessionRegistry.create(process.cwd())
+    // This test isolates cancellation during an auto-approved operation. The
+    // default Plan mode correctly blocks mutations before that preflight.
+    session.toolPermissionContext.mode = 'acceptEdits'
     const { events, socket } = createSocket(session, false)
     let preflightReached = false
     const autoAllowedBash = {

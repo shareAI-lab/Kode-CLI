@@ -4,13 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@kode/ai": "workspace:*",
     "@kode/config": "workspace:*",
+    "@kode/constants": "workspace:*",
     "@kode/context": "workspace:*",
     "@kode/hooks": "workspace:*",
+    "@kode/logging": "workspace:*",
+    "@kode/memory": "workspace:*",
+    "@kode/message-utils": "workspace:*",
     "@kode/permissions": "workspace:*",
+    "@kode/plan": "workspace:*",
     "@kode/protocol": "workspace:*",
     "@kode/runtime": "workspace:*",
-    "@kode/tool-interface": "workspace:*"
+    "@kode/sandbox": "workspace:*",
+    "@kode/tasks": "workspace:*",
+    "@kode/tool-interface": "workspace:*",
+    "@kode/types": "workspace:*"
   }
 }

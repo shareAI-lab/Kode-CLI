@@ -57,6 +57,10 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Performance gates
+        if: runner.os == 'Linux'
+        run: bun run perf:gate
+
   kode-agent-sdk:
     name: Kode Agent SDK
     runs-on: ubuntu-latest

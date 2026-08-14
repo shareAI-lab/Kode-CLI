@@ -123,4 +123,40 @@ describe('generateSlashCommandSuggestions', () => {
 
     expect(suggestions.map(suggestion => suggestion.value)).toEqual(['alpha'])
   })
+
+  it('caps the empty-prefix list to a curated subset and reports the rest', () => {
+    const commands = Array.from({ length: 20 }, (_, i) =>
+      makeCommand(`cmd-${i.toString().padStart(2, '0')}`),
+    )
+    const suggestions = generateSlashCommandSuggestions({
+      commands,
+      prefix: '',
+    })
+
+    expect(suggestions.length).toBe(12)
+    expect(suggestions[0]?.metadata?.moreCount).toBe(8)
+    // Typing a prefix expands the full registry again.
+    const filtered = generateSlashCommandSuggestions({
+      commands,
+      prefix: 'cmd',
+    })
+    expect(filtered.length).toBe(20)
+  })
+
+  it('tags command suggestions with their category color', () => {
+    const suggestions = generateSlashCommandSuggestions({
+      commands: [makeCommand('help'), makeCommand('mcp'), makeCommand('exit')],
+      prefix: '',
+    })
+
+    expect(suggestions.find(s => s.value === 'help')?.metadata?.color).toBe(
+      'green',
+    )
+    expect(suggestions.find(s => s.value === 'mcp')?.metadata?.color).toBe(
+      'purple',
+    )
+    expect(suggestions.find(s => s.value === 'exit')?.metadata?.color).toBe(
+      'gray',
+    )
+  })
 })

@@ -29,8 +29,6 @@ const OPENAI_LLM_FILES = [
 
 const MIRRORED_LLM_HELPER_FILES = ['modelFamilies.ts']
 
-const AI_CANONICAL_PROVIDER_LEAF_FILES = ['customModels.ts', 'retry.ts']
-
 function readRepoFile(path: string): string {
   return readFileSync(join(ROOT_DIR, path), 'utf8')
 }
@@ -115,18 +113,6 @@ function normalizeLlmOwnedImports(source: string): string {
 describe('OpenAI provider mirror boundary', () => {
   test('keeps core and @kode/ai OpenAI provider files equivalent except ai-owned imports', () => {
     for (const file of OPENAI_PROVIDER_FILES) {
-      if (AI_CANONICAL_PROVIDER_LEAF_FILES.includes(file)) {
-        expect(
-          readRepoFile(`packages/core/src/ai/openai/${file}`),
-          file,
-        ).toMatch(
-          new RegExp(
-            `export \\* from '@kode/ai/openai/${file.replace(/\.ts$/, '')}'`,
-          ),
-        )
-        continue
-      }
-
       const coreFile = normalizeAiOwnedImports(
         readRepoFile(`packages/core/src/ai/openai/${file}`),
       )

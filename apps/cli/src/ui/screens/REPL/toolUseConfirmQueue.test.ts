@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { transitionToolUseConfirmQueue } from './toolUseConfirmQueue'
+import {
+  transitionToolUseConfirmQueue,
+  transitionToolUseConfirmQueueClear,
+} from './toolUseConfirmQueue'
 import type { ToolUseConfirm } from '#ui-ink/components/permissions/PermissionRequest'
 
 function makeConfirm(id: string): ToolUseConfirm {
@@ -43,5 +46,22 @@ describe('transitionToolUseConfirmQueue', () => {
 
   test('popping an empty queue keeps it empty', () => {
     expect(transitionToolUseConfirmQueue([], null)).toEqual([])
+  })
+})
+
+describe('transitionToolUseConfirmQueueClear', () => {
+  test('clears the whole queue including the head', () => {
+    const first = makeConfirm('a')
+    const second = makeConfirm('b')
+    const pending = transitionToolUseConfirmQueue(
+      transitionToolUseConfirmQueue([], first),
+      second,
+    )
+
+    expect(transitionToolUseConfirmQueueClear(pending)).toEqual([])
+  })
+
+  test('clearing an empty queue is a no-op', () => {
+    expect(transitionToolUseConfirmQueueClear([])).toEqual([])
   })
 })
