@@ -249,6 +249,10 @@ describe('external editor terminal suspension', () => {
       process.env.EDITOR = '$HOME/bin/editor'
       await launchExternalEditor('draft')
       expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+
+      process.env.EDITOR = '${HOME}/bin/editor'
+      await launchExternalEditor('draft')
+      expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
     } finally {
       if (originalHome === undefined) delete process.env.HOME
       else process.env.HOME = originalHome

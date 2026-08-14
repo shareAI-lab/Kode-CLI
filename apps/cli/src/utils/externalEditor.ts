@@ -203,7 +203,13 @@ function expandEditorCommand(editorCommand: EditorCommand): EditorCommand {
       const value =
         process.env[envName] ?? (envName === 'HOME' ? homedir() : undefined)
       if (value) {
-        return value + token.slice(token.indexOf(envName) + envName.length)
+        const variableReference = token.startsWith('${')
+          ? `\${${envName}}`
+          : `$${envName}`
+        const remainder = token.slice(variableReference.length)
+        return isWindows && remainder
+          ? join(value, remainder)
+          : value + remainder
       }
     }
     return token
