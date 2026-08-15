@@ -49,9 +49,9 @@ export function buildGoalStatusLineForTests(args: {
 
   const progress =
     goal.schedule.kind === 'interval'
-      ? `轮 ${goal.activeRun?.turnCount ?? 0}/${goal.loop.maxIterations}`
+      ? `turn ${goal.activeRun?.turnCount ?? 0}/${goal.loop.maxIterations}`
       : goal.schedule.kind === 'once'
-        ? `轮 ${goal.activeRun?.turnCount ?? 0}`
+        ? `turn ${goal.activeRun?.turnCount ?? 0}`
         : ''
   const countdown = formatCountdown(
     goal.schedule.kind === 'interval' ? goal.schedule.nextRunAt : null,
@@ -60,7 +60,7 @@ export function buildGoalStatusLineForTests(args: {
   const parts = [
     statusLabel(goal),
     progress,
-    countdown ? `下轮 ${countdown}` : '',
+    countdown ? `next ${countdown}` : '',
   ].filter(Boolean)
   const suffix = parts.length > 0 ? ` · ${parts.join(' · ')}` : ''
   const line = `${truncate(goal.objective, Math.max(10, maxWidth - suffix.length))}${suffix}`
@@ -89,7 +89,11 @@ export function GoalStatusPanel({
   const isRunning = goal!.status === 'running'
   const glyph = isRunning ? '■' : '⏱'
   const color =
-    goal!.status === 'awaiting_approval' ? theme.warning : theme.kode
+    goal!.status === 'running'
+      ? theme.warning
+      : goal!.status === 'awaiting_approval'
+        ? theme.warning
+        : theme.kode
 
   return (
     <Box

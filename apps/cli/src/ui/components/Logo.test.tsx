@@ -72,7 +72,7 @@ describe('Logo', () => {
 
     expect(output).toContain(firstLogoPrefix)
     expect(output).not.toContain(productNameFallback)
-    expect(output).toContain('/help')
+    expect(output).toContain('/config')
     expect(output).toContain('MCP Servers')
     expect(output).toContain('codegraph')
     expect(output).not.toMatch(/(?:\n\s*){4,}/)
@@ -180,7 +180,7 @@ describe('Logo', () => {
 
     expect(output).toContain(productNameFallback)
     expect(output).not.toContain(firstLogoPrefix)
-    expect(output).toContain('/help')
+    expect(output).toContain('/config')
     expect(output).toContain('MCP Servers:')
     expect(output).toContain('codegraph')
     expect(output.split(/\r?\n/).filter(Boolean)).toHaveLength(3)

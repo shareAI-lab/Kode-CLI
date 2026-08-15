@@ -1,7 +1,45 @@
 import { existsSync, readdirSync, statSync, type Dirent } from 'fs'
+import { homedir } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import { matchAdvanced } from './advancedFuzzyMatcher'
 import type { UnifiedSuggestion } from './types'
+
+function lastPathSepIndex(userPath: string): number {
+  return Math.max(userPath.lastIndexOf('/'), userPath.lastIndexOf('\\'))
+}
+
+function endsWithPathSep(userPath: string): boolean {
+  return userPath.endsWith('/') || userPath.endsWith('\\')
+}
+
+function preferredSep(userPath: string): string {
+  return userPath.includes('\\') && !userPath.includes('/') ? '\\' : '/'
+}
+
+function isAbsoluteUserPath(userPath: string): boolean {
+  if (userPath.startsWith('/') || userPath.startsWith('\\')) return true
+  return /^[A-Za-z]:[\\/]/.test(userPath)
+}
+
+function expandUserPath(userPath: string, cwd: string): string {
+  if (userPath === '~') return homedir()
+  if (userPath.startsWith('~/') || userPath.startsWith('~\\')) {
+    return join(homedir(), userPath.slice(2))
+  }
+  if (isAbsoluteUserPath(userPath)) return userPath
+  return resolve(cwd, userPath.replace(/\\/g, '/'))
+}
+
+// List children only for a trailing separator or a root token. An existing
+// directory name without a slash is a completion candidate, not an implicit cd.
+function shouldListDirectoryContents(
+  prefix: string,
+  userPath: string,
+): boolean {
+  if (prefix === '') return true
+  if (userPath === '.' || userPath === '~') return true
+  return endsWithPathSep(userPath)
+}
 
 function isDirectoryEntry(entry: Dirent, directory: string): boolean {
   if (entry.isDirectory()) return true
@@ -23,25 +61,22 @@ export function generateFileSuggestions(args: {
 
   try {
     const userPath = prefix || '.'
-    const isAbsolutePath = userPath.startsWith('/')
-    const isHomePath = userPath.startsWith('~')
-
-    let searchPath: string
-    if (isHomePath) {
-      searchPath = userPath.replace('~', process.env.HOME || '')
-    } else if (isAbsolutePath) {
-      searchPath = userPath
-    } else {
-      searchPath = resolve(cwd, userPath)
+    if (
+      userPath.startsWith('~') &&
+      userPath !== '~' &&
+      !userPath.startsWith('~/') &&
+      !userPath.startsWith('~\\')
+    ) {
+      return []
     }
 
-    const endsWithSlash = userPath.endsWith('/')
-    const searchStat = existsSync(searchPath) ? statSync(searchPath) : null
+    const searchPath = expandUserPath(userPath, cwd)
+    const listContents = shouldListDirectoryContents(prefix, userPath)
 
     let searchDir: string
     let nameFilter: string
 
-    if (endsWithSlash || searchStat?.isDirectory()) {
+    if (listContents) {
       searchDir = searchPath
       nameFilter = ''
     } else {
@@ -51,7 +86,10 @@ export function generateFileSuggestions(args: {
 
     if (!existsSync(searchDir)) return []
 
-    const showHidden = nameFilter.startsWith('.') || userPath.includes('/.')
+    const showHidden =
+      nameFilter.startsWith('.') ||
+      userPath.includes('/.') ||
+      userPath.includes('\\.')
     const lowerNameFilter = nameFilter.toLowerCase()
     const useFuzzy = lowerNameFilter.length >= 2
     // Single pass: compute the expensive fuzzy match once per entry instead of
@@ -116,27 +154,25 @@ export function generateFileSuggestions(args: {
         const entryName = entry.name
         const icon = isDir ? '📁' : '📄'
 
+        const sep = preferredSep(userPath)
+        const sepIndex = lastPathSepIndex(userPath)
         let value: string
 
-        if (userPath.includes('/')) {
-          if (endsWithSlash) {
-            value = userPath + entryName + (isDir ? '/' : '')
-          } else if (searchStat?.isDirectory()) {
-            value = userPath + '/' + entryName + (isDir ? '/' : '')
+        if (sepIndex !== -1) {
+          if (endsWithPathSep(userPath)) {
+            value = userPath + entryName + (isDir ? sep : '')
+          } else if (listContents) {
+            value = userPath + sep + entryName + (isDir ? sep : '')
           } else {
-            const userDir = userPath.includes('/')
-              ? userPath.substring(0, userPath.lastIndexOf('/'))
-              : ''
+            const userDir = userPath.slice(0, sepIndex)
             value = userDir
-              ? userDir + '/' + entryName + (isDir ? '/' : '')
-              : entryName + (isDir ? '/' : '')
+              ? userDir + sep + entryName + (isDir ? sep : '')
+              : entryName + (isDir ? sep : '')
           }
+        } else if (listContents) {
+          value = userPath + sep + entryName + (isDir ? sep : '')
         } else {
-          if (searchStat?.isDirectory()) {
-            value = userPath + '/' + entryName + (isDir ? '/' : '')
-          } else {
-            value = entryName + (isDir ? '/' : '')
-          }
+          value = entryName + (isDir ? sep : '')
         }
 
         return {

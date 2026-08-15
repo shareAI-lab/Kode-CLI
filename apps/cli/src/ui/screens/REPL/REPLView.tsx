@@ -359,7 +359,7 @@ export function REPLView({
           : showingCostDialog
             ? 'Cost notice - expand terminal'
             : isLoading
-              ? 'Working… Esc cancel'
+              ? 'Working… Esc to cancel'
               : null
   const hasStaticOutput = staticItems.length > 0
   const isStaticOutputObscured = isFullScreenToolView || hasToolUseConfirm

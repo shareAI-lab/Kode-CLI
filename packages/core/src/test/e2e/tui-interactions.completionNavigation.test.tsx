@@ -250,6 +250,182 @@ function TabCompletionHarness({
   )
 }
 
+const filePathContext: CompletionContext = {
+  type: 'file',
+  prefix: 'src/ma',
+  startPos: 6,
+  endPos: 12,
+}
+
+const filePathSuggestions: UnifiedSuggestion[] = [
+  {
+    value: 'src/main.ts',
+    displayValue: 'src/main.ts',
+    type: 'file',
+    score: 1,
+  },
+]
+
+const fileTabSuggestions: UnifiedSuggestion[] = [
+  {
+    value: 'src/main.ts',
+    displayValue: 'src/main.ts',
+    type: 'file',
+    score: 2,
+  },
+  {
+    value: 'src/math.ts',
+    displayValue: 'src/math.ts',
+    type: 'file',
+    score: 1,
+  },
+]
+
+const fileTabContext: CompletionContext = {
+  type: 'file',
+  prefix: 'src/ma',
+  startPos: 0,
+  endPos: 6,
+  trigger: null,
+}
+
+function FileTabCycleEscHarness(): React.ReactNode {
+  const [input, setInput] = useState('src/ma')
+  const [cursorOffset, setCursorOffset] = useState(6)
+  const [state, setState] = useState(() => makeState({}))
+  const { completeWith } = useCompletionActions({
+    input,
+    onInputChange: setInput,
+    setCursorOffset,
+  })
+
+  const resetCompletion = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      suggestions: [],
+      selectedIndex: 0,
+      isActive: false,
+      context: null,
+      preview: null,
+      emptyDirMessage: '',
+    }))
+  }, [])
+
+  const updateState = useCallback((updates: Partial<CompletionState>) => {
+    setState(prev => ({ ...prev, ...updates }))
+  }, [])
+
+  const activateCompletion = useCallback(
+    (suggestions: UnifiedSuggestion[], context: CompletionContext) => {
+      setState(prev => ({
+        ...prev,
+        suggestions,
+        selectedIndex: 0,
+        isActive: true,
+        context,
+        preview: null,
+      }))
+    },
+    [],
+  )
+
+  useUnifiedCompletionTabKey({
+    input,
+    state,
+    getWordAtCursor: () => fileTabContext,
+    generateSuggestions: () => fileTabSuggestions,
+    completeWith,
+    activateCompletion,
+    resetCompletion,
+    updateState,
+    onInputChange: setInput,
+    setCursorOffset,
+    isEnabled: true,
+  })
+
+  useUnifiedCompletionNavigationKeys({
+    input,
+    state,
+    resetCompletion,
+    updateState,
+    generateSuggestions: () => fileTabSuggestions,
+    completeWith,
+    activateCompletion,
+    onInputChange: setInput,
+    setCursorOffset,
+    isEnabled: true,
+  })
+
+  return (
+    <Text>{`INPUT:${input}|ORIG:${state.preview?.originalInput ?? ''}|ACTIVE:${state.isActive}`}</Text>
+  )
+}
+
+function FileEnterCompletionHarness(): React.ReactNode {
+  const [input, setInput] = useState('check src/ma')
+  const [cursorOffset, setCursorOffset] = useState(12)
+  const [state, setState] = useState(() =>
+    makeState({
+      suggestions: filePathSuggestions,
+      selectedIndex: 0,
+      isActive: true,
+      context: filePathContext,
+    }),
+  )
+  const { completeWith } = useCompletionActions({
+    input,
+    onInputChange: setInput,
+    setCursorOffset,
+  })
+
+  const resetCompletion = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      suggestions: [],
+      selectedIndex: 0,
+      isActive: false,
+      context: null,
+      preview: null,
+      emptyDirMessage: '',
+    }))
+  }, [])
+
+  const updateState = useCallback((updates: Partial<CompletionState>) => {
+    setState(prev => ({ ...prev, ...updates }))
+  }, [])
+
+  const activateCompletion = useCallback(
+    (suggestions: UnifiedSuggestion[], context: CompletionContext) => {
+      setState(prev => ({
+        ...prev,
+        suggestions,
+        selectedIndex: 0,
+        isActive: true,
+        context,
+        preview: null,
+      }))
+    },
+    [],
+  )
+
+  useUnifiedCompletionNavigationKeys({
+    input,
+    state,
+    resetCompletion,
+    updateState,
+    generateSuggestions: () => filePathSuggestions,
+    completeWith,
+    activateCompletion,
+    onInputChange: setInput,
+    setCursorOffset,
+    isEnabled: true,
+  })
+
+  return (
+    <Text>{`INPUT:${input}|CURSOR:${cursorOffset}|ACTIVE:${state.isActive}`}</Text>
+  )
+}
+
 describe('TUI E2E regression (Ink render): completion navigation', () => {
   test('clears delayed empty-directory updates when completion unmounts', async () => {
     const updates: Array<Partial<CompletionState>> = []
@@ -264,12 +440,12 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     h.stdin.write('\u001b[C')
     await h.wait(100)
 
-    expect(updates).toEqual([{ emptyDirMessage: 'Directory is empty: empty/' }])
+    expect(updates).toEqual([{ emptyDirMessage: 'No files in empty/' }])
 
     h.unmount()
     await h.wait(3200)
 
-    expect(updates).toEqual([{ emptyDirMessage: 'Directory is empty: empty/' }])
+    expect(updates).toEqual([{ emptyDirMessage: 'No files in empty/' }])
   })
 
   test('does not reopen directory completion after the user keeps typing', async () => {
@@ -307,7 +483,7 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     expect(h.getOutput()).toContain('INPUT:/second |CURSOR:8|ACTIVE:false')
   })
 
-  test('Tab completes the first slash command before completion activates', async () => {
+  test('Tab opens the command list when more than one command matches', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
         <TabCompletionHarness initiallyActive={false} />
@@ -322,6 +498,56 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     h.stdin.write('\t')
     await h.wait(50)
 
-    expect(h.getOutput()).toContain('INPUT:/first |CURSOR:7|ACTIVE:false')
+    expect(h.getOutput()).toContain('INPUT:/se|CURSOR:3|ACTIVE:true')
+  })
+
+  test('Tab cycling keeps the original input so Esc can restore it', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <FileTabCycleEscHarness />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(25)
+    expect(h.getOutput()).toContain('INPUT:src/ma|ORIG:|ACTIVE:false')
+
+    h.clearOutput()
+    h.stdin.write('\t')
+    await h.wait(50)
+    expect(h.getOutput()).toContain('INPUT:src/main.ts|ORIG:src/ma|ACTIVE:true')
+
+    h.clearOutput()
+    h.stdin.write('\t')
+    await h.wait(50)
+    expect(h.getOutput()).toContain('INPUT:src/math.ts|ORIG:src/ma|ACTIVE:true')
+
+    h.clearOutput()
+    h.stdin.write('\u001b')
+    // Lone ESC is flushed after ESC_TIMEOUT (50ms) in KeypressContext.
+    await h.wait(150)
+    expect(h.getOutput()).toContain('INPUT:src/ma|ORIG:|ACTIVE:false')
+  })
+
+  test('Enter inserts a file path without submitting', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <FileEnterCompletionHarness />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(25)
+    expect(h.getOutput()).toContain(
+      'INPUT:check src/ma|CURSOR:12|ACTIVE:true',
+    )
+
+    h.clearOutput()
+    h.stdin.write('\r')
+    await h.wait(50)
+
+    expect(h.getOutput()).toContain(
+      'INPUT:check src/main.ts |CURSOR:18|ACTIVE:false',
+    )
   })
 })

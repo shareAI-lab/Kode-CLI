@@ -62,6 +62,43 @@ describe('generateFileSuggestions', () => {
     expect(singleChar.map(item => item.value)).toEqual(['dist.txt'])
   })
 
+  test('treats an existing directory without a trailing slash as a name, not a listing', () => {
+    const cwd = makeTempDir()
+    mkdirSync(join(cwd, 'docs'))
+    writeFileSync(join(cwd, 'docs', 'readme.md'), '')
+    writeFileSync(join(cwd, 'docs.md'), '')
+
+    const asName = generateFileSuggestions({ prefix: 'docs', cwd })
+    expect(asName.map(item => item.value)).toEqual(['docs/', 'docs.md'])
+    expect(asName.map(item => item.value)).not.toContain('docs/readme.md')
+
+    const asDir = generateFileSuggestions({ prefix: 'docs/', cwd })
+    expect(asDir.map(item => item.value)).toEqual(['docs/readme.md'])
+  })
+
+  test('treats a backslash as a path separator when listing children', () => {
+    const cwd = makeTempDir()
+    mkdirSync(join(cwd, 'win'))
+    writeFileSync(join(cwd, 'win', 'a.ts'), '')
+
+    const suggestions = generateFileSuggestions({ prefix: 'win\\', cwd })
+    expect(suggestions.map(item => item.value)).toEqual(['win\\a.ts'])
+  })
+
+  test('expands ~ through the platform home directory, not the current workspace', () => {
+    const cwd = makeTempDir()
+    const marker = `kode-not-home-${Date.now()}`
+    mkdirSync(join(cwd, marker))
+
+    const suggestions = generateFileSuggestions({ prefix: '~/', cwd })
+    expect(suggestions.map(item => item.value)).not.toContain(`${marker}/`)
+    for (const suggestion of suggestions) {
+      expect(
+        suggestion.value.startsWith('~/') || suggestion.value.startsWith('~\\'),
+      ).toBe(true)
+    }
+  })
+
   test('drops entries that neither prefix-match nor fuzzy-match in one pass', () => {
     const cwd = makeTempDir()
     writeFileSync(join(cwd, 'package.json'), '')

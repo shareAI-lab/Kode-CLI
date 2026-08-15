@@ -117,6 +117,17 @@ export default function ProjectOnboarding({
                 )
               }
 
+              items.unshift(
+                <React.Fragment key="config">
+                  <OrderedList.Item>
+                    <Text color={theme.secondaryText}>
+                      Run <Text color={theme.text}>/config</Text> to set up
+                      models, permissions, and MCP.
+                    </Text>
+                  </OrderedList.Item>
+                </React.Fragment>,
+              )
+
               items.push(
                 <React.Fragment key="questions">
                   <OrderedList.Item>

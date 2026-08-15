@@ -8,6 +8,8 @@ const FIRST_LINE_PREFIX = '  › '
 const WRAPPED_LINE_PREFIX = '    '
 const MORE_PENDING_PREFIX = '    … '
 const ELLIPSIS_LINE = '    …'
+export const PENDING_PROMPTS_HEADER = 'Next · sends after this turn'
+export const PENDING_PROMPTS_HEADER_SHORT = 'Next'
 
 export function __getPendingPromptLinesForTests(args: {
   pendingPrompts: string[]
@@ -59,6 +61,11 @@ export function __getPendingPromptLinesForTests(args: {
     }
   }
 
+  if (lines.length === 0) return []
+
+  lines.unshift(
+    safeWidth >= 36 ? PENDING_PROMPTS_HEADER : PENDING_PROMPTS_HEADER_SHORT,
+  )
   return lines
 }
 

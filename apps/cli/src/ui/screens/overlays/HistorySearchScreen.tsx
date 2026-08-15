@@ -217,7 +217,7 @@ export function HistorySearchScreen({
       gap={layout.gap}
     >
       <Box flexDirection="column" gap={layout.gap}>
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {shortcutLine}
         </Text>
 
@@ -245,7 +245,7 @@ export function HistorySearchScreen({
         </Box>
 
         <Box flexDirection="column">
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {status ??
               (filtered.length === 0
                 ? 'No matches'
@@ -267,12 +267,12 @@ export function HistorySearchScreen({
               )
             })
           ) : (
-            <Text dimColor>(empty)</Text>
+            <Text color={theme.secondaryText}>(empty)</Text>
           )}
         </Box>
 
-        <Text dimColor wrap="truncate-end">
-          Tip: history includes bash commands with a leading `!`
+        <Text color={theme.secondaryText} wrap="truncate-end">
+          Tip: history includes /bash commands
         </Text>
       </Box>
     </ScreenFrame>

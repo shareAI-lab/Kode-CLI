@@ -15,6 +15,7 @@ describe('__getPendingPromptLinesForTests', () => {
       maxLinesPerMessage: 2,
     })
 
+    expect(lines[0]).toBe('Next')
     expect(lines.some(line => line.includes('›'))).toBe(true)
     expect(lines.some(line => line.trim() === '…')).toBe(true)
   })
@@ -26,7 +27,8 @@ describe('__getPendingPromptLinesForTests', () => {
       maxMessages: 2,
     })
 
-    expect(lines[0]).toContain('earlier')
+    expect(lines[0]).toContain('Next')
+    expect(lines.some(line => line.includes('earlier'))).toBe(true)
     expect(lines.join('\n')).toContain('c')
     expect(lines.join('\n')).toContain('d')
     expect(lines.join('\n')).not.toContain('› a')

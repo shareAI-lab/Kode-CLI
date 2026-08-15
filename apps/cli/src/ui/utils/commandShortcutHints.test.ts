@@ -14,10 +14,10 @@ describe('command shortcut hints', () => {
     const hints = getCommandShortcutHints('win32')
 
     expect(hints.commands).toEqual([
-      { trigger: '/init', effect: 'create AGENTS.md' },
+      { trigger: '/config', effect: 'setup models and tools' },
       { trigger: '/help', effect: 'open help' },
-      { trigger: '/bash <cmd>', effect: 'run shell command' },
-      { trigger: '/note <text>', effect: 'save note to AGENTS.md' },
+      { trigger: '/model', effect: 'manage models' },
+      { trigger: '/init', effect: 'create AGENTS.md' },
     ])
     expect(hints.shortcuts).toEqual([
       { trigger: 'Alt+M', effect: 'switch model' },

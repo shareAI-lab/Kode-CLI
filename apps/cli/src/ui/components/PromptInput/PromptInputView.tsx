@@ -335,6 +335,10 @@ export function PromptInputView({
                   >
                     {toastMessage.text}
                   </Text>
+                ) : emptyDirMessage ? (
+                  <Text color={theme.warning} wrap="truncate-end">
+                    {emptyDirMessage}
+                  </Text>
                 ) : statusLine ? (
                   <Text color={theme.text} wrap="truncate-end">
                     {statusLine}

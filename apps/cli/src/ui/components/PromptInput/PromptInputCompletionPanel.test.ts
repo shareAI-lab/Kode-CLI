@@ -8,6 +8,8 @@ import { getTheme } from '#core/utils/theme'
 import {
   __areSuggestionItemPropsEqualForTests,
   __areHelpTextPropsEqualForTests,
+  __completionHelpKindForTests,
+  __completionKeybindingHelpForTests,
   __getSuggestionWindowForTests,
   PromptInputCompletionPanel,
 } from './PromptInputCompletionPanel'
@@ -69,6 +71,44 @@ function createHarness(
   mounted.push(harness)
   return harness
 }
+
+describe('completion help copy', () => {
+  it('tells the user Enter sends a slash command', () => {
+    expect(
+      __completionHelpKindForTests({
+        emptyDirMessage: '',
+        selectedSuggestion: { type: 'command', value: 'help' },
+      }),
+    ).toBe('command')
+    expect(__completionKeybindingHelpForTests('command')).toBe(
+      'Tab accept • Enter send • ↑↓ navigate • Esc close',
+    )
+  })
+
+  it('treats ask suggestions as mentions, not paths', () => {
+    expect(
+      __completionHelpKindForTests({
+        emptyDirMessage: '',
+        selectedSuggestion: { type: 'ask', value: 'sonnet' },
+      }),
+    ).toBe('mention')
+    expect(__completionKeybindingHelpForTests('mention')).toContain(
+      'insert mention',
+    )
+  })
+
+  it('describes directory follow-up as opening a folder', () => {
+    expect(
+      __completionHelpKindForTests({
+        emptyDirMessage: '',
+        selectedSuggestion: { type: 'file', value: 'src/' },
+      }),
+    ).toBe('directory')
+    expect(__completionKeybindingHelpForTests('directory')).toContain(
+      'open folder',
+    )
+  })
+})
 
 describe('__getSuggestionWindowForTests', () => {
   it('rerenders selected suggestions when their theme color changes', () => {

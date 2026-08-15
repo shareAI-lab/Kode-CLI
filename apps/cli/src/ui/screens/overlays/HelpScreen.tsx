@@ -118,9 +118,9 @@ export function __buildHelpLinesForTests(
   lines.push('- F5: Notifications')
   lines.push('- F6: Transcript (scroll/copy)')
   lines.push('- F7: Command palette (search actions and commands)')
-  lines.push('- F8: Tasks (background tasks)')
+  lines.push('- F8: Local agents and shells')
   lines.push('- Ctrl+O: Transcript (scroll/copy)')
-  lines.push('- Ctrl+T: Work tasks')
+  lines.push('- Ctrl+T: Work / todo list')
   lines.push('- Ctrl+R: History search')
   lines.push(
     `- ${shortcutModifier}+P: Model picker (type to filter; Ctrl+O opens model settings)`,
@@ -133,7 +133,7 @@ export function __buildHelpLinesForTests(
     `- ${editorShortcut.trigger}: ${editorShortcut.effect} (Ctrl+G also works)`,
   )
   lines.push(`- Ctrl/${shortcutModifier}+B: Prefill /bash`)
-  lines.push('- Ctrl+S: Stash prompt')
+  lines.push('- Ctrl+S: Stash prompt (press again on empty input to restore)')
   lines.push('- Ctrl+_: Undo')
   lines.push('- Double Esc: Clear input')
   lines.push(`- ${modeCycleShortcut.displayText}: Cycle permission mode`)
@@ -152,7 +152,7 @@ export function __buildHelpLinesForTests(
   lines.push('- Edit files')
   lines.push('  > Update bar.ts to...')
   lines.push('- Run bash commands')
-  lines.push('  > !ls')
+  lines.push('  > /bash ls')
   lines.push('')
 
   lines.push('Commands')
@@ -243,6 +243,7 @@ export function HelpScreen({
     [onDone],
   )
 
+  const [showFullCatalog, setShowFullCatalog] = useState(showAll)
   const [scrollTop, setScrollTop] = useState(0)
   const [status, setStatus] = useState<string | null>(null)
   const [savedPath, setSavedPath] = useState<string | null>(null)
@@ -258,8 +259,8 @@ export function HelpScreen({
   }, [])
 
   const rawLines = useMemo(
-    () => __buildHelpLinesForTests(commands, { showAll }),
-    [commands, showAll],
+    () => __buildHelpLinesForTests(commands, { showAll: showFullCatalog }),
+    [commands, showFullCatalog],
   )
   const wrapped = useMemo(() => {
     const width = Math.max(1, layout.columns - layout.paddingX * 2)
@@ -374,6 +375,12 @@ export function HelpScreen({
         return true
       }
 
+      if (inputChar === 'a') {
+        setShowFullCatalog(prev => !prev)
+        setScrollTop(0)
+        return true
+      }
+
       return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
@@ -412,14 +419,15 @@ export function HelpScreen({
       gap={layout.gap}
     >
       <Box flexDirection="column">
-        <Text dimColor wrap="truncate-end">
-          Scroll: ↑↓ j/k PgUp/PgDn Home/End · y copy · s save · Esc/Ctrl+C close
+        <Text color={theme.secondaryText} wrap="truncate-end">
+          Scroll: ↑↓ j/k PgUp/PgDn Home/End · a full catalog · y copy · s save ·
+          Esc/Ctrl+C close
         </Text>
         <Text color={theme.secondaryText} wrap="truncate-end">
           {statusLine}
         </Text>
 
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {topIndicator}
         </Text>
         {visible.length > 0 ? (
@@ -429,13 +437,13 @@ export function HelpScreen({
             </Text>
           ))
         ) : (
-          <Text dimColor>(empty)</Text>
+          <Text color={theme.secondaryText}>(empty)</Text>
         )}
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {bottomIndicator}
         </Text>
 
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {savedPath
             ? `Saved: ${savedPath}`
             : `Tip: press 's' to save to ${getHelpPath()}`}

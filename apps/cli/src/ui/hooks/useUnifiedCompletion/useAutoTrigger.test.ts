@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   __computeAutoTriggerActionForTests,
   __getSuppressWakeDelayForTests,
+  __shouldAutoTriggerCompletionForTests,
 } from './useAutoTrigger'
 
 import type {
@@ -187,6 +188,32 @@ describe('__computeAutoTriggerActionForTests', () => {
       'help',
       'history',
     ])
+  })
+})
+
+describe('__shouldAutoTriggerCompletionForTests', () => {
+  test('auto-triggers Windows-style file prefixes', () => {
+    expect(
+      __shouldAutoTriggerCompletionForTests({
+        type: 'file',
+        prefix: 'src\\ma',
+        startPos: 0,
+        endPos: 6,
+        trigger: null,
+      }),
+    ).toBe(true)
+  })
+
+  test('does not auto-trigger a bare file word', () => {
+    expect(
+      __shouldAutoTriggerCompletionForTests({
+        type: 'file',
+        prefix: 'readme',
+        startPos: 0,
+        endPos: 6,
+        trigger: null,
+      }),
+    ).toBe(false)
   })
 })
 

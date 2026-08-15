@@ -14,6 +14,23 @@ export function __shouldHandleUnifiedCompletionTabKeyForTests(
   return Boolean(key.tab) && !Boolean(key.shift)
 }
 
+export function __commandTabCompletionActionForTests(args: {
+  isAlreadyActive: boolean
+  suggestionCount: number
+}): 'accept-selected' | 'accept-first' | 'show-list' {
+  if (args.isAlreadyActive) return 'accept-selected'
+  if (args.suggestionCount <= 1) return 'accept-first'
+  return 'show-list'
+}
+
+export function __completionPreviewOriginalInputForTests(args: {
+  currentInput: string
+  existingPreview: { isActive: boolean; originalInput: string } | null
+}): string {
+  if (args.existingPreview?.isActive) return args.existingPreview.originalInput
+  return args.currentInput
+}
+
 export function useUnifiedCompletionTabKey(args: {
   input: string
   state: CompletionState
@@ -96,7 +113,10 @@ export function useUnifiedCompletionTabKey(args: {
             selectedIndex: nextIndex,
             preview: {
               isActive: true,
-              originalInput: args.input,
+              originalInput: __completionPreviewOriginalInputForTests({
+                currentInput: args.input,
+                existingPreview: args.state.preview,
+              }),
               wordRange: [
                 args.state.context.startPos,
                 args.state.context.startPos + preview.length,
@@ -116,6 +136,15 @@ export function useUnifiedCompletionTabKey(args: {
       if (context.type === 'command') {
         const firstSuggestion = currentSuggestions[0]
         if (!firstSuggestion || isLoadingSuggestion(firstSuggestion)) {
+          args.activateCompletion(currentSuggestions, context)
+          return true
+        }
+
+        const action = __commandTabCompletionActionForTests({
+          isAlreadyActive: false,
+          suggestionCount: currentSuggestions.length,
+        })
+        if (action === 'show-list') {
           args.activateCompletion(currentSuggestions, context)
           return true
         }
@@ -162,7 +191,10 @@ export function useUnifiedCompletionTabKey(args: {
       args.updateState({
         preview: {
           isActive: true,
-          originalInput: args.input,
+          originalInput: __completionPreviewOriginalInputForTests({
+            currentInput: args.input,
+            existingPreview: args.state.preview,
+          }),
           wordRange: [context.startPos, context.startPos + preview.length],
         },
       })

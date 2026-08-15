@@ -89,6 +89,7 @@ function renderPromptInputView(args: {
   terminalRows?: number
   terminalColumns?: number
   suppressStatusLine?: boolean
+  emptyDirMessage?: string
 }) {
   const tokenUsage = args.tokenUsage ?? 0
   const terminalRows = args.terminalRows ?? 24
@@ -120,7 +121,7 @@ function renderPromptInputView(args: {
         historyIndex={0}
         suggestions={[]}
         selectedIndex={0}
-        emptyDirMessage=""
+        emptyDirMessage={args.emptyDirMessage ?? ''}
         handleHistoryUp={() => {}}
         handleHistoryDown={() => {}}
         resetHistory={() => {}}
@@ -170,6 +171,7 @@ describe('PromptInputView status line layout', () => {
     expect(output).toContain('mimo-v2.5-pro \u00b7 0/1.0M')
     expect(output).toContain('Chat')
     expect(output).not.toContain('[custom-openai]')
+    expect(output).not.toContain('(medium)')
     expect(output).not.toContain('/bash command')
     expect(output).not.toContain('/note note')
 
@@ -208,6 +210,22 @@ describe('PromptInputView status line layout', () => {
     expect(output).toContain('Chat')
     expect(output).not.toContain('[custom-openai] mimo-v2.5-pro')
     expect(output).not.toContain('0 / 1.0M')
+  })
+
+  test('shows an empty-directory hint on the status line after completion closes', async () => {
+    const harness = createHarness(
+      renderPromptInputView({
+        customStatusLineActive: false,
+        statusLine: 'Chat',
+        emptyDirMessage: 'No files in docs/',
+      }),
+    )
+
+    await harness.wait(20)
+    const output = harness.getOutput()
+
+    expect(output).toContain('No files in docs/')
+    expect(output).not.toContain('Chat')
   })
 
   test('lets priority messages use the full status line', async () => {

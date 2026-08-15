@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef } from 'react'
 import { Box, Text } from 'ink'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
+import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { getTheme, type Theme } from '#core/utils/theme'
@@ -63,21 +64,19 @@ function ShortcutColumn({
   )
 }
 
-export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
-  const theme = getTheme()
-  const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null as null } as const
-  const didDoneRef = useRef(false)
-
-  const safeOnDone = useCallback(() => {
-    if (didDoneRef.current) return
-    didDoneRef.current = true
-    onDone()
-  }, [onDone])
-
-  const modeCycleShortcut = useMemo(() => getPermissionModeCycleShortcut(), [])
-  const { commands, shortcuts } = useMemo(() => getCommandShortcutHints(), [])
-  const shortcutModifier = getShortcutModifierLabel()
+export function __buildShortcutRowsForTests(options?: {
+  voiceEnabled?: boolean
+  platform?: NodeJS.Platform
+}): {
+  commandRows: ShortcutRow[]
+  inputRows: ShortcutRow[]
+  systemRows: ShortcutRow[]
+  narrowRows: ShortcutRow[]
+} {
+  const platform = options?.platform
+  const { commands, shortcuts } = getCommandShortcutHints(platform)
+  const shortcutModifier = getShortcutModifierLabel(platform)
+  const modeCycleShortcut = getPermissionModeCycleShortcut()
   const modelShortcut = shortcuts[0] ?? {
     trigger: 'Alt+M',
     effect: 'switch model',
@@ -86,22 +85,13 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
     trigger: 'Alt+G',
     effect: 'open external editor',
   }
-  const voiceShortcut = isExperimentalVoiceEnabled()
+  const voiceShortcut = options?.voiceEnabled
     ? {
         label: 'F10',
         detail: 'voice conversation; tap to start/stop recording',
         tone: 'shortcut' as const,
       }
     : null
-
-  useKeypress((input, key) => {
-    const inputChar = input.length === 1 ? input : ''
-    if (key.escape || inputChar === '?' || (key.ctrl && inputChar === 'c')) {
-      safeOnDone()
-      return true
-    }
-    return undefined
-  })
 
   const commandRows: ShortcutRow[] = [
     ...commands.map(command => ({
@@ -112,7 +102,7 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
     { label: '@path', detail: 'insert file path', tone: 'command' },
   ]
   const inputRows: ShortcutRow[] = [
-    { label: '! <cmd>', detail: 'run shell command', tone: 'command' },
+    { label: '/bash <cmd>', detail: 'run shell command', tone: 'command' },
     { label: '& <cmd>', detail: 'run in background', tone: 'command' },
     {
       label: `Ctrl/${shortcutModifier}+B`,
@@ -130,6 +120,12 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
       detail: 'insert newline',
       tone: 'shortcut',
     },
+    {
+      label: 'Ctrl+S',
+      detail: 'stash prompt; again restores',
+      tone: 'shortcut',
+    },
+    { label: 'Alt+Up', detail: 'edit latest queued prompt', tone: 'shortcut' },
   ]
   const systemRows: ShortcutRow[] = [
     {
@@ -147,6 +143,8 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
       detail: 'thinking mode',
       tone: 'shortcut',
     },
+    { label: 'F7', detail: 'command palette', tone: 'shortcut' },
+    { label: 'F1', detail: 'full help', tone: 'shortcut' },
     { label: 'Ctrl+O', detail: 'transcript output', tone: 'shortcut' },
     { label: 'Ctrl+T', detail: 'work tasks', tone: 'shortcut' },
     { label: 'Ctrl+_', detail: 'undo', tone: 'shortcut' },
@@ -155,12 +153,61 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
     { label: 'Esc', detail: 'close', tone: 'shortcut' },
   ]
   const narrowRows: ShortcutRow[] = [
-    ...systemRows.slice(0, 2),
-    ...inputRows.slice(2, 4),
-    ...systemRows.slice(2, 4),
-    voiceShortcut ??
-      systemRows[6] ?? { label: 'Esc', detail: 'close', tone: 'shortcut' },
+    { label: 'F7', detail: 'command palette', tone: 'shortcut' },
+    {
+      label: 'Ctrl+S',
+      detail: 'stash prompt; again restores',
+      tone: 'shortcut',
+    },
+    {
+      label: modeCycleShortcut.displayText,
+      detail: 'cycle tool permission mode',
+      tone: 'shortcut',
+    },
+    {
+      label: modelShortcut.trigger,
+      detail: modelShortcut.effect,
+      tone: 'shortcut',
+    },
+    { label: '/bash <cmd>', detail: 'run shell command', tone: 'command' },
+    voiceShortcut ?? { label: 'Esc', detail: 'close', tone: 'shortcut' },
   ]
+
+  return { commandRows, inputRows, systemRows, narrowRows }
+}
+
+export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
+  const theme = getTheme()
+  const layout = useScreenLayout()
+  const exitState = { pending: false, keyName: null as null } as const
+  const didDoneRef = useRef(false)
+
+  const safeOnDone = useCallback(() => {
+    if (didDoneRef.current) return
+    didDoneRef.current = true
+    onDone()
+  }, [onDone])
+
+  const rows = useMemo(
+    () =>
+      __buildShortcutRowsForTests({
+        voiceEnabled: isExperimentalVoiceEnabled(),
+      }),
+    [],
+  )
+
+  useKeypress(
+    (input, key) => {
+      const inputChar = input.length === 1 ? input : ''
+      if (key.escape || inputChar === '?' || (key.ctrl && inputChar === 'c')) {
+        safeOnDone()
+        return true
+      }
+      return undefined
+    },
+    { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
+  )
+
   const wide = layout.columns >= 110
   const gap = Math.max(2, layout.gap)
   const contentWidth = Math.max(1, layout.columns - layout.paddingX * 2 - 2)
@@ -176,14 +223,25 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
       paddingY={layout.paddingY}
       gap={layout.gap}
     >
-      <Box flexDirection="row" gap={gap} paddingX={1}>
-        <ShortcutColumn rows={commandRows} theme={theme} width={leftWidth} />
-        <ShortcutColumn
-          rows={wide ? inputRows : narrowRows}
-          theme={theme}
-          width={middleWidth}
-        />
-        {wide ? <ShortcutColumn rows={systemRows} theme={theme} /> : null}
+      <Box flexDirection="column" gap={layout.gap}>
+        <Box flexDirection="row" gap={gap} paddingX={1}>
+          <ShortcutColumn
+            rows={rows.commandRows}
+            theme={theme}
+            width={leftWidth}
+          />
+          <ShortcutColumn
+            rows={wide ? rows.inputRows : rows.narrowRows}
+            theme={theme}
+            width={middleWidth}
+          />
+          {wide ? (
+            <ShortcutColumn rows={rows.systemRows} theme={theme} />
+          ) : null}
+        </Box>
+        <Text color={theme.secondaryText} wrap="truncate-end">
+          F1 full help · Esc close
+        </Text>
       </Box>
     </ScreenFrame>
   )

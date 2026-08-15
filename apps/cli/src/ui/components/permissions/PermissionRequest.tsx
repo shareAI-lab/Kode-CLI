@@ -30,6 +30,7 @@ import { AskUserQuestionTool } from '#tools/tools/interaction/AskUserQuestionToo
 import { AskUserQuestionPermissionRequest } from './AskUserQuestionPermissionRequest/AskUserQuestionPermissionRequest'
 import type { ToolPermissionContextUpdate } from '#core/types/toolPermissionContext'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
+import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { Box, Text } from 'ink'
 import { getTheme } from '#core/utils/theme'
 
@@ -181,8 +182,9 @@ export function PermissionRequest({
       }
       return undefined
     },
-    // Let tool-specific permission UIs intercept Esc first (e.g. WebFetch logging).
-    { priority: -10 },
+    // Above REPL cancel (51) so Esc denies this tool instead of aborting the
+    // turn. Tool-specific handlers that must run first should use INLINE_TOOL+1.
+    { priority: KEYPRESS_PRIORITY.INLINE_TOOL },
   )
 
   const toolName =

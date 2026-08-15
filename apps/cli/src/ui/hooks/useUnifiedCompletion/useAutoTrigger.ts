@@ -15,10 +15,13 @@ function shouldAutoTrigger(context: CompletionContext): boolean {
       const prefix = context.prefix
       if (
         prefix.startsWith('./') ||
+        prefix.startsWith('.\\') ||
         prefix.startsWith('../') ||
+        prefix.startsWith('..\\') ||
         prefix.startsWith('/') ||
         prefix.startsWith('~') ||
-        prefix.includes('/')
+        prefix.includes('/') ||
+        prefix.includes('\\')
       ) {
         return true
       }
@@ -30,6 +33,12 @@ function shouldAutoTrigger(context: CompletionContext): boolean {
     default:
       return false
   }
+}
+
+export function __shouldAutoTriggerCompletionForTests(
+  context: CompletionContext,
+): boolean {
+  return shouldAutoTrigger(context)
 }
 
 export function __computeAutoTriggerActionForTests(args: {

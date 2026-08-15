@@ -47,8 +47,8 @@ function WorkTasksEmptyView({
       gap={layout.gap}
     >
       <Box flexDirection="column" gap={layout.gap}>
-        <Text dimColor>{message}</Text>
-        <Text dimColor wrap="truncate-end">
+        <Text color={getTheme().secondaryText}>{message}</Text>
+        <Text color={getTheme().secondaryText} wrap="truncate-end">
           Esc or Ctrl+C/Ctrl+T to close
         </Text>
       </Box>
@@ -160,28 +160,39 @@ function WorkTasksListView({
       gap={layout.gap}
     >
       <Box flexDirection="column" gap={layout.gap}>
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {count} {label}:
         </Text>
 
         <Box flexDirection="column" width="100%">
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {window.showUpIndicator ? `${figures.arrowUp} More` : ' '}
           </Text>
           {visibleItems.map((item, idx) => {
             const absoluteIndex = window.start + idx
             const isSelected = absoluteIndex === selectedIndex
+            const iconColor =
+              item.icon === '✔'
+                ? theme.success
+                : item.icon === '◼'
+                  ? theme.warning
+                  : theme.secondaryText
             return (
               <Box key={absoluteIndex} flexDirection="row" gap={1}>
                 <Text color={isSelected ? theme.kode : theme.secondaryText}>
                   {isSelected ? figures.pointer : ' '}
                 </Text>
-                <Text dimColor={item.iconDim}>{item.icon}</Text>
+                <Text color={iconColor}>{item.icon}</Text>
                 <Text
                   bold={item.contentBold || isSelected}
-                  dimColor={item.contentDim && !isSelected}
                   strikethrough={item.contentStrikethrough}
-                  color={isSelected ? theme.text : undefined}
+                  color={
+                    isSelected
+                      ? theme.text
+                      : item.contentDim
+                        ? theme.secondaryText
+                        : theme.text
+                  }
                   wrap="truncate-end"
                 >
                   {item.content.replace(/\s+/g, ' ')}
@@ -189,12 +200,12 @@ function WorkTasksListView({
               </Box>
             )
           })}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {window.showDownIndicator ? `${figures.arrowDown} More` : ' '}
           </Text>
         </Box>
 
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           ↑/↓ or j/k · PgUp/PgDn · Home/End · Esc/Ctrl+C/Ctrl+T close
         </Text>
       </Box>

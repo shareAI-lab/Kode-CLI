@@ -15,6 +15,7 @@ import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { PermissionRequestDetails } from '#ui-ink/components/permissions/PermissionRequestDetails'
+import { getPermissionDenyOptionLabel } from '#ui-ink/components/permissions/toolUseOptions'
 import {
   defaultPermissionFocusValue,
   permissionSelectFocusScope,
@@ -104,7 +105,7 @@ export function WebFetchPermissionRequest({
                     ]
                   : []),
                 {
-                  label: `Deny and provide instructions ${chalk.bold('(esc)')}`,
+                  label: getPermissionDenyOptionLabel(),
                   value: 'no',
                 },
               ]}
