@@ -538,9 +538,7 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     harnessManager.track(h)
 
     await h.wait(25)
-    expect(h.getOutput()).toContain(
-      'INPUT:check src/ma|CURSOR:12|ACTIVE:true',
-    )
+    expect(h.getOutput()).toContain('INPUT:check src/ma|CURSOR:12|ACTIVE:true')
 
     h.clearOutput()
     h.stdin.write('\r')

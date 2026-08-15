@@ -90,12 +90,7 @@ export function __areHelpTextPropsEqualForTests(
 }
 
 export type CompletionHelpKind =
-  | 'empty'
-  | 'none'
-  | 'command'
-  | 'directory'
-  | 'mention'
-  | 'file'
+  'empty' | 'none' | 'command' | 'directory' | 'mention' | 'file'
 
 export function __completionHelpKindForTests(args: {
   emptyDirMessage: string

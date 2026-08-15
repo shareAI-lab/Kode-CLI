@@ -43,9 +43,7 @@ export function __preferFilesOverMentionsForTests(args: {
 }): boolean {
   if (!args.prefix) return false
   if (
-    args.mentionSuggestions.some(item =>
-      isMentionPrefixHit(item, args.prefix),
-    )
+    args.mentionSuggestions.some(item => isMentionPrefixHit(item, args.prefix))
   ) {
     return false
   }
