@@ -112,6 +112,18 @@
         "vite": "^8.1.3",
       },
       "optionalDependencies": {
+        "@shareai-lab/kode-bin-darwin-arm64": "3.0.0",
+        "@shareai-lab/kode-bin-darwin-x64": "3.0.0",
+        "@shareai-lab/kode-bin-linux-arm64": "3.0.0",
+        "@shareai-lab/kode-bin-linux-x64": "3.0.0",
+        "@shareai-lab/kode-bin-win32-arm64": "3.0.0",
+        "@shareai-lab/kode-bin-win32-x64": "3.0.0",
+        "@shareai-lab/kode-ripgrep-darwin-arm64": "3.0.0",
+        "@shareai-lab/kode-ripgrep-darwin-x64": "3.0.0",
+        "@shareai-lab/kode-ripgrep-linux-arm64": "3.0.0",
+        "@shareai-lab/kode-ripgrep-linux-x64": "3.0.0",
+        "@shareai-lab/kode-ripgrep-win32-arm64": "3.0.0",
+        "@shareai-lab/kode-ripgrep-win32-x64": "3.0.0",
         "@vscode/ripgrep": "^1.18.0",
       },
     },
@@ -301,51 +313,51 @@
     },
     "packages/kode-bin-darwin-arm64": {
       "name": "@shareai-lab/kode-bin-darwin-arm64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-bin-darwin-x64": {
       "name": "@shareai-lab/kode-bin-darwin-x64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-bin-linux-arm64": {
       "name": "@shareai-lab/kode-bin-linux-arm64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-bin-linux-x64": {
       "name": "@shareai-lab/kode-bin-linux-x64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-bin-win32-arm64": {
       "name": "@shareai-lab/kode-bin-win32-arm64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-bin-win32-x64": {
       "name": "@shareai-lab/kode-bin-win32-x64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-ripgrep-darwin-arm64": {
       "name": "@shareai-lab/kode-ripgrep-darwin-arm64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-ripgrep-darwin-x64": {
       "name": "@shareai-lab/kode-ripgrep-darwin-x64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-ripgrep-linux-arm64": {
       "name": "@shareai-lab/kode-ripgrep-linux-arm64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-ripgrep-linux-x64": {
       "name": "@shareai-lab/kode-ripgrep-linux-x64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-ripgrep-win32-arm64": {
       "name": "@shareai-lab/kode-ripgrep-win32-arm64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/kode-ripgrep-win32-x64": {
       "name": "@shareai-lab/kode-ripgrep-win32-x64",
-      "version": "2.2.1",
+      "version": "3.0.0",
     },
     "packages/logging": {
       "name": "@kode/logging",

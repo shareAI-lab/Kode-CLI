@@ -317,7 +317,8 @@ export function listKodeAgentSessions(args: {
   items.sort((a, b) => {
     const am = a.modifiedAt?.getTime() ?? 0
     const bm = b.modifiedAt?.getTime() ?? 0
-    return bm - am
+    if (am !== bm) return bm - am
+    return b.sessionId.localeCompare(a.sessionId)
   })
 
   return items
@@ -372,7 +373,8 @@ export function listAllKodeAgentSessions(): KodeAgentSessionListItem[] {
   items.sort((a, b) => {
     const am = a.modifiedAt?.getTime() ?? 0
     const bm = b.modifiedAt?.getTime() ?? 0
-    return bm - am
+    if (am !== bm) return bm - am
+    return b.sessionId.localeCompare(a.sessionId)
   })
 
   return items

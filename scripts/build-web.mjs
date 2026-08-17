@@ -13,10 +13,15 @@ function runOrThrow(cmd, args, options) {
   }
 }
 
-const bunExe = process.env.npm_execpath || 'bun'
+const viteBin = join('node_modules', 'vite', 'bin', 'vite.js')
 
 console.log('Building Web UI...')
-runOrThrow(bunExe, ['run', '--filter', '@kode/web', 'build'])
+runOrThrow(process.execPath, [
+  viteBin,
+  'build',
+  '--config',
+  'apps/web/vite.config.ts',
+])
 
 const srcWebDist = join('apps', 'web', 'dist')
 if (!existsSync(join(srcWebDist, 'index.html'))) {

@@ -1,6 +1,6 @@
 {
   "name": "@shareai-lab/kode",
-  "version": "2.2.2",
+  "version": "3.0.0",
   "packageManager": "bun@1.3.14",
   "workspaces": [
     "apps/*",
@@ -173,7 +173,19 @@
     "sharp": "0.35.3"
   },
   "optionalDependencies": {
-    "@vscode/ripgrep": "^1.18.0"
+    "@vscode/ripgrep": "^1.18.0",
+    "@shareai-lab/kode-ripgrep-darwin-arm64": "3.0.0",
+    "@shareai-lab/kode-ripgrep-darwin-x64": "3.0.0",
+    "@shareai-lab/kode-ripgrep-linux-arm64": "3.0.0",
+    "@shareai-lab/kode-ripgrep-linux-x64": "3.0.0",
+    "@shareai-lab/kode-ripgrep-win32-arm64": "3.0.0",
+    "@shareai-lab/kode-ripgrep-win32-x64": "3.0.0",
+    "@shareai-lab/kode-bin-darwin-arm64": "3.0.0",
+    "@shareai-lab/kode-bin-darwin-x64": "3.0.0",
+    "@shareai-lab/kode-bin-linux-arm64": "3.0.0",
+    "@shareai-lab/kode-bin-linux-x64": "3.0.0",
+    "@shareai-lab/kode-bin-win32-arm64": "3.0.0",
+    "@shareai-lab/kode-bin-win32-x64": "3.0.0"
   },
   "devDependencies": {
     "@codemirror/lang-css": "^6.3.1",
