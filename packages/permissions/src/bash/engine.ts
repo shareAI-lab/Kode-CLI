@@ -41,6 +41,10 @@ function formatDecisionReason(
   return 'Compound command requires approval'
 }
 
+function isHighRiskAsk(decision: BashPermissionDecision): boolean {
+  return decision.decisionReason?.type !== 'rule'
+}
+
 function parseBoolLikeEnv(value: string | undefined): boolean {
   if (!value) return false
   const v = value.trim().toLowerCase()
@@ -297,7 +301,7 @@ export async function checkBashPermissions(args: {
       suggestions: fullPathDecision.suggestions,
       decisionReason: formatDecisionReason(fullPathDecision.decisionReason),
       blockedPath: fullPathDecision.blockedPath,
-      requiresExplicitApproval: true,
+      requiresExplicitApproval: isHighRiskAsk(fullPathDecision),
     }
   }
 
@@ -309,7 +313,7 @@ export async function checkBashPermissions(args: {
         suggestions: decision.suggestions,
         decisionReason: formatDecisionReason(decision.decisionReason),
         blockedPath: decision.blockedPath,
-        requiresExplicitApproval: true,
+        requiresExplicitApproval: isHighRiskAsk(decision),
       }
     }
   }
@@ -367,7 +371,6 @@ export function checkBashPermissionsAutoAllowedBySandbox(args: {
         result: false,
         message: `${PRODUCT_NAME} requested permissions to use Bash, but you haven't granted it yet.`,
         decisionReason: prefixMatches.ask,
-        requiresExplicitApproval: true,
       }
     }
   }

@@ -308,7 +308,6 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
           message: `${PRODUCT_NAME} requested permissions to write to ${toolPath}, but you haven't granted it yet.`,
           blockedPath: toolPath,
           decisionReason: askedRule,
-          requiresExplicitApproval: true,
         }
       }
     }
@@ -358,9 +357,9 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     checkEditPermissionForPath,
   })
 
-  // Edit mode auto-approves ordinary requests before the headless fallback
-  // turns unavailable prompts into denials. Explicit ask rules and protected
-  // boundaries set requiresExplicitApproval and remain promptable/blocked.
+  // Edit is the full-permission execution mode for ordinary operations.
+  // Configured ask rules no longer interrupt it, while high-risk results keep
+  // requiresExplicitApproval and hard denials remain non-bypassable.
   if (
     isEditMode &&
     !requiresUserInteraction &&

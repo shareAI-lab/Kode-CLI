@@ -33,7 +33,7 @@ export function getPermissionModeDetail(mode: PermissionMode): string {
     case 'plan':
       return 'review plans before implementation'
     case 'acceptEdits':
-      return 'run workspace operations automatically'
+      return 'run tools automatically'
     case 'cautious':
       return 'ask before tool use'
   }

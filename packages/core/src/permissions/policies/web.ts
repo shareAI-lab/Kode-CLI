@@ -147,7 +147,6 @@ export function checkWebPermission(args: {
         result: false,
         message: `${PRODUCT_NAME} requested permissions to use ${args.tool.name}, but you haven't granted it yet.`,
         decisionReason: askedRule,
-        requiresExplicitApproval: true,
       }
     }
     if (args.effectiveAllowedTools.some(matchesWebSearchRule)) {
@@ -209,7 +208,6 @@ export function checkWebPermission(args: {
       result: false,
       message: `${PRODUCT_NAME} requested permissions to use ${args.tool.name}, but you haven't granted it yet.`,
       decisionReason: askedRule,
-      requiresExplicitApproval: true,
     }
   }
   if (args.effectiveAllowedTools.some(matchesWebFetchRule)) {

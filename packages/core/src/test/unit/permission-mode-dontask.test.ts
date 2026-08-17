@@ -68,9 +68,9 @@ describe('three permission modes', () => {
     expect(result.result).toBe(true)
   })
 
-  test('Edit respects an explicit ask rule', async () => {
+  test('Edit auto-approves an explicit ask rule', async () => {
     const toolPermissionContext = createDefaultToolPermissionContext()
-    toolPermissionContext.alwaysAskRules.session = ['Bash(bun:*)']
+    toolPermissionContext.alwaysAskRules.session = ['Bash(git:*)']
     const ctx = {
       abortController: new AbortController(),
       messageId: 'test',
@@ -80,8 +80,9 @@ describe('three permission modes', () => {
         verbose: false,
         safeMode: false,
         forkNumber: 0,
-        messageLogName: 'test-edit-ask-rule',
+        messageLogName: 'test-edit-full-permission',
         maxThinkingTokens: 0,
+        shouldAvoidPermissionPrompts: true,
         toolPermissionContext,
       },
       readFileTimestamps: {},
@@ -89,14 +90,12 @@ describe('three permission modes', () => {
 
     const result = await hasPermissionsToUseTool(
       BashTool,
-      { command: 'bun run typecheck' },
+      { command: 'git pull --ff-only' },
       ctx as any,
       {} as any,
     )
 
-    expect(result.result).toBe(false)
-    if (result.result !== false) throw new Error('Expected permission request')
-    expect(result.requiresExplicitApproval).toBe(true)
+    expect(result.result).toBe(true)
   })
 
   test('safe mode forces a fresh Edit session to Ask', async () => {

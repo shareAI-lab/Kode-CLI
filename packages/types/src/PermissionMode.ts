@@ -1,5 +1,5 @@
 // Permission modes deliberately have one clear purpose each:
-// - acceptEdits (Edit): run normal workspace operations without per-tool prompts
+// - acceptEdits (Edit): run tool operations without per-tool prompts
 // - plan (Plan): allow only read-only operations
 // - cautious (Ask): request approval before operations
 export type PermissionMode = 'acceptEdits' | 'plan' | 'cautious'
@@ -129,7 +129,7 @@ export const MODE_CONFIGS: Record<PermissionMode, ModeConfig> = {
     icon: '>>',
     color: 'green',
     description:
-      'Auto-run workspace edits and commands; explicit rules and protected paths still apply',
+      'Auto-run tools and edits; hard deny rules and protected paths still apply',
     allowedTools: ['*'],
     restrictions: {
       readOnly: false,

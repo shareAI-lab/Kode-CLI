@@ -30,7 +30,7 @@ describe('ModeIndicator', () => {
     expect(indicator.color).toBe(theme.autoAccept)
     expect(indicator.mainText).toBe('Tool permissions: Edit')
     expect(indicator.shortcutHintText).toBe(
-      ' (shift+tab to change · run workspace operations automatically)',
+      ' (shift+tab to change · run tools automatically)',
     )
   })
 

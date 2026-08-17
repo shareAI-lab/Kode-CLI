@@ -99,7 +99,6 @@ export function checkFilesystemPermission(args: {
         message: `${PRODUCT_NAME} requested permissions to read from ${toolPath}, but you haven't granted it yet.`,
         blockedPath: toolPath,
         decisionReason: askedRule,
-        requiresExplicitApproval: true,
       }
     }
   }
