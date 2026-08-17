@@ -122,8 +122,9 @@ async function waitForInit(events: AnyEvent[]): Promise<AnyEvent> {
 
 describe('daemon (Bun HTTP+WS)', () => {
   test('health + token gate + ws prompt (echo)', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'kode-daemon-smoke-'))
     const daemon = await startKodeDaemon({
-      cwd: process.cwd(),
+      cwd: workspace,
       port: 0,
       echo: true,
     })
@@ -217,6 +218,7 @@ describe('daemon (Bun HTTP+WS)', () => {
       await closeWs(ws)
     } finally {
       daemon.stop()
+      rmSync(workspace, { recursive: true, force: true })
     }
   }, 45_000)
 
