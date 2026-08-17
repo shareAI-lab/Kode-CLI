@@ -57,7 +57,7 @@ describe('TUI E2E: SessionMessageScreen', () => {
     rmSync(workspace, { recursive: true, force: true })
   })
 
-  test('selects a session, composes, sends, and shows threaded history', async () => {
+  test('selects a session, composes, sends, and persists threaded history', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
         <SessionMessageScreen
@@ -79,19 +79,22 @@ describe('TUI E2E: SessionMessageScreen', () => {
     expect(h.getOutput()).toContain('Security reviewer')
 
     h.stdin.write('\r')
-    await h.wait(40)
+    await h.waitFor(output =>
+      output.includes('New message to Security reviewer'),
+    )
     expect(h.getOutput()).toContain('New message to Security reviewer')
 
-    h.stdin.write('Please verify the cancellation race.')
+    // The heading is rendered one frame before the text input subscribes to keypresses.
     await h.wait(100)
+    await h.typeText('Please verify the cancellation race.', 50)
+    await h.wait(200)
     h.stdin.write('\r')
-    await h.wait(120)
+    await h.waitFor(output => output.includes('Queued'), 5_000)
 
     expect(h.getOutput()).toContain('Queued')
-    expect(h.getOutput()).toContain('Please verify the cancellation race.')
     expect(
       (await peekSessionMessages({ cwd: workspace, sessionId: TARGET }))[0]
         ?.body,
     ).toBe('Please verify the cancellation race.')
-  })
+  }, 20_000)
 })

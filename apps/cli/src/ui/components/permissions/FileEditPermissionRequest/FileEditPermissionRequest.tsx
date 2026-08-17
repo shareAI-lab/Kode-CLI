@@ -24,6 +24,7 @@ import { PermissionRequestDetails } from '#ui-ink/components/permissions/Permiss
 import { applyToolPermissionUpdatesToLiveToolUseContext } from '../liveToolPermissionContext'
 import { computeAvailableColumns } from '#ui-ink/primitives/layout/viewportColumns'
 import { permissionSelectFocusScope } from '#ui-ink/components/permissions/permissionFocusScope'
+import { getPermissionDenyOptionLabel } from '#ui-ink/components/permissions/toolUseOptions'
 
 function getOptions(args: {
   path: string
@@ -40,7 +41,7 @@ function getOptions(args: {
       value: 'yes',
     },
     {
-      label: `Deny and provide instructions (${chalk.bold.hex(getTheme().warning)('esc')})`,
+      label: getPermissionDenyOptionLabel(),
       value: 'no',
     },
   ]

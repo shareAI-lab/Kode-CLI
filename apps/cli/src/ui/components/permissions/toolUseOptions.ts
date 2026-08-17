@@ -26,6 +26,10 @@ const SHELL_KEYWORD_PREFIXES = new Set([
   'done',
 ])
 
+export function getPermissionDenyOptionLabel(): string {
+  return `Deny (${chalk.bold.hex(getTheme().warning)('Esc')})`
+}
+
 /**
  * Generates options for the tool use confirmation dialog
  */
@@ -74,7 +78,7 @@ export function toolUseOptions({
     },
     ...dontShowAgainOptions,
     {
-      label: `Deny and provide instructions (${chalk.bold.hex(getTheme().warning)('esc')})`,
+      label: getPermissionDenyOptionLabel(),
       value: 'no',
     },
   ]

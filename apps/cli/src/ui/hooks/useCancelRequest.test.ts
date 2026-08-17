@@ -50,4 +50,28 @@ describe('request cancellation', () => {
       }),
     ).toBe(false)
   })
+
+  test('leaves Escape available to deny a permission dialog', () => {
+    expect(
+      shouldHandleCancelRequest({
+        wantsCancel: true,
+        isLoading: true,
+        isMessageSelectorVisible: false,
+        isPermissionDialogVisible: true,
+        abortSignal: new AbortController().signal,
+      }),
+    ).toBe(false)
+  })
+
+  test('leaves Escape available to close a fullscreen overlay', () => {
+    expect(
+      shouldHandleCancelRequest({
+        wantsCancel: true,
+        isLoading: true,
+        isMessageSelectorVisible: false,
+        isOverlayVisible: true,
+        abortSignal: new AbortController().signal,
+      }),
+    ).toBe(false)
+  })
 })

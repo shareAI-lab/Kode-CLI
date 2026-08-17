@@ -1,5 +1,18 @@
 import type { CompletionContext } from './types'
 
+function isAtMentionBoundary(input: string, atIndex: number): boolean {
+  return atIndex === 0 || /\s/.test(input[atIndex - 1]!)
+}
+
+function isAtPathPrefix(content: string): boolean {
+  return (
+    content.startsWith('.') ||
+    content.startsWith('~') ||
+    content.includes('/') ||
+    content.includes('\\')
+  )
+}
+
 export function getCompletionContext(args: {
   input: string
   cursorOffset: number
@@ -15,9 +28,13 @@ export function getCompletionContext(args: {
     const char = input[start - 1]!
     if (/\s/.test(char)) break
 
+    // Only treat @ as a mention trigger at a token boundary. Mid-token
+    // addresses (user@host, emails) stay part of the current word.
     if (char === '@' && start < cursorOffset) {
-      start--
-      break
+      if (isAtMentionBoundary(input, start - 1)) {
+        start--
+        break
+      }
     }
 
     if (char === '/') {
@@ -73,8 +90,10 @@ export function getCompletionContext(args: {
   if (word.startsWith('@')) {
     const content = word.slice(1)
     if (word.includes('@', 1)) return null
+    // @src/ and @~/foo are file mentions; @agent stays an agent mention.
+    const type = isAtPathPrefix(content) ? 'file' : 'agent'
     return {
-      type: 'agent',
+      type,
       prefix: content,
       startPos: start,
       endPos: cursorOffset,

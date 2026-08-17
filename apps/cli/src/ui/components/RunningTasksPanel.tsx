@@ -117,12 +117,16 @@ export const RunningTasksPanel = React.memo(function RunningTasksPanel({
       width="100%"
     >
       <Box justifyContent="space-between" width="100%">
-        <Text color={theme.secondaryText}>Local Tasks</Text>
+        <Text color={theme.secondaryText}>Local agents & shells</Text>
         <Text color={theme.secondaryText}>/tasks</Text>
       </Box>
       {rows.map(row => (
         <Box key={row.key} flexDirection="row" width="100%">
-          <Text color={row.status === 'running' ? theme.warning : theme.text}>
+          <Text
+            color={
+              row.status === 'running' ? theme.warning : theme.secondaryText
+            }
+          >
             {statusGlyph(row.status)}{' '}
           </Text>
           <Text color={theme.text} wrap="truncate-end">

@@ -20,11 +20,23 @@ const DEL_CODE = 127 // \x7f
 // A slightly longer guard helps prevent cursor jumps / wrong insertion points.
 const IME_NAVIGATION_GUARD_MS = 150
 
-// Helper to check if input is a backspace character
 function isBackspaceChar(input: string): boolean {
   if (input.length !== 1) return false
   const code = input.charCodeAt(0)
   return code === BACKSPACE_CODE || code === DEL_CODE
+}
+
+export function __resolveTextInputDestructiveActionForTests(
+  key: Pick<Key, 'delete' | 'backspace'>,
+  input: string,
+): 'delete' | 'backspace' | null {
+  if (key.delete && !key.backspace && !isBackspaceChar(input)) {
+    return 'delete'
+  }
+  if (key.backspace || input === '\b' || isBackspaceChar(input)) {
+    return 'backspace'
+  }
+  return null
 }
 
 export function useTextInput({
@@ -330,13 +342,12 @@ export function useTextInput({
       return // Skip Tab key processing - let completion system handle it
     }
 
-    // Direct handling for backspace or delete (which is being detected as delete)
-    if (
-      key.backspace ||
-      key.delete ||
-      input === '\b' ||
-      isBackspaceChar(input)
-    ) {
+    const destructive = __resolveTextInputDestructiveActionForTests(key, input)
+    if (destructive === 'delete') {
+      applyCursor(getCursor().del())
+      return
+    }
+    if (destructive === 'backspace') {
       applyCursor(getCursor().backspace())
       return
     }
@@ -368,8 +379,12 @@ export function useTextInput({
   }
 
   function mapKey(key: Key): (input: string) => MaybeCursor {
-    // Direct handling for backspace or delete
-    if (key.backspace || key.delete) {
+    const destructive = __resolveTextInputDestructiveActionForTests(key, '')
+    if (destructive === 'delete') {
+      maybeClearImagePasteErrorTimeout()
+      return () => getCursor().del()
+    }
+    if (destructive === 'backspace') {
       maybeClearImagePasteErrorTimeout()
       return () => getCursor().backspace()
     }

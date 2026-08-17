@@ -64,8 +64,8 @@ function LogoQuickActions({
       columns >= 55
         ? commands
         : columns >= 42
-          ? commands.slice(1, 3)
-          : commands.slice(1, 2)
+          ? commands.slice(0, 2)
+          : commands.slice(0, 1)
 
     return (
       <Text wrap="truncate-end">
@@ -168,7 +168,7 @@ export function Logo({
         )}
 
         {showMcpDetails ? (
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             MCP Servers:{' '}
             {mcpClients.length === 0 ? (
               'none'
@@ -176,14 +176,16 @@ export function Logo({
               <>
                 {connected.map((c, index) => (
                   <React.Fragment key={c.name}>
-                    {index > 0 ? <Text dimColor>, </Text> : null}
+                    {index > 0 ? (
+                      <Text color={theme.secondaryText}>, </Text>
+                    ) : null}
                     <Text color={theme.success}>{c.name}</Text>
                   </React.Fragment>
                 ))}
                 {failed.map((c, index) => (
                   <React.Fragment key={c.name}>
                     {connected.length > 0 || index > 0 ? (
-                      <Text dimColor>, </Text>
+                      <Text color={theme.secondaryText}>, </Text>
                     ) : null}
                     <Text color={theme.error}>{c.name}</Text>
                   </React.Fragment>
@@ -192,7 +194,7 @@ export function Logo({
             )}
           </Text>
         ) : rows >= SHORT_HELP_MIN_ROWS ? (
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             MCP: {connected.length} connected
             {failed.length > 0 ? `, ${failed.length} failed` : ''}
           </Text>
@@ -237,14 +239,17 @@ export function Logo({
 
       {/* MCP Servers section */}
       <Box flexDirection="column" marginTop={isCompact ? 1 : 2}>
-        <Text dimColor>
+        <Text color={theme.secondaryText}>
           {isCompact
             ? `MCP Servers ${separator}`
             : `── MCP Servers ${separator}`}
         </Text>
         <Box marginTop={isCompact ? 0 : 1} paddingLeft={isCompact ? 1 : 3}>
           {mcpClients.length === 0 ? (
-            <Text dimColor wrap={isCompact ? 'truncate-end' : 'wrap'}>
+            <Text
+              color={theme.secondaryText}
+              wrap={isCompact ? 'truncate-end' : 'wrap'}
+            >
               {isCompact
                 ? 'No servers configured'
                 : 'No servers configured - run: kode mcp add <name>'}
@@ -253,14 +258,16 @@ export function Logo({
             <Text wrap="truncate-end">
               {connected.map((c, index) => (
                 <React.Fragment key={c.name}>
-                  {index > 0 ? <Text dimColor>, </Text> : null}
+                  {index > 0 ? (
+                    <Text color={theme.secondaryText}>, </Text>
+                  ) : null}
                   <Text color={theme.success}>{c.name}</Text>
                 </React.Fragment>
               ))}
               {failed.map((c, index) => (
                 <React.Fragment key={c.name}>
                   {connected.length > 0 || index > 0 ? (
-                    <Text dimColor>, </Text>
+                    <Text color={theme.secondaryText}>, </Text>
                   ) : null}
                   <Text color={theme.error}>{c.name}</Text>
                 </React.Fragment>
@@ -269,15 +276,13 @@ export function Logo({
           ) : (
             <>
               {connected.map(c => (
-                <Text key={c.name}>
-                  <Text color={theme.success}>{c.name}</Text>
-                  <Text dimColor> </Text>
+                <Text key={c.name} color={theme.success}>
+                  {c.name}
                 </Text>
               ))}
               {failed.map(c => (
-                <Text key={c.name}>
-                  <Text color={theme.error}>{c.name}</Text>
-                  <Text dimColor> </Text>
+                <Text key={c.name} color={theme.error}>
+                  {c.name}
                 </Text>
               ))}
             </>

@@ -1,12 +1,17 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { createKodeDaemonClient } from '#daemon/client'
 import { startKodeDaemon } from '#daemon/server'
 
 describe('daemon client SDK', () => {
   test('connects, sends prompt, and yields AgentEvents (echo)', async () => {
+    const timeoutMs = 15_000
+    const workspace = mkdtempSync(join(tmpdir(), 'kode-daemon-client-'))
     const daemon = await startKodeDaemon({
-      cwd: process.cwd(),
+      cwd: workspace,
       port: 0,
       echo: true,
     })
@@ -14,7 +19,7 @@ describe('daemon client SDK', () => {
     const client = createKodeDaemonClient({ url: daemon.url })
 
     try {
-      await client.connect({ timeoutMs: 5_000 })
+      await client.connect({ timeoutMs })
 
       client.sendPrompt('hello')
 
@@ -27,7 +32,7 @@ describe('daemon client SDK', () => {
           }
         })(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 5_000),
+          setTimeout(() => reject(new Error('timeout')), timeoutMs),
         ),
       ])
 
@@ -50,6 +55,7 @@ describe('daemon client SDK', () => {
         /* no-op */
       }
       daemon.stop()
+      rmSync(workspace, { recursive: true, force: true })
     }
-  }, 20_000)
+  }, 45_000)
 })

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  applyTypedPromptModePrefix,
   getPromptModeForTypedPrefix,
   getPromptModePrefix,
   getPromptModeSpec,
@@ -30,6 +31,22 @@ describe('PromptInput mode specs', () => {
       'background',
     )
     expect(getPromptModeForTypedPrefix({ mode: 'bash', value: '&' })).toBeNull()
+  })
+
+  test('keeps the rest of a pasted background command', () => {
+    expect(applyTypedPromptModePrefix({ mode: 'prompt', value: '&' })).toEqual({
+      mode: 'background',
+      value: '',
+    })
+    expect(
+      applyTypedPromptModePrefix({ mode: 'prompt', value: '&ls -la' }),
+    ).toEqual({
+      mode: 'background',
+      value: 'ls -la',
+    })
+    expect(
+      applyTypedPromptModePrefix({ mode: 'prompt', value: 'ls -la' }),
+    ).toBeNull()
   })
 
   test('centralizes mode transition rules', () => {

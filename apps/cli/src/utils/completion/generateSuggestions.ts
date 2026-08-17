@@ -9,6 +9,47 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { LEGACY_CONFIG_DIRNAME } from '#core/compat/legacyPaths'
 
+function suggestionBaseName(value: string): string {
+  const trimmed = value.replace(/[\\/]+$/, '')
+  const sep = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  return sep === -1 ? trimmed : trimmed.slice(sep + 1)
+}
+
+function isPrefixHit(value: string, prefix: string): boolean {
+  const lower = prefix.toLowerCase()
+  if (!lower) return true
+  return (
+    value.toLowerCase().startsWith(lower) ||
+    suggestionBaseName(value).toLowerCase().startsWith(lower)
+  )
+}
+
+function isMentionPrefixHit(
+  suggestion: UnifiedSuggestion,
+  prefix: string,
+): boolean {
+  if (isPrefixHit(suggestion.value, prefix)) return true
+  return suggestion.value
+    .toLowerCase()
+    .startsWith(`run-agent-${prefix.toLowerCase()}`)
+}
+
+// @src with a cwd file/dir prefix, and no agent/model prefix, should surface
+// the file first. @run-agent-* and empty @ stay mention-first.
+export function __preferFilesOverMentionsForTests(args: {
+  prefix: string
+  mentionSuggestions: UnifiedSuggestion[]
+  fileSuggestions: UnifiedSuggestion[]
+}): boolean {
+  if (!args.prefix) return false
+  if (
+    args.mentionSuggestions.some(item => isMentionPrefixHit(item, args.prefix))
+  ) {
+    return false
+  }
+  return args.fileSuggestions.some(item => isPrefixHit(item.value, args.prefix))
+}
+
 function generateSpecialFileRootSuggestions(args: {
   prefix: string
   cwd: string
@@ -112,6 +153,11 @@ export function generateSuggestionsForContext(args: {
         prefix: context.prefix,
         cwd,
       })
+      const preferFiles = __preferFilesOverMentionsForTests({
+        prefix: context.prefix,
+        mentionSuggestions,
+        fileSuggestions,
+      })
 
       const weightedSuggestions = [
         ...mentionLoadingSuggestions.map(s => ({
@@ -120,11 +166,11 @@ export function generateSuggestionsForContext(args: {
         })),
         ...mentionSuggestions.map(s => ({
           ...s,
-          weightedScore: s.score + 150,
+          weightedScore: s.score + (preferFiles ? 10 : 150),
         })),
         ...fileSuggestions.map(s => ({
           ...s,
-          weightedScore: s.score + 10,
+          weightedScore: s.score + (preferFiles ? 150 : 10),
         })),
       ]
 

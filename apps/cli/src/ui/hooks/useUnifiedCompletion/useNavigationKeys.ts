@@ -2,12 +2,21 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 
+import { emptyDirectoryCompletionMessage } from '#cli-utils/completion/copy'
 import {
   isLoadingSuggestion,
   type CompletionContext,
   type UnifiedSuggestion,
 } from '#cli-utils/completion/types'
 import type { CompletionState } from './types'
+
+export function __completionEnterActionForTests(
+  contextType: CompletionContext['type'],
+): 'accept' | 'accept-and-submit' | 'submit' {
+  if (contextType === 'command') return 'accept-and-submit'
+  if (contextType === 'file') return 'submit'
+  return 'accept'
+}
 
 function getPreviewText(
   suggestion: UnifiedSuggestion,
@@ -106,8 +115,9 @@ export function useUnifiedCompletionNavigationKeys(args: {
         return false
       }
 
-      // Plain Enter keeps chat semantics: close completions and let TextInput
-      // submit the current value on the same keypress.
+      // Commands accept the highlighted name and submit it (`/hel` →
+      // `/help`). Paths retain the typed input so the first Enter always
+      // submits; Tab or Right Arrow explicitly completes a path/directory.
       if (
         key.return &&
         !key.shift &&
@@ -115,6 +125,55 @@ export function useUnifiedCompletionNavigationKeys(args: {
         args.state.isActive &&
         args.state.suggestions.length > 0
       ) {
+        const context = args.state.context
+        const selectedSuggestion =
+          args.state.suggestions[args.state.selectedIndex]
+        if (
+          !context ||
+          !selectedSuggestion ||
+          isLoadingSuggestion(selectedSuggestion)
+        ) {
+          clearCompletionTimers()
+          args.resetCompletion()
+          return false
+        }
+
+        if (__completionEnterActionForTests(context.type) === 'accept') {
+          clearCompletionTimers()
+          const completedInput = args.completeWith(selectedSuggestion, context)
+          args.resetCompletion()
+
+          const isDirectory = selectedSuggestion.value.endsWith('/')
+          if (isDirectory && completedInput !== null) {
+            directoryFollowupTimeoutRef.current = setTimeout(() => {
+              directoryFollowupTimeoutRef.current = null
+              if (!mountedRef.current) return
+              if (inputRef.current !== completedInput) return
+
+              const inserted = getPreviewText(selectedSuggestion, context)
+              const nextEndPos = context.startPos + inserted.length
+              const newContext: CompletionContext = {
+                ...context,
+                prefix: selectedSuggestion.value,
+                endPos: nextEndPos,
+              }
+
+              const newSuggestions = args.generateSuggestions(newContext)
+              if (newSuggestions.length > 0) {
+                args.activateCompletion(newSuggestions, newContext)
+              } else {
+                args.updateState({
+                  emptyDirMessage: emptyDirectoryCompletionMessage(
+                    selectedSuggestion.value,
+                  ),
+                })
+                scheduleEmptyDirMessageClear()
+              }
+            }, 50)
+          }
+          return true
+        }
+
         clearCompletionTimers()
         args.resetCompletion()
         return false
@@ -234,7 +293,9 @@ export function useUnifiedCompletionNavigationKeys(args: {
               args.activateCompletion(newSuggestions, newContext)
             } else {
               args.updateState({
-                emptyDirMessage: `Directory is empty: ${selectedSuggestion.value}`,
+                emptyDirMessage: emptyDirectoryCompletionMessage(
+                  selectedSuggestion.value,
+                ),
               })
               scheduleEmptyDirMessageClear()
             }

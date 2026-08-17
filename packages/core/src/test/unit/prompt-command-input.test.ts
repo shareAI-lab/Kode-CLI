@@ -96,6 +96,60 @@ describe('prompt command input', () => {
     expect(getCwd()).toBe(join(projectDir, 'foo'))
   })
 
+  test('unknown slash commands stay local and suggest nearby names', async () => {
+    const context = makeContext()
+    context.options.commands = [
+      {
+        type: 'local',
+        name: 'help',
+        description: 'Show help',
+        isEnabled: true,
+        isHidden: false,
+        userFacingName: () => 'help',
+        aliases: ['h'],
+        call: async () => '',
+      },
+    ]
+
+    const messages = await processUserInput(
+      '/hepl',
+      'prompt',
+      () => {},
+      context,
+      null,
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.type).toBe('assistant')
+    const text = extractAssistantText(messages)
+    expect(text).toContain('Unknown command: /hepl')
+    expect(text).toContain('/help')
+    expect(text).toContain('//')
+    expect(text).not.toContain('EISDIR')
+  })
+
+  test('// sends a literal slash line to the model', async () => {
+    const messages = await processUserInput(
+      '//not-a-command',
+      'prompt',
+      () => {},
+      makeContext(),
+      null,
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.type).toBe('user')
+    const content = (messages[0] as { message?: { content?: unknown } }).message
+      ?.content
+    const text =
+      typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+          ? content.map((block: { text?: string }) => block.text ?? '').join('')
+          : ''
+    expect(text).toBe('/not-a-command')
+  })
+
   test('/bash is plain text when slash commands are disabled', async () => {
     const messages = await processUserInput(
       '/bash cd foo',

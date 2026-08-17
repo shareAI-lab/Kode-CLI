@@ -138,10 +138,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       'the Other text field to receive focus',
     )
 
-    for (const ch of 'threejs') {
-      h.stdin.write(ch)
-      await h.wait(20)
-    }
+    await h.typeText('threejs')
 
     h.stdin.write('\r')
     await h.wait(25)

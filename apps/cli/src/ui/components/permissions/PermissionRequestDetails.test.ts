@@ -14,10 +14,21 @@ describe('PermissionRequestDetails helpers', () => {
     } as any)
 
     expect(lines).toEqual([
-      'Agent: main · Mode: plan',
+      'Agent: main · Mode: Plan first',
       'Reason: No allow rule matched (outside working directories)',
       'Path: /tmp/example.txt',
     ])
+  })
+
+  test('uses the readable permission policy name', () => {
+    const lines = __buildPermissionRequestDetailsLinesForTests({
+      toolUseContext: {
+        agentId: 'main',
+        options: { toolPermissionContext: { mode: 'acceptEdits' } },
+      },
+    } as any)
+
+    expect(lines).toEqual(['Agent: main · Mode: Edit'])
   })
 
   test('returns empty list when nothing is available', () => {

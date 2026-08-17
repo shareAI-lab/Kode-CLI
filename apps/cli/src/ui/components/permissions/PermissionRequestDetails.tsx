@@ -1,7 +1,16 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
 
+import type { PermissionMode } from '#core/types/PermissionMode'
+import { getTheme } from '#core/utils/theme'
+import { getPermissionModeStatusLabel } from '#ui-ink/utils/permissionModeDisplay'
 import type { ToolUseConfirm } from './PermissionRequest'
+
+const PERMISSION_MODES = new Set<PermissionMode>([
+  'cautious',
+  'acceptEdits',
+  'plan',
+])
 
 function formatAgentLabel(agentId: string): string {
   if (agentId === 'main') return 'Agent: main'
@@ -9,10 +18,13 @@ function formatAgentLabel(agentId: string): string {
 }
 
 function formatModeLabel(mode: unknown): string | null {
-  if (mode !== 'plan' && mode !== 'acceptEdits' && mode !== 'cautious') {
+  if (
+    typeof mode !== 'string' ||
+    !PERMISSION_MODES.has(mode as PermissionMode)
+  ) {
     return null
   }
-  return `Mode: ${mode}`
+  return `Mode: ${getPermissionModeStatusLabel(mode as PermissionMode)}`
 }
 
 export function __buildPermissionRequestDetailsLinesForTests(
@@ -59,10 +71,11 @@ export function PermissionRequestDetails({
   )
   if (lines.length === 0) return null
 
+  const theme = getTheme()
   return (
     <Box flexDirection="column">
       {lines.map((line, idx) => (
-        <Text key={idx} dimColor wrap="truncate-end">
+        <Text key={idx} color={theme.secondaryText} wrap="truncate-end">
           {line}
         </Text>
       ))}

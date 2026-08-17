@@ -32,6 +32,7 @@ import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { PermissionRequestDetails } from '#ui-ink/components/permissions/PermissionRequestDetails'
+import { getPermissionDenyOptionLabel } from '#ui-ink/components/permissions/toolUseOptions'
 import { applyToolPermissionUpdatesToLiveToolUseContext } from '../liveToolPermissionContext'
 import { permissionSelectFocusScope } from '#ui-ink/components/permissions/permissionFocusScope'
 
@@ -298,7 +299,7 @@ function FilesystemPermissionRequestImpl({
                   hasSessionSuggestion,
                 ),
                 {
-                  label: `Deny and provide instructions (${chalk.bold.hex(getTheme().warning)('esc')})`,
+                  label: getPermissionDenyOptionLabel(),
                   value: 'no',
                 },
               ]}

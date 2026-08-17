@@ -56,13 +56,19 @@ import { PromptInputView } from './PromptInputView'
 import { useExternalEdit } from './useExternalEdit'
 import { useQuickModelSwitch } from './useQuickModelSwitch'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
-import { buildPromptInputStatusLine } from './inputModeDisplay'
+import {
+  buildPromptInputStatusLine,
+  formatCancelledFollowUpsMessage,
+  PROMPT_NOTHING_TO_STASH_MESSAGE,
+  PROMPT_RESTORED_MESSAGE,
+  PROMPT_STASHED_MESSAGE,
+} from './inputModeDisplay'
 import { useThrottledTokenUsage } from './useThrottledTokenUsage'
 import { useCliExit } from '#ui-ink/hooks/useCliExit'
 import { buildPromptStatusLineInput } from './statusLineModel'
 import { useThrottledStatusLineUsage } from './useThrottledStatusLineUsage'
 import {
-  getPromptModeForTypedPrefix,
+  applyTypedPromptModePrefix,
   shouldEmptyPromptModeExitToPrompt,
 } from './promptModeSpecs'
 
@@ -190,6 +196,34 @@ export function PromptInput({
       prev.show === show && prev.text === text ? prev : { show, text },
     )
   }, [])
+  const timedInlineMessageTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null)
+  const showTimedInlineMessage = useCallback(
+    (text: string, delayMs = 4000) => {
+      if (timedInlineMessageTimeoutRef.current) {
+        clearTimeout(timedInlineMessageTimeoutRef.current)
+        timedInlineMessageTimeoutRef.current = null
+      }
+      handleInlineMessage(true, text)
+      timedInlineMessageTimeoutRef.current = setTimeout(() => {
+        setMessage(prev => {
+          if (!prev.show || prev.text !== text) return prev
+          return { show: false }
+        })
+        timedInlineMessageTimeoutRef.current = null
+      }, delayMs)
+    },
+    [handleInlineMessage],
+  )
+  useEffect(() => {
+    return () => {
+      if (timedInlineMessageTimeoutRef.current) {
+        clearTimeout(timedInlineMessageTimeoutRef.current)
+        timedInlineMessageTimeoutRef.current = null
+      }
+    }
+  }, [])
   const handleClearInput = useDoublePress(setClearInputPending, () => {
     clearPastes()
     onInputChange('')
@@ -235,9 +269,11 @@ export function PromptInput({
     (value: string) => {
       onHistoryUserInputRef.current()
 
-      const nextMode = getPromptModeForTypedPrefix({ mode, value })
-      if (nextMode) {
-        onModeChange(nextMode)
+      const next = applyTypedPromptModePrefix({ mode, value })
+      if (next) {
+        onModeChange(next.mode)
+        onInputChange(next.value)
+        setCursorOffset(next.value.length)
         return
       }
 
@@ -260,9 +296,7 @@ export function PromptInput({
           provider: current.provider,
           contextLength: current.contextLength,
           currentTokens: tokenUsage,
-          // Show the effective reasoning effort; reasoning models default to
-          // a balanced level when the profile does not pin one.
-          reasoningEffort: current.reasoningEffort?.trim() || 'medium',
+          reasoningEffort: current.reasoningEffort?.trim() || undefined,
         }
       : null
   }, [submitCount, tokenUsage, uiRefreshCounter])
@@ -327,14 +361,17 @@ export function PromptInput({
       queuedPromptCount: queuedPrompts.length,
       editorMode,
       vimMode,
+      stashRestorable: promptStash !== null && input.trim() === '',
     })
   }, [
     currentMode,
     editorMode,
+    input,
     isLoading,
     mode,
     modeCycleShortcut.displayText,
     pendingPrompts.length,
+    promptStash,
     queuedPrompts.length,
     vimMode,
   ])
@@ -452,12 +489,13 @@ export function PromptInput({
       if (isDisabled) return undefined
 
       if (key.meta && key.upArrow && !key.shift && !key.ctrl) {
-        const latest =
-          queuedPrompts.length > 0
-            ? queuedPrompts.reduce((best, item) =>
-                item.seq > best.seq ? item : best,
-              )
-            : null
+        const latest = [
+          ...queuedPrompts,
+          ...pendingPrompts,
+        ].reduce<QueuedPrompt | null>(
+          (best, item) => (!best || item.seq > best.seq ? item : best),
+          null,
+        )
         if (!latest) return undefined
 
         let draftForQueue: QueuedPrompt | null = null
@@ -483,6 +521,7 @@ export function PromptInput({
           setQueuedPrompts(prev => [...prev, draftForQueue])
         }
         setQueuedPrompts(prev => prev.filter(item => item !== latest))
+        setPendingPrompts(prev => prev.filter(item => item !== latest))
         clearPastes()
         onModeChange(latest.mode)
         onInputChange(latest.input)
@@ -1007,12 +1046,11 @@ export function PromptInput({
     if (isDisabled) return
     if (!value.trim()) return
 
-    // Enter with an active completion panel submits the completed word instead
-    // of the raw prefix: "/hel" + Enter must run /help, not silently become a
-    // chat message. Plain Enter still sends in a single keystroke.
+    // Slash-command Enter still inserts then sends (`/hel` → `/help`).
+    // File and @ completions are accepted on Enter without submitting.
     if (
       completionVisible &&
-      activeContext &&
+      activeContext?.type === 'command' &&
       suggestions[selectedIndex] !== undefined
     ) {
       const completed = buildCompletionInsert({
@@ -1109,6 +1147,7 @@ export function PromptInput({
   useEffect(() => {
     if (lastCancelRequestKeyRef.current !== cancelRequestKey) {
       lastCancelRequestKeyRef.current = cancelRequestKey
+      const discardedCount = pendingPrompts.length + queuedPrompts.length
       setPendingPrompts(prev => {
         if (prev.length === 0) return prev
         for (const prompt of prev) {
@@ -1124,6 +1163,9 @@ export function PromptInput({
         return []
       })
       setIsQueueDrainInFlight(false)
+      if (discardedCount > 0) {
+        showTimedInlineMessage(formatCancelledFollowUpsMessage(discardedCount))
+      }
       return
     }
 
@@ -1214,6 +1256,7 @@ export function PromptInput({
     readFileTimestamps,
     reportMissingImageData,
     handleInlineMessage,
+    showTimedInlineMessage,
     isQueueDrainInFlight,
     setAbortController,
     setCurrentPwd,
@@ -1255,6 +1298,7 @@ export function PromptInput({
           setPastedImages(promptStash.pastedImages)
           setCursorOffset(promptStash.cursorOffset)
           setPromptStash(null)
+          showTimedInlineMessage(PROMPT_RESTORED_MESSAGE)
           return true
         }
 
@@ -1281,9 +1325,11 @@ export function PromptInput({
           clearPastes()
           onInputChange('')
           setCursorOffset(0)
+          showTimedInlineMessage(PROMPT_STASHED_MESSAGE)
           return true
         }
 
+        showTimedInlineMessage(PROMPT_NOTHING_TO_STASH_MESSAGE, 2500)
         return true
       }
 

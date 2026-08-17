@@ -188,7 +188,7 @@ export function subscribeRequestStatus(
 export const FIRST_RESPONSE_WARNING_SECONDS = 15
 
 /** Shared "cancel" affordance text shown next to a running request. */
-export const REQUEST_STATUS_ESC_CANCEL_HINT = '(Esc cancel)'
+export const REQUEST_STATUS_ESC_CANCEL_HINT = '(Esc to cancel)'
 
 /** Formats a whole number of seconds as "5s", "2m 3s", "1h 2m 3s". */
 export function formatRequestStatusDuration(seconds: number): string {
@@ -225,9 +225,7 @@ export function getRequestStatusLabel(
     case 'waiting': {
       const detail = status.detail?.trim()
       if (!detail) {
-        return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
-          ? 'Waiting for model response · still waiting'
-          : 'Waiting for model response'
+        return 'Waiting for model response'
       }
       return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
         ? `${detail} · waiting for first model response`
@@ -286,4 +284,19 @@ export function getRequestStatusPhaseLabel(
     case 'idle':
       return ''
   }
+}
+
+/** Hide the phase chip when it only restates the main label or matches total time. */
+export function shouldShowRequestStatusPhase(
+  status: RequestStatus,
+  now: number,
+): boolean {
+  if (status.kind === 'idle' || status.kind === 'waiting') return false
+
+  const timing = getRequestStatusTiming(status, now)
+  const phaseMs =
+    status.kind === 'thinking'
+      ? timing.thinkingDurationMs
+      : timing.phaseDurationMs
+  return phaseMs + 1000 < timing.requestDurationMs
 }

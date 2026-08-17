@@ -17,6 +17,11 @@ export type InkTestHarness = {
   clearOutput: () => void
   getOutput: () => string
   wait: (ms: number) => Promise<void>
+  waitFor: (
+    predicate: (output: string) => boolean,
+    timeoutMs?: number,
+  ) => Promise<void>
+  typeText: (text: string, interCharacterDelayMs?: number) => Promise<void>
 }
 
 class TestErrorBoundary extends React.Component<
@@ -73,6 +78,20 @@ export function createInkTestHarness(
     exitOnCtrlC: false,
   })
 
+  const waitForOutput = async (
+    predicate: (output: string) => boolean,
+    timeoutMs = 1_000,
+  ): Promise<void> => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (predicate(stripAnsi(rawOutput))) return
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    throw new Error('Timed out waiting for Ink output')
+  }
+  const wait = (ms: number): Promise<void> =>
+    new Promise(resolve => setTimeout(resolve, ms))
+
   return {
     stdin,
     stdout,
@@ -82,7 +101,14 @@ export function createInkTestHarness(
       rawOutput = ''
     },
     getOutput: () => stripAnsi(rawOutput),
-    wait: async ms => new Promise(resolve => setTimeout(resolve, ms)),
+    wait,
+    waitFor: waitForOutput,
+    typeText: async (text, interCharacterDelayMs = 25) => {
+      for (const character of text) {
+        stdin.write(character)
+        await wait(interCharacterDelayMs)
+      }
+    },
   }
 }
 

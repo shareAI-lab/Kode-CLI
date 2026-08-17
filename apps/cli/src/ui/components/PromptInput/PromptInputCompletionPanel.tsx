@@ -89,24 +89,55 @@ export function __areHelpTextPropsEqualForTests(
   )
 }
 
+export type CompletionHelpKind =
+  'empty' | 'none' | 'command' | 'directory' | 'mention' | 'file'
+
+export function __completionHelpKindForTests(args: {
+  emptyDirMessage: string
+  selectedSuggestion?: { type: string; value: string }
+}): CompletionHelpKind {
+  if (args.emptyDirMessage) return 'empty'
+  if (!args.selectedSuggestion) return 'none'
+  if (args.selectedSuggestion.type === 'command') return 'command'
+  if (args.selectedSuggestion.value.endsWith('/')) return 'directory'
+  if (
+    args.selectedSuggestion.type === 'agent' ||
+    args.selectedSuggestion.type === 'ask'
+  ) {
+    return 'mention'
+  }
+  return 'file'
+}
+
+export function __completionKeybindingHelpForTests(
+  kind: CompletionHelpKind,
+): string {
+  switch (kind) {
+    case 'empty':
+      return ''
+    case 'none':
+      return '↑↓ navigate • Tab cycle • Esc close'
+    case 'command':
+      return 'Tab accept • Enter send • ↑↓ navigate • Esc close'
+    case 'directory':
+      return 'Enter send • → open folder • ↑↓ navigate • Tab cycle • Esc close'
+    case 'mention':
+      return 'Enter/→ insert mention • ↑↓ navigate • Tab cycle • Esc close'
+    case 'file':
+      return 'Enter send • → insert path • ↑↓ navigate • Tab cycle • Esc close'
+  }
+}
+
 // 使用 React.memo 优化帮助文本组件
 const HelpText = React.memo(
   ({ emptyDirMessage, selectedSuggestion, maxWidth, theme }: HelpTextProps) => {
     const getHelpMessage = () => {
-      if (emptyDirMessage) return emptyDirMessage
-      if (!selectedSuggestion) {
-        return '↑↓ navigate • → accept • Tab cycle • Esc close'
-      }
-      if (selectedSuggestion.type === 'command') {
-        return 'Tab accept • ↑↓ navigate • → accept • Esc close'
-      }
-      if (selectedSuggestion.value.endsWith('/')) {
-        return '→ enter directory • ↑↓ navigate • Tab cycle • Esc close'
-      }
-      if (selectedSuggestion.type === 'agent') {
-        return '→ select agent • ↑↓ navigate • Tab cycle • Esc close'
-      }
-      return '→ insert reference • ↑↓ navigate • Tab cycle • Esc close'
+      const kind = __completionHelpKindForTests({
+        emptyDirMessage,
+        selectedSuggestion,
+      })
+      if (kind === 'empty') return emptyDirMessage
+      return __completionKeybindingHelpForTests(kind)
     }
 
     const moreCount =
@@ -136,16 +167,15 @@ const HelpText = React.memo(
       const moreHint =
         moreCount > 0 ? ` · ${moreCount} more, type to filter` : ''
       return (
-        <Text dimColor wrap="truncate-end">
-          {`${limited}${moreHint} • Tab accept`}
+        <Text color={theme.secondaryText} wrap="truncate-end">
+          {`${limited}${moreHint} • Tab accept • Enter send`}
         </Text>
       )
     }
 
     return (
       <Text
-        dimColor={!emptyDirMessage}
-        color={emptyDirMessage ? theme.warning : undefined}
+        color={emptyDirMessage ? theme.warning : theme.secondaryText}
         wrap="truncate-end"
       >
         {getHelpMessage()}

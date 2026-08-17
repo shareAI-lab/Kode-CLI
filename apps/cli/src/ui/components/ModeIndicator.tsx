@@ -38,7 +38,7 @@ export function ModeIndicator({
       <Text color={indicator.color} wrap="truncate-end">
         {indicator.mainText}
         {indicator.shortcutHintText ? (
-          <Text dimColor>{indicator.shortcutHintText}</Text>
+          <Text color={theme.secondaryText}>{indicator.shortcutHintText}</Text>
         ) : null}
       </Text>
       {showTransitionCount && (
@@ -102,7 +102,7 @@ export function CompactModeIndicator() {
   return (
     <Text color={indicator.color} wrap="truncate-end">
       {indicator.mainText}
-      <Text dimColor>{indicator.shortcutHintText}</Text>
+      <Text color={theme.secondaryText}>{indicator.shortcutHintText}</Text>
     </Text>
   )
 }

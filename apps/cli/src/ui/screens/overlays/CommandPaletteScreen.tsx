@@ -354,8 +354,9 @@ export function CommandPaletteScreen({
     >
       <Box flexDirection="column" gap={gap}>
         <Box flexDirection="column">
-          <Text dimColor wrap="truncate-end">
-            Search actions or /commands. Enter opens or inserts. Esc closes.
+          <Text color={theme.secondaryText} wrap="truncate-end">
+            Search actions or /commands. Enter opens or inserts. Esc clears
+            search, again closes.
           </Text>
           <Box flexDirection="row" gap={1}>
             <Text color={theme.secondaryText}>{figures.pointerSmall}</Text>
@@ -382,14 +383,14 @@ export function CommandPaletteScreen({
         </Box>
 
         <Box flexDirection="column" gap={0}>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {status ??
               (filtered.length === 0
                 ? 'No matches'
                 : `Showing ${visible.length} of ${filtered.length} (${actionCount} actions, ${commandCount} commands)`)}
           </Text>
           <Box flexDirection="column" width="100%">
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               {showUp ? `${figures.arrowUp} More` : ' '}
             </Text>
             {visible.map((action, idx) => {
@@ -415,7 +416,7 @@ export function CommandPaletteScreen({
                 </Box>
               )
             })}
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               {showDown ? `${figures.arrowDown} More` : ' '}
             </Text>
           </Box>
@@ -430,8 +431,8 @@ export function CommandPaletteScreen({
         ) : null}
 
         <Box marginTop={layout.tightLayout ? 0 : 1}>
-          <Text dimColor wrap="truncate-end">
-            Arrows - PgUp/PgDn - Home/End - Enter select - Esc clear/close
+          <Text color={theme.secondaryText} wrap="truncate-end">
+            Arrows · PgUp/PgDn · Home/End · Enter select · Esc clear/close
           </Text>
         </Box>
       </Box>

@@ -82,6 +82,22 @@ export function getPromptModeForTypedPrefix(args: {
   return null
 }
 
+export function applyTypedPromptModePrefix(args: {
+  mode: PromptMode
+  value: string
+}): { mode: PromptMode; value: string } | null {
+  const nextMode = getPromptModeForTypedPrefix(args)
+  if (!nextMode) return null
+
+  const prefix = getPromptModeSpec(nextMode).typedPrefix ?? ''
+  const remainder =
+    prefix && args.value.startsWith(prefix)
+      ? args.value.slice(prefix.length)
+      : args.value
+
+  return { mode: nextMode, value: remainder }
+}
+
 export function getPromptModePrefix(args: {
   mode: PromptMode
   theme: Theme
