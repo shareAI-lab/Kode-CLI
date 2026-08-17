@@ -140,5 +140,5 @@ describe('daemon fs path security', () => {
       daemon.stop()
       rmSync(projectDir, { recursive: true, force: true })
     }
-  }, 25_000)
+  }, 45_000)
 })

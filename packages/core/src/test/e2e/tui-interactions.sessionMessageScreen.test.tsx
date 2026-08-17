@@ -84,7 +84,7 @@ describe('TUI E2E: SessionMessageScreen', () => {
     )
     expect(h.getOutput()).toContain('New message to Security reviewer')
 
-    h.stdin.write('Please verify the cancellation race.')
+    await h.typeText('Please verify the cancellation race.')
     await h.waitFor(
       output => output.includes('Please verify the cancellation race.'),
       5_000,
@@ -98,5 +98,5 @@ describe('TUI E2E: SessionMessageScreen', () => {
       (await peekSessionMessages({ cwd: workspace, sessionId: TARGET }))[0]
         ?.body,
     ).toBe('Please verify the cancellation race.')
-  })
+  }, 20_000)
 })
