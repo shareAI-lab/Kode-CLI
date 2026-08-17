@@ -5,7 +5,7 @@ import { PassThrough } from 'node:stream'
 import stripAnsi from 'strip-ansi'
 import { ASCII_LOGO, PRODUCT_NAME } from '#core/constants/product'
 import { getCommandShortcutHints } from '#ui-ink/utils/commandShortcutHints'
-import { Logo } from './Logo'
+import { getDistinctMcpClientsForDisplay, Logo } from './Logo'
 
 type TestHarness = {
   unmount: () => void
@@ -58,6 +58,19 @@ function createHarness(element: React.ReactElement): TestHarness {
 }
 
 describe('Logo', () => {
+  test('shows a duplicated MCP server name once and prefers its connected state', () => {
+    expect(
+      getDistinctMcpClientsForDisplay([
+        { type: 'failed', name: 'time' },
+        { type: 'connected', name: 'time' },
+        { type: 'connected', name: 'codegraph' },
+      ]),
+    ).toEqual([
+      { type: 'connected', name: 'time' },
+      { type: 'connected', name: 'codegraph' },
+    ])
+  })
+
   test('uses compact surrounding layout while keeping the configured logo', async () => {
     const harness = createHarness(
       <Logo

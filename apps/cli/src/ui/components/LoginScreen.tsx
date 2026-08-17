@@ -6,6 +6,7 @@ import { ModelSelector } from '#ui-ink/components/ModelSelector'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { useExitOnCtrlCD } from '#ui-ink/hooks/useExitOnCtrlCD'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
+import { setAllPointersToModel } from '#core/utils/config'
 import { getTheme } from '#core/utils/theme'
 import { saveExternalRuntimeModelProfile } from '#cli-services/externalModelProfile'
 import {
@@ -17,12 +18,10 @@ import { ExternalOAuthLoginScreen } from '#ui-ink/components/ExternalOAuthLoginS
 import {
   codexAuthService,
   type CodexAuthService,
-  type CodexLoginStatus,
 } from '#cli-services/codexLogin'
 
-type LoginRoute = 'selection' | 'openai' | 'providers' | 'copilot' | 'grok'
-type CodexFlowState =
-  'selection' | 'waiting' | 'activating' | 'complete' | 'error'
+type LoginRoute =
+  'selection' | 'codex' | 'openai' | 'providers' | 'copilot' | 'grok'
 
 type LoginOption = {
   id: 'codex' | 'copilot' | 'grok' | 'openai' | 'providers'
@@ -60,185 +59,40 @@ const LOGIN_OPTIONS: LoginOption[] = [
   },
 ]
 
-const CODEX_POLL_INTERVAL_MS = 1_500
-const CODEX_LOGIN_TIMEOUT_MS = 5 * 60 * 1_000
+const LOGIN_POLL_INTERVAL_MS = 1_500
 
 export type LoginScreenProps = {
   onDone: () => void
+  /** Called only when the user leaves the top-level sign-in menu. */
+  onCancel?: () => void
+  /** First-run setup assigns its chosen model to every role pointer. */
+  isOnboarding?: boolean
   codexAuth?: CodexAuthService
   copilotAuth?: CopilotAuthService
   pollIntervalMs?: number
   saveProfile?: typeof saveExternalRuntimeModelProfile
 }
 
-function statusLabel(
-  status: CodexLoginStatus | null,
-  checking: boolean,
-): string {
-  if (checking) return 'Checking installed Codex CLI…'
-  if (status?.kind === 'authenticated') return 'Codex is already signed in.'
-  if (status?.kind === 'unauthenticated') return 'Codex is not signed in yet.'
-  return 'Codex CLI is unavailable on this machine.'
-}
-
 export function LoginScreen({
   onDone,
+  onCancel = onDone,
+  isOnboarding = false,
   codexAuth = codexAuthService,
   copilotAuth = copilotAuthService,
-  pollIntervalMs = CODEX_POLL_INTERVAL_MS,
+  pollIntervalMs = LOGIN_POLL_INTERVAL_MS,
   saveProfile = saveExternalRuntimeModelProfile,
 }: LoginScreenProps): React.ReactNode {
   const theme = getTheme()
-  const exitState = useExitOnCtrlCD(onDone)
+  const exitState = useExitOnCtrlCD(onCancel)
   const [route, setRoute] = React.useState<LoginRoute>('selection')
   const [selectedIndex, setSelectedIndex] = React.useState(0)
-  const [codexStatus, setCodexStatus] = React.useState<CodexLoginStatus | null>(
-    null,
-  )
-  const [checkingStatus, setCheckingStatus] = React.useState(true)
-  const [codexFlowState, setCodexFlowState] =
-    React.useState<CodexFlowState>('selection')
-  const [codexError, setCodexError] = React.useState<string | null>(null)
-  const [codexActivatedModel, setCodexActivatedModel] = React.useState<
-    string | null
-  >(null)
-  const activeCodexLoginIdRef = React.useRef(0)
-  const checkForLoginRef = React.useRef<(() => Promise<void>) | null>(null)
-
-  const refreshCodexStatus = React.useCallback(
-    async (canUpdate: () => boolean = () => true) => {
-      try {
-        const nextStatus = await codexAuth.getStatus()
-        if (canUpdate()) setCodexStatus(nextStatus)
-        return nextStatus
-      } catch {
-        const unavailable: CodexLoginStatus = { kind: 'unavailable' }
-        if (canUpdate()) setCodexStatus(unavailable)
-        return unavailable
-      } finally {
-        if (canUpdate()) setCheckingStatus(false)
-      }
+  const applyOnboardingPointers = React.useCallback(
+    async (modelId: string, activateAsMain: boolean) => {
+      if (isOnboarding && activateAsMain) setAllPointersToModel(modelId)
     },
-    [codexAuth],
+    [isOnboarding],
   )
 
-  React.useEffect(() => {
-    let cancelled = false
-    void refreshCodexStatus(() => !cancelled)
-    return () => {
-      cancelled = true
-    }
-  }, [refreshCodexStatus])
-
-  React.useEffect(() => {
-    if (codexFlowState !== 'waiting') return undefined
-
-    let cancelled = false
-    let checking = false
-    const loginId = activeCodexLoginIdRef.current
-    const isCurrent = () =>
-      !cancelled && activeCodexLoginIdRef.current === loginId
-    const checkForLogin = async () => {
-      if (checking) return
-      checking = true
-      const nextStatus = await refreshCodexStatus(isCurrent)
-      checking = false
-      if (!isCurrent()) return
-
-      if (nextStatus.kind === 'authenticated') {
-        setCodexFlowState('activating')
-      } else if (nextStatus.kind === 'unavailable') {
-        setCodexError('Codex CLI could not be reached while signing in.')
-        setCodexFlowState('error')
-      }
-    }
-    checkForLoginRef.current = checkForLogin
-
-    const interval = setInterval(
-      () => void checkForLogin(),
-      Math.max(50, pollIntervalMs),
-    )
-    const timeout = setTimeout(() => {
-      if (!isCurrent()) return
-      setCodexError('Timed out waiting for Codex sign-in to finish.')
-      setCodexFlowState('error')
-    }, CODEX_LOGIN_TIMEOUT_MS)
-
-    return () => {
-      cancelled = true
-      if (checkForLoginRef.current === checkForLogin) {
-        checkForLoginRef.current = null
-      }
-      clearInterval(interval)
-      clearTimeout(timeout)
-    }
-  }, [codexFlowState, pollIntervalMs, refreshCodexStatus])
-
-  React.useEffect(() => {
-    if (codexFlowState !== 'activating') return undefined
-
-    let mounted = true
-    void (async () => {
-      try {
-        // A signed-in Codex CLI is not enough: Kode also needs a model profile
-        // that routes through the Codex runtime. Apply Codex's recommended
-        // model and activate it as the main pointer so the user can start
-        // using it immediately.
-        const settings = await codexAuth.getRecommendedSettings()
-        await saveProfile(
-          {
-            provider: 'codex-oauth',
-            model: settings.model,
-            displayName: settings.displayName || settings.model,
-            ...(settings.reasoningEffort
-              ? { reasoningEffort: settings.reasoningEffort }
-              : {}),
-          },
-          true,
-        )
-        if (!mounted) return
-        setCodexActivatedModel(settings.displayName || settings.model)
-        setCodexFlowState('complete')
-      } catch (error) {
-        if (!mounted) return
-        setCodexError(
-          `Signed in, but could not activate the Codex model: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        )
-        setCodexFlowState('error')
-      }
-    })()
-    return () => {
-      mounted = false
-    }
-  }, [codexFlowState, codexAuth, saveProfile])
-
-  const startCodexBrowserLogin = React.useCallback(async () => {
-    if (checkingStatus) return
-
-    if (codexStatus?.kind === 'authenticated') {
-      setCodexFlowState('activating')
-      return
-    }
-    if (codexStatus?.kind === 'unavailable') {
-      setCodexError('Install or repair the Codex CLI, then try again.')
-      setCodexFlowState('error')
-      return
-    }
-
-    setCodexError(null)
-    const loginId = activeCodexLoginIdRef.current + 1
-    activeCodexLoginIdRef.current = loginId
-    setCodexFlowState('waiting')
-    try {
-      await codexAuth.startLogin()
-    } catch {
-      if (activeCodexLoginIdRef.current !== loginId) return
-      setCodexError('Unable to start the Codex browser sign-in.')
-      setCodexFlowState('error')
-    }
-  }, [checkingStatus, codexAuth, codexStatus])
   useKeypress((input, key) => {
     if (route !== 'selection') return undefined
 
@@ -246,35 +100,8 @@ export function LoginScreen({
     const isUp = key.upArrow || inputChar === 'k'
     const isDown = key.downArrow || inputChar === 'j'
 
-    if (codexFlowState === 'waiting') {
-      if (key.escape) {
-        activeCodexLoginIdRef.current += 1
-        checkForLoginRef.current = null
-        setCodexFlowState('selection')
-      }
-      if (key.return) {
-        void checkForLoginRef.current?.()
-      }
-      return true
-    }
-
-    if (codexFlowState === 'activating') return true
-
-    if (codexFlowState === 'complete') {
-      if (key.return || key.escape) onDone()
-      return true
-    }
-
-    if (codexFlowState === 'error') {
-      if (key.return || key.escape) {
-        setCodexError(null)
-        setCodexFlowState('selection')
-      }
-      return true
-    }
-
     if (key.escape) {
-      onDone()
+      onCancel()
       return true
     }
     if (isUp) {
@@ -290,7 +117,7 @@ export function LoginScreen({
     if (key.return) {
       const option = LOGIN_OPTIONS[selectedIndex]
       if (option?.id === 'codex') {
-        void startCodexBrowserLogin()
+        setRoute('codex')
       } else if (option?.id === 'copilot') {
         setRoute('copilot')
       } else if (option?.id === 'grok') {
@@ -305,12 +132,28 @@ export function LoginScreen({
     return undefined
   })
 
+  if (route === 'codex') {
+    return (
+      <ExternalOAuthLoginScreen
+        provider="codex-oauth"
+        title="Codex / ChatGPT"
+        authService={codexAuth}
+        onDone={onDone}
+        onCancel={() => setRoute('selection')}
+        pollIntervalMs={pollIntervalMs}
+        saveProfile={saveProfile}
+        onProfileSaved={applyOnboardingPointers}
+      />
+    )
+  }
+
   if (route === 'openai') {
     return (
       <ModelSelector
         initialProvider="openai"
         onDone={onDone}
         onCancel={() => setRoute('selection')}
+        isOnboarding={isOnboarding}
       />
     )
   }
@@ -323,6 +166,7 @@ export function LoginScreen({
         authService={grokAuthService}
         onDone={onDone}
         onCancel={() => setRoute('selection')}
+        onProfileSaved={applyOnboardingPointers}
       />
     )
   }
@@ -336,21 +180,25 @@ export function LoginScreen({
         onDone={onDone}
         onCancel={() => setRoute('selection')}
         pollIntervalMs={pollIntervalMs}
+        onProfileSaved={applyOnboardingPointers}
       />
     )
   }
 
   if (route === 'providers') {
     return (
-      <ModelSelector onDone={onDone} onCancel={() => setRoute('selection')} />
+      <ModelSelector
+        onDone={onDone}
+        onCancel={() => setRoute('selection')}
+        isOnboarding={isOnboarding}
+      />
     )
   }
 
-  const selectedOption = LOGIN_OPTIONS[selectedIndex]
   return (
-    <ScreenFrame title="Sign in" paddingX={2} paddingY={1} gap={1}>
+    <ScreenFrame title="Connect a model" paddingX={2} paddingY={1} gap={1}>
       <Box flexDirection="column" gap={1}>
-        <Text bold>Choose how to configure Kode:</Text>
+        <Text bold>Choose a sign-in or model setup method:</Text>
 
         <Box flexDirection="column">
           {LOGIN_OPTIONS.map((option, index) => {
@@ -372,72 +220,14 @@ export function LoginScreen({
           })}
         </Box>
 
-        {codexFlowState === 'selection' ? (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.secondaryText}>
-              {selectedOption?.description}
-            </Text>
-            {selectedOption?.id === 'codex' ? (
-              <Text color={theme.secondaryText}>
-                {statusLabel(codexStatus, checkingStatus)}
-              </Text>
-            ) : null}
-            <Text dimColor>
-              ChatGPT/Codex credentials remain in Codex CLI. Kode never reads or
-              copies its credential cache; configure an API-key model profile to
-              use OpenAI models directly in Kode.
-            </Text>
-          </Box>
-        ) : null}
-
-        {codexFlowState === 'waiting' ? (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.suggestion}>
-              Browser sign-in started. Complete the Codex / ChatGPT login, then
-              this screen will continue automatically.
-            </Text>
-            <Text dimColor>Enter checks again · Esc returns to choices</Text>
-          </Box>
-        ) : null}
-
-        {codexFlowState === 'complete' ? (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.success}>
-              {codexActivatedModel
-                ? `Codex is signed in and Kode is now using ${codexActivatedModel}. Press Enter to continue.`
-                : 'Codex is signed in. Press Enter to continue.'}
-            </Text>
-            <Text dimColor>
-              This confirms the installed Codex CLI session; it does not copy
-              credentials into Kode.
-            </Text>
-          </Box>
-        ) : null}
-
-        {codexFlowState === 'activating' ? (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.suggestion}>
-              Codex is signed in. Activating its model for Kode…
-            </Text>
-            <Text dimColor>
-              Please wait while the model configuration is saved.
-            </Text>
-          </Box>
-        ) : null}
-
-        {codexFlowState === 'error' ? (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.error}>{codexError}</Text>
-            <Text dimColor>Press Enter to return to login choices.</Text>
-          </Box>
-        ) : null}
+        <Text color={theme.secondaryText}>
+          {LOGIN_OPTIONS[selectedIndex]?.description}
+        </Text>
 
         <Text dimColor>
           {exitState.pending
             ? `Press ${exitState.keyName} again to exit`
-            : codexFlowState === 'selection'
-              ? '↑/↓ or j/k navigate · Enter select · Esc exit'
-              : ''}
+            : '↑/↓ or j/k navigate · Enter select · Esc back'}
         </Text>
       </Box>
     </ScreenFrame>

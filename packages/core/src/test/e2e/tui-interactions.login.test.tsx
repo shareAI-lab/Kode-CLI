@@ -31,9 +31,10 @@ afterEach(async () => {
 })
 
 describe('TUI E2E regression (Ink render): login selector', () => {
-  test('does not exit the Codex flow until its model profile has been saved', async () => {
+  test('lets Codex users choose a runtime model before saving the profile', async () => {
     let done = false
     let resolveSave: (() => void) | undefined
+    const saves: Array<{ activateAsMain: boolean; model: string }> = []
     const h = createInkTestHarness(
       <KeypressProvider>
         <LoginScreen
@@ -49,28 +50,50 @@ describe('TUI E2E regression (Ink render): login selector', () => {
               reasoningEffort: 'medium',
             }),
             applyRecommendedSettings: async () => {},
+            getAvailableModels: async () => [
+              {
+                model: 'gpt-5.6-sol',
+                displayName: 'GPT-5.6 Sol',
+                reasoningEffort: 'medium',
+              },
+              {
+                model: 'gpt-5.6-terra',
+                displayName: 'GPT-5.6 Terra',
+                reasoningEffort: 'high',
+              },
+            ],
           }}
-          saveProfile={async () => {
+          saveProfile={async (model, activateAsMain) => {
+            saves.push({ activateAsMain, model: model.model })
             await new Promise<void>(resolve => {
               resolveSave = resolve
             })
-            return 'codex-oauth:gpt-runtime-default'
+            return `codex-oauth:${model.model}`
           }}
         />
       </KeypressProvider>,
     )
     harnessManager.track(h)
 
-    await waitForOutput(h, 'Codex is already signed in.')
+    await waitForOutput(h, 'Use the installed Codex CLI browser sign-in')
     h.stdin.write('\r')
-    await waitForOutput(h, 'Activating its model for Kode')
+    await waitForOutput(h, 'Already signed in.')
 
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Choose a model to save in Kode:')
+    expect(h.getOutput()).toContain('GPT-5.6 Sol (gpt-5.6-sol) · medium')
+    expect(h.getOutput()).toContain('GPT-5.6 Terra (gpt-5.6-terra) · high')
+
+    h.stdin.write('\u001B[B')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Use GPT-5.6 Terra as Kode’s main model now?')
     h.stdin.write('\r')
     await h.wait(50)
     expect(done).toBe(false)
 
     resolveSave?.()
-    await waitForOutput(h, 'Kode is now using GPT Runtime Default')
+    await waitForOutput(h, 'GPT-5.6 Terra is now Kode’s persisted main model.')
+    expect(saves).toEqual([{ activateAsMain: true, model: 'gpt-5.6-terra' }])
     h.stdin.write('\r')
     await h.wait(20)
     expect(done).toBe(true)
@@ -79,6 +102,10 @@ describe('TUI E2E regression (Ink render): login selector', () => {
   test('OAuth model setup saves a Kode profile and explicitly switches the main model', async () => {
     let done = false
     const saves: Array<{ activateAsMain: boolean; model: string }> = []
+    const savedProfiles: Array<{
+      activateAsMain: boolean
+      modelId: string
+    }> = []
     const h = createInkTestHarness(
       <KeypressProvider>
         <ExternalOAuthLoginScreen
@@ -103,6 +130,9 @@ describe('TUI E2E regression (Ink render): login selector', () => {
             saves.push({ activateAsMain, model: model.model })
             return 'codex-oauth:gpt-runtime-default'
           }}
+          onProfileSaved={async (modelId, activateAsMain) => {
+            savedProfiles.push({ modelId, activateAsMain })
+          }}
         />
       </KeypressProvider>,
     )
@@ -121,6 +151,9 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     await waitForOutput(h, 'persisted main model.')
     expect(saves).toEqual([
       { activateAsMain: true, model: 'gpt-runtime-default' },
+    ])
+    expect(savedProfiles).toEqual([
+      { activateAsMain: true, modelId: 'codex-oauth:gpt-runtime-default' },
     ])
 
     h.stdin.write('\r')

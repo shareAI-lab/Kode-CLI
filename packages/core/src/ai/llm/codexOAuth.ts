@@ -85,26 +85,17 @@ export class CodexAppServerTurnError extends Error {
 
 function isExternalRuntimeToolEligible(tool: Tool): boolean {
   try {
-    return (
-      tool.readModeAccess !== undefined &&
-      tool.requiresUserInteraction?.() !== true
-    )
+    return tool.requiresUserInteraction?.() !== true
   } catch {
     return false
   }
 }
 
 function getDynamicToolDescription(tool: Tool): string {
-  const description = getToolDescription(tool)
-  if (tool.readModeAccess !== 'conditional') return description
-
-  return `${description}\n\nRead-only mode: use only commands that inspect files or repository state. Commands that modify files, start background work, or disable the sandbox are rejected.`
+  return getToolDescription(tool)
 }
 
 function getDynamicToolInputSchema(tool: Tool): Record<string, unknown> {
-  if (tool.readModeInputSchema) {
-    return toInputJsonSchema(tool.readModeInputSchema)
-  }
   return tool.inputJSONSchema ?? toInputJsonSchema(tool.inputSchema)
 }
 
@@ -312,13 +303,13 @@ export async function queryCodexOAuth(
       ephemeral: true,
       model: getExternalModelId(options.modelProfile),
       approvalPolicy: 'untrusted',
-      sandbox: 'read-only',
+      sandbox: 'workspace-write',
       dynamicTools: getDynamicTools(
         _tools,
         typeof options.toolUseContext?.options?.executeExternalToolCall ===
           'function',
       ),
-      baseInstructions: `${system}\n\nKode owns tool permissions. For workspace inspection, call the registered read-only Kode dynamic tools. Do not use native Codex command or file tools.`,
+      baseInstructions: `${system}\n\nKode owns tool permissions. Use the registered Kode dynamic tools for workspace inspection and actions; Kode will apply its normal permission policy. Do not use native Codex command or file tools.`,
     })
     threadId = getThreadId(thread)
     const turn = await client.request('turn/start', {

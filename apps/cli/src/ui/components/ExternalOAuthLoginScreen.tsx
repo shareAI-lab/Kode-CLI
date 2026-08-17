@@ -45,6 +45,10 @@ type Props = {
     model: ExternalRuntimeModel,
     activateAsMain: boolean,
   ) => Promise<string>
+  onProfileSaved?: (
+    modelId: string,
+    activateAsMain: boolean,
+  ) => void | Promise<void>
 }
 
 type State =
@@ -80,6 +84,7 @@ export function ExternalOAuthLoginScreen({
   onCancel,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   saveProfile = saveExternalRuntimeModelProfile,
+  onProfileSaved,
 }: Props): React.ReactNode {
   const theme = getTheme()
   const exitState = useExitOnCtrlCD(onCancel)
@@ -208,7 +213,8 @@ export function ExternalOAuthLoginScreen({
     setState('saving')
     setError(null)
     try {
-      await saveProfile(selected, activateAsMain)
+      const modelId = await saveProfile(selected, activateAsMain)
+      await onProfileSaved?.(modelId, activateAsMain)
       setState('complete')
     } catch (cause) {
       setError(
@@ -218,7 +224,7 @@ export function ExternalOAuthLoginScreen({
       )
       setState('error')
     }
-  }, [activateAsMain, models, saveProfile, selectedIndex])
+  }, [activateAsMain, models, onProfileSaved, saveProfile, selectedIndex])
 
   useKeypress((input, key) => {
     const inputChar = input.length === 1 ? input.toLowerCase() : ''

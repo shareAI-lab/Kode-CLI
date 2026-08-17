@@ -68,7 +68,32 @@ export function AssistantToolUseMessage({
   const tool = tools.find(_ => _.name === resolvedName)
   if (!tool) {
     logError(`Tool ${param.name} not found`)
-    return null
+    return (
+      <Box
+        flexDirection="row"
+        justifyContent="space-between"
+        marginTop={addMargin ? 1 : 0}
+        width="100%"
+      >
+        <Box flexWrap="nowrap">
+          {shouldShowDot && (
+            <ToolUseLoader
+              shouldAnimate={shouldAnimate}
+              isUnresolved={unresolvedToolUseIDs.has(param.id)}
+              isError={erroredToolUseIDs.has(param.id)}
+            />
+          )}
+          <Text color={theme.warning} bold wrap="truncate-end">
+            {param.name || resolvedName || 'Unknown tool'}
+          </Text>
+          <Text color={theme.secondaryText} wrap="truncate-end">
+            {' '}
+            (tool unavailable)
+          </Text>
+        </Box>
+        <Cost costUSD={costUSD} durationMs={durationMs} debug={debug} />
+      </Box>
+    )
   }
   const isQueued =
     !inProgressToolUseIDs.has(param.id) && unresolvedToolUseIDs.has(param.id)

@@ -257,6 +257,30 @@ describe('messagePipeline thinking-only recovery', () => {
     const toolUseContext = createToolUseContext(2, [{ name: 'Read' }])
     queryLLMImplementation = async () => {
       toolUseContext.options.externalToolCallCount = 1
+      const externalToolUse = createAssistantMessage('')
+      toolUseContext.externalToolMessages = [
+        {
+          ...externalToolUse,
+          message: {
+            ...externalToolUse.message,
+            content: [
+              {
+                type: 'tool_use',
+                id: 'external-read-1',
+                name: 'Read',
+                input: { file_path: '/tmp/example.ts' },
+              },
+            ],
+          },
+        },
+        createUserMessage([
+          {
+            type: 'tool_result',
+            tool_use_id: 'external-read-1',
+            content: 'workspace evidence',
+          },
+        ]),
+      ]
       return createAssistantMessage(
         'Reviewed the workspace with the Read tool.',
       )
@@ -278,8 +302,27 @@ describe('messagePipeline thinking-only recovery', () => {
       (message): message is AssistantMessage => message.type === 'assistant',
     )
     expect(queryLLM).toHaveBeenCalledTimes(1)
-    expect(assistantMessages).toHaveLength(1)
-    expect(assistantMessages[0]?.message.content[0]?.text).toContain(
+    expect(assistantMessages).toHaveLength(2)
+    expect(assistantMessages[0]?.message.content).toContainEqual({
+      type: 'tool_use',
+      id: 'external-read-1',
+      name: 'Read',
+      input: { file_path: '/tmp/example.ts' },
+    })
+    expect(out).toContainEqual(
+      expect.objectContaining({
+        type: 'user',
+        message: expect.objectContaining({
+          content: [
+            expect.objectContaining({
+              type: 'tool_result',
+              tool_use_id: 'external-read-1',
+            }),
+          ],
+        }),
+      }),
+    )
+    expect(assistantMessages[1]?.message.content[0]?.text).toContain(
       'Reviewed the workspace',
     )
   })

@@ -3,8 +3,8 @@ import { ModelConfig } from '#ui-ink/components/ModelConfig'
 import { enableConfigs } from '#core/utils/config'
 import { triggerModelConfigChange } from '#core/messages'
 
-export const help = 'Change your AI provider and model settings'
-export const description = 'Change your AI provider and model settings'
+export const help = 'Connect providers and choose model roles'
+export const description = 'Connect providers and choose model roles'
 export const isEnabled = true
 export const isHidden = false
 export const name = 'model'

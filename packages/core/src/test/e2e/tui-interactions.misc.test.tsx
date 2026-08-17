@@ -561,6 +561,32 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     }
   })
 
+  test('ModelConfig: connects OAuth and API providers through the login flow', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <ModelConfig onClose={() => {}} />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(100)
+    h.stdin.write('\u001B[B')
+    h.stdin.write('\u001B[B')
+    h.stdin.write('\u001B[B')
+    h.stdin.write('\u001B[B')
+    await h.wait(50)
+    expect(h.getOutput()).toContain('Connect provider')
+
+    h.stdin.write('\r')
+    await waitForCondition(
+      h,
+      () => h.getOutput().includes('Choose a sign-in or model setup method:'),
+      'model connection entry',
+    )
+    expect(h.getOutput()).toContain('Codex / ChatGPT')
+    expect(h.getOutput()).toContain('GitHub Copilot (OAuth)')
+  })
+
   test('Select: SGR mouse click selects the clicked option without leaking key input', async () => {
     let selected = ''
     let leakedKeypresses = 0

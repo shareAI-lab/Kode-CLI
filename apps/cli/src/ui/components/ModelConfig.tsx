@@ -16,6 +16,7 @@ import { Select } from '#ui-ink/components/CustomSelect/select'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { ModelListManager } from './ModelListManager'
+import { LoginScreen } from './LoginScreen'
 import { useScopedIndexState } from '#ui-ink/hooks/useScopedIndexState'
 
 type Props = {
@@ -31,7 +32,7 @@ type MenuItem =
     }
   | {
       type: 'action'
-      id: 'manage-models'
+      id: 'connect-provider' | 'manage-models'
       label: string
       description: string
     }
@@ -91,6 +92,7 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
 
   const [refreshKey, setRefreshKey] = useState(0)
   const [showModelListManager, setShowModelListManager] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
   const [activePointer, setActivePointer] = useState<ModelPointerType | null>(
     null,
   )
@@ -113,6 +115,12 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
   const menuItems: MenuItem[] = useMemo(
     () => [
       ...POINTER_ITEMS,
+      {
+        type: 'action',
+        id: 'connect-provider',
+        label: 'Connect provider',
+        description: 'Sign in with OAuth or add an API-key model profile.',
+      },
       {
         type: 'action',
         id: 'manage-models',
@@ -151,6 +159,8 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
   useKeypress(
     (input, key) => {
       if (didCloseRef.current) return true
+
+      if (showLogin) return undefined
 
       if (showModelListManager) {
         if (key.escape) {
@@ -230,6 +240,11 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
           setShowModelListManager(true)
           return true
         }
+
+        if (item.type === 'action' && item.id === 'connect-provider') {
+          setShowLogin(true)
+          return true
+        }
       }
       return undefined
     },
@@ -243,6 +258,21 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
           setShowModelListManager(false)
           setRefreshKey(prev => prev + 1)
         }}
+      />
+    )
+  }
+
+  if (showLogin) {
+    const returnToModelConfig = () => {
+      reloadModelManager()
+      setRefreshKey(prev => prev + 1)
+      setShowLogin(false)
+    }
+
+    return (
+      <LoginScreen
+        onDone={returnToModelConfig}
+        onCancel={returnToModelConfig}
       />
     )
   }
@@ -342,8 +372,7 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
     >
       <Box flexDirection="column" gap={gap}>
         <Text dimColor>
-          Configure model pointers (main/task/compact/quick) and manage
-          profiles.
+          Select role models, connect OAuth providers, and manage profiles.
         </Text>
 
         <Box flexDirection="column">

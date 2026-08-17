@@ -3,7 +3,7 @@ import type {
   ExternalRuntimeToolResult,
 } from '@kode/tool-interface/Tool'
 
-import { createAssistantMessage } from '../messages/create'
+import { createAssistantMessage, createUserMessage } from '../messages/create'
 import { runToolUse } from './tool-use'
 import type {
   EngineCanUseToolFn,
@@ -67,6 +67,24 @@ function toExternalToolResult(
   }
 }
 
+function createExternalToolUseMessage(call: ExternalRuntimeToolCall) {
+  const message = createAssistantMessage('')
+  return {
+    ...message,
+    message: {
+      ...message.message,
+      content: [
+        {
+          type: 'tool_use' as const,
+          id: call.toolUseId,
+          name: call.toolName,
+          input: call.input,
+        },
+      ],
+    },
+  }
+}
+
 /**
  * Runs dynamic external-runtime tool calls through the same engine path as
  * provider-native tool_use blocks. This preserves input validation,
@@ -88,32 +106,15 @@ export function createExternalToolCallBridge(args: {
         content: `No such Kode tool is available: ${call.toolName}.`,
       }
     }
-    if (!tool.readModeAccess) {
-      return {
-        success: false,
-        content:
-          'The Codex OAuth dynamic tool bridge does not expose this Kode tool in read-only mode.',
-      }
-    }
 
-    const readModeInput = (
-      tool.readModeInputSchema ?? tool.inputSchema
-    ).safeParse(call.input)
-    if (!readModeInput.success) {
+    if (!isRecord(call.input)) {
       return {
         success: false,
         content:
-          'This dynamic tool call does not satisfy the Kode read-only input contract.',
+          'This dynamic tool call did not provide an object-shaped Kode input.',
       }
     }
-    if (!isRecord(readModeInput.data)) {
-      return {
-        success: false,
-        content:
-          'This dynamic tool call did not produce an object-shaped Kode input.',
-      }
-    }
-    const input = readModeInput.data
+    const input = call.input
 
     if (tool.requiresUserInteraction?.(input as never)) {
       return {
@@ -122,23 +123,7 @@ export function createExternalToolCallBridge(args: {
           'The Codex OAuth dynamic tool bridge cannot run interactive Kode tools.',
       }
     }
-    try {
-      if (!tool.isReadOnly(input as never)) {
-        return {
-          success: false,
-          content:
-            'The Codex OAuth dynamic tool bridge supports read-only Kode tool calls only.',
-        }
-      }
-    } catch {
-      return {
-        success: false,
-        content:
-          'Kode could not verify that this dynamic tool call is read-only.',
-      }
-    }
-
-    const messages: Message[] = []
+    const messages: Message[] = [createExternalToolUseMessage(call)]
     try {
       for await (const message of runToolUse(
         {
@@ -152,12 +137,28 @@ export function createExternalToolCallBridge(args: {
         args.canUseTool,
         args.toolUseContext,
         undefined,
-        true,
+        false,
       )) {
         messages.push(message)
       }
+      args.toolUseContext.externalToolMessages ??= []
+      args.toolUseContext.externalToolMessages.push(...messages)
       return toExternalToolResult(messages, call.toolUseId)
     } catch (error) {
+      messages.push(
+        createUserMessage([
+          {
+            type: 'tool_result',
+            content: `Kode tool execution failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            is_error: true,
+            tool_use_id: call.toolUseId,
+          },
+        ]),
+      )
+      args.toolUseContext.externalToolMessages ??= []
+      args.toolUseContext.externalToolMessages.push(...messages)
       return {
         success: false,
         content: `Kode tool execution failed: ${

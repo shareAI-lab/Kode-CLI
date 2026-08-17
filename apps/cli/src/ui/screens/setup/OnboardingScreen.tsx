@@ -1,21 +1,19 @@
 import React from 'react'
-import { ModelSelector } from '#ui-ink/components/ModelSelector'
+import { LoginScreen } from '#ui-ink/components/LoginScreen'
 
 type Props = {
   onDone(result?: { skipped: boolean }): void
 }
 
 export function OnboardingScreen({ onDone }: Props): React.ReactNode {
-  // Skip theme selection, go directly to model selector. Escaping/cancelling
-  // the model selector counts as explicitly skipping onboarding: the user
-  // opted out of configuration, so the post-setup /capabilities run must be
-  // skipped too (previously "skipped" was hardcoded false, so cancelled
-  // onboarding still auto-ran a command in the first session).
+  // First-run setup and /login use the same provider entry point. OAuth users
+  // can choose an account-provided model, while API-key users continue into the
+  // existing model profile flow. Leaving the top-level menu is an explicit
+  // skip, so post-setup capability checks do not run unexpectedly.
   return (
-    <ModelSelector
+    <LoginScreen
       onDone={() => onDone({ skipped: false })}
       onCancel={() => onDone({ skipped: true })}
-      skipModelType={true}
       isOnboarding={true}
     />
   )

@@ -132,7 +132,7 @@ describe('Codex OAuth dynamic tool bridge', () => {
     ])
   })
 
-  test('registers an explicit read profile and narrows conditional Bash input', async () => {
+  test('registers action-capable tools with their full input schemas', async () => {
     let handlers: CodexAppServerHandlers
     const requests: Array<{ method: string; params: Record<string, unknown> }> =
       []
@@ -233,13 +233,21 @@ describe('Codex OAuth dynamic tool bridge', () => {
       description: string
       inputSchema: { properties?: Record<string, unknown> }
     }>
-    expect(dynamicTools.map(tool => tool.name)).toEqual(['Read', 'Bash'])
+    expect(dynamicTools.map(tool => tool.name)).toEqual([
+      'Read',
+      'Bash',
+      'Task',
+    ])
 
     const bash = dynamicTools.find(tool => tool.name === 'Bash')
-    expect(bash?.description).toContain('Read-only mode')
-    expect(bash?.inputSchema.properties).toEqual({
-      command: expect.any(Object),
-    })
+    expect(bash?.description).toBe('Run shell command')
+    expect(bash?.inputSchema.properties).toEqual(
+      expect.objectContaining({
+        command: expect.any(Object),
+        run_in_background: expect.any(Object),
+        dangerouslyDisableSandbox: expect.any(Object),
+      }),
+    )
   })
 
   test('preserves the runtime error supplied by a failed turn', async () => {

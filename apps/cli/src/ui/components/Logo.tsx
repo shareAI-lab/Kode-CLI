@@ -15,11 +15,52 @@ const MCP_DETAIL_MIN_ROWS = 6
 const SHORT_HELP_MIN_ROWS = 4
 const DISPLAY_ASCII_LOGO = ASCII_LOGO.trimStart()
 const DISPLAY_ASCII_LOGO_LINES = DISPLAY_ASCII_LOGO.trimEnd().split(/\r?\n/)
+
+type McpDisplayClient = {
+  name?: unknown
+  type?: unknown
+}
 const PRODUCT_NAME_FALLBACK = `${PRODUCT_NAME.toUpperCase()} CLI`
 
 function normalizeDimension(value: number | undefined, fallback: number) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.max(1, Math.floor(value))
+}
+
+function mcpClientDisplayPriority(client: McpDisplayClient): number {
+  if (client.type === 'connected') return 2
+  if (client.type === 'needs-auth') return 1
+  return 0
+}
+
+/**
+ * MCP definitions can arrive through more than one configuration source. The
+ * startup banner is only a summary, so show each server once and prefer its
+ * most useful status when duplicate names are present.
+ */
+export function getDistinctMcpClientsForDisplay<T extends McpDisplayClient>(
+  clients: readonly T[],
+): T[] {
+  const byName = new Map<string, T>()
+  const unnamed: T[] = []
+
+  for (const client of clients) {
+    const name = typeof client.name === 'string' ? client.name.trim() : ''
+    if (!name) {
+      unnamed.push(client)
+      continue
+    }
+
+    const existing = byName.get(name)
+    if (
+      !existing ||
+      mcpClientDisplayPriority(client) > mcpClientDisplayPriority(existing)
+    ) {
+      byName.set(name, client)
+    }
+  }
+
+  return [...byName.values(), ...unnamed]
 }
 
 function HintGroup({
@@ -130,8 +171,9 @@ export function Logo({
 }): React.ReactNode {
   const theme = getTheme()
 
-  const connected = mcpClients.filter(c => c.type === 'connected')
-  const failed = mcpClients.filter(c => c.type !== 'connected')
+  const displayMcpClients = getDistinctMcpClientsForDisplay(mcpClients)
+  const connected = displayMcpClients.filter(c => c.type === 'connected')
+  const failed = displayMcpClients.filter(c => c.type !== 'connected')
   const columns = normalizeDimension(terminalColumns, DEFAULT_TERMINAL_COLUMNS)
   const rows = normalizeDimension(terminalRows, DEFAULT_TERMINAL_ROWS)
   const isCompact = columns < MIN_LOGO_WIDTH || rows < FULL_LOGO_MIN_ROWS
@@ -170,7 +212,7 @@ export function Logo({
         {showMcpDetails ? (
           <Text color={theme.secondaryText} wrap="truncate-end">
             MCP Servers:{' '}
-            {mcpClients.length === 0 ? (
+            {displayMcpClients.length === 0 ? (
               'none'
             ) : (
               <>
@@ -245,7 +287,7 @@ export function Logo({
             : `── MCP Servers ${separator}`}
         </Text>
         <Box marginTop={isCompact ? 0 : 1} paddingLeft={isCompact ? 1 : 3}>
-          {mcpClients.length === 0 ? (
+          {displayMcpClients.length === 0 ? (
             <Text
               color={theme.secondaryText}
               wrap={isCompact ? 'truncate-end' : 'wrap'}

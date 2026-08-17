@@ -10,6 +10,7 @@ import {
   __areHelpTextPropsEqualForTests,
   __completionHelpKindForTests,
   __completionKeybindingHelpForTests,
+  __getSuggestionDisplayColorForTests,
   __getSuggestionWindowForTests,
   PromptInputCompletionPanel,
 } from './PromptInputCompletionPanel'
@@ -111,7 +112,7 @@ describe('completion help copy', () => {
 })
 
 describe('__getSuggestionWindowForTests', () => {
-  it('rerenders selected suggestions when their theme color changes', () => {
+  it('uses the normal text color for the active slash command', () => {
     const theme = getTheme()
     const suggestion = {
       type: 'command',
@@ -126,9 +127,17 @@ describe('__getSuggestionWindowForTests', () => {
     }
 
     expect(
+      __getSuggestionDisplayColorForTests({
+        suggestion,
+        isSelected: true,
+        theme,
+      }),
+    ).toBe(theme.text)
+
+    expect(
       __areSuggestionItemPropsEqualForTests(props, {
         ...props,
-        theme: { ...theme, suggestion: '#ff0000' },
+        theme: { ...theme, text: '#ff0000' },
       }),
     ).toBe(false)
   })

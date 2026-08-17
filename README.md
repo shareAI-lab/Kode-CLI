@@ -117,8 +117,9 @@ After installation, use any of these commands:
 kode
 ```
 
-On first use, run `/login` in the TUI to configure Codex, GitHub Copilot,
-OpenAI, or another supported provider.
+On first interactive use, Kode opens the same connection flow used by `/login`:
+choose Codex, GitHub Copilot, another OAuth provider, or an API-key model.
+The selected OAuth provider then returns its available models for you to choose.
 
 ### One-Shot Mode
 
@@ -167,8 +168,8 @@ stable starting point rather than a static copy of every extension command.
 | Command                                               | Use it for                                                                   |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `/help`                                               | Keyboard shortcuts, common commands, and custom-command locations            |
-| `/login`                                              | Configure Codex, GitHub Copilot, OpenAI, or another provider                 |
-| `/model`, `/effort`                                   | Choose the session model and set a supported reasoning level                 |
+| `/login`                                              | Connect Codex, GitHub Copilot, OpenAI, or another provider                   |
+| `/model`, `/effort`                                   | Connect providers, choose model roles, and set a supported reasoning level   |
 | `/settings`, `/config`                                | Configure Kode, appearance, terminal behavior, and safeguards                |
 | `/plan`, `/work`, `/review`                           | Plan, monitor, and review local work                                         |
 | `/tasks`, `/goal`                                     | Inspect background work and manage durable goals                             |
@@ -237,10 +238,10 @@ Unlike single-model tools, Kode enables **true multi-model orchestration** — a
 
 ### Sign In, Reasoning, and Provider Compatibility
 
-Use `/login` to add or switch a provider, `/model` to select the active model,
-and `/effort [level]` to inspect or set the reasoning level supported by that
-model. Kode validates the level against the active profile instead of applying
-one setting to every provider. Provider-specific request shaping is automatic;
+Use `/login` or `/model` to connect a provider, choose the available model, and
+assign it to a role. `/effort [level]` inspects or sets the reasoning level
+supported by the active model. Kode validates the level against the active
+profile instead of applying one setting to every provider. Provider-specific request shaping is automatic;
 for example, MiMo profiles avoid OpenAI-only `reasoning_effort` parameters and
 use their compatible thinking controls.
 

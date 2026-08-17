@@ -9,7 +9,7 @@ export default () =>
     type: 'local-jsx',
     name: 'login',
     description:
-      'Configure Codex, GitHub Copilot, OpenAI, or another model provider',
+      'Connect an OAuth provider or configure an API-key model profile',
     isEnabled: true,
     isHidden: false,
     ui: { displayMode: 'fullscreen' },

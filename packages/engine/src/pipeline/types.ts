@@ -23,6 +23,12 @@ import type { NormalizedMessage } from '../messages/normalize'
 export interface ExtendedToolUseContext extends ToolUseContext {
   abortController: AbortController
   /**
+   * Dynamic calls from an external runtime finish inside its active model
+   * request. Retain their normal Kode transcript messages until the pipeline
+   * can yield them to the active UI/session.
+   */
+  externalToolMessages?: Message[]
+  /**
    * Internal counter for the number of model calls ("turns") executed in the current run.
    * Used for non-interactive `--max-turns` enforcement and SDK `num_turns` reporting.
    */

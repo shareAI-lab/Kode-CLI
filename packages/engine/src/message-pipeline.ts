@@ -781,6 +781,12 @@ async function* messagePipelineCore(
       timestamp: Date.now(),
     })
 
+    // Dynamic external-runtime tool calls run while the provider turn is in
+    // flight. Each provider request starts with a fresh counter and transcript
+    // buffer so required-tool and verification checks describe this turn only.
+    toolUseContext.options.externalToolCallCount = 0
+    toolUseContext.externalToolMessages = []
+
     // Inject reminders into the latest user message
     if (reminders && messages.length > 0) {
       // Find the last user message
@@ -874,6 +880,21 @@ async function* messagePipelineCore(
     // This keeps --max-turns and SDK num_turns aligned with actual provider
     // calls instead of allowing hidden retries to bypass the configured cap.
     toolUseContext.turnCount = turnsUsed + 1
+
+    const externalToolMessages = toolUseContext.externalToolMessages ?? []
+    toolUseContext.externalToolMessages = []
+    if (externalToolMessages.length > 0) {
+      // Progress rows are rendered for the active turn only. Persist the
+      // corresponding tool-use/result messages for future context and
+      // verification, matching the regular ToolUseQueue behavior.
+      messages = [
+        ...messages,
+        ...externalToolMessages.filter(message => message.type !== 'progress'),
+      ]
+      for (const message of externalToolMessages) {
+        yield message
+      }
+    }
 
     // Provider/stream errors are already classified by the LLM adapter. Never
     // execute tool blocks from an error response, and preserve the original

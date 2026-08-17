@@ -60,6 +60,31 @@ describe('external runtime tool bridge', () => {
     expect(call).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ success: true, content: 'source contents' })
     expect(context.options.externalToolCallCount).toBe(1)
+    expect(context.externalToolMessages).toEqual([
+      expect.objectContaining({
+        type: 'assistant',
+        message: expect.objectContaining({
+          content: [
+            expect.objectContaining({
+              type: 'tool_use',
+              id: 'codex-call-1',
+              name: 'Read',
+            }),
+          ],
+        }),
+      }),
+      expect.objectContaining({
+        type: 'user',
+        message: expect.objectContaining({
+          content: [
+            expect.objectContaining({
+              type: 'tool_result',
+              tool_use_id: 'codex-call-1',
+            }),
+          ],
+        }),
+      }),
+    ])
   })
 
   test('returns a rejected result without running the tool', async () => {
@@ -89,7 +114,7 @@ describe('external runtime tool bridge', () => {
     })
   })
 
-  test('blocks a write-capable dynamic call before permission or execution', async () => {
+  test('runs a write-capable dynamic call through the normal permission path', async () => {
     const call = mock(async function* () {
       yield { type: 'result' as const, data: { text: 'must not run' } }
     })
@@ -109,16 +134,12 @@ describe('external runtime tool bridge', () => {
       input: { file_path: '/tmp/example.ts' },
     })
 
-    expect(canUseTool).not.toHaveBeenCalled()
-    expect(call).not.toHaveBeenCalled()
-    expect(result).toEqual({
-      success: false,
-      content:
-        'The Codex OAuth dynamic tool bridge supports read-only Kode tool calls only.',
-    })
+    expect(canUseTool).toHaveBeenCalledTimes(1)
+    expect(call).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ success: true, content: 'must not run' })
   })
 
-  test('blocks tools that were not explicitly exposed to read-only runtimes', async () => {
+  test('runs tools without a read-only profile through the normal permission path', async () => {
     const call = mock(async function* () {
       yield { type: 'result' as const, data: { text: 'must not run' } }
     })
@@ -139,16 +160,12 @@ describe('external runtime tool bridge', () => {
       input: { file_path: '/tmp/example.ts' },
     })
 
-    expect(canUseTool).not.toHaveBeenCalled()
-    expect(call).not.toHaveBeenCalled()
-    expect(result).toEqual({
-      success: false,
-      content:
-        'The Codex OAuth dynamic tool bridge does not expose this Kode tool in read-only mode.',
-    })
+    expect(canUseTool).toHaveBeenCalledTimes(1)
+    expect(call).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ success: true, content: 'must not run' })
   })
 
-  test('rejects Bash parameters excluded by its read-only input schema', async () => {
+  test('passes full Bash input through normal validation and permissions', async () => {
     const call = mock(async function* () {
       yield { type: 'result' as const, data: { text: 'must not run' } }
     })
@@ -175,13 +192,9 @@ describe('external runtime tool bridge', () => {
       input: { command: 'git diff', dangerouslyDisableSandbox: true },
     })
 
-    expect(canUseTool).not.toHaveBeenCalled()
-    expect(call).not.toHaveBeenCalled()
-    expect(result).toEqual({
-      success: false,
-      content:
-        'This dynamic tool call does not satisfy the Kode read-only input contract.',
-    })
+    expect(canUseTool).toHaveBeenCalledTimes(1)
+    expect(call).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ success: true, content: 'must not run' })
   })
 
   test('rejects interactive tools before asking for permission', async () => {

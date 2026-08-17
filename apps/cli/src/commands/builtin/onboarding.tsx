@@ -6,7 +6,7 @@ import { clearTerminal } from '#cli-utils/terminal'
 export default {
   type: 'local-jsx',
   name: 'onboarding',
-  description: 'Run through the onboarding flow',
+  description: 'Connect a provider and set up your first model',
   isEnabled: true,
   isHidden: false,
   ui: { displayMode: 'fullscreen' },

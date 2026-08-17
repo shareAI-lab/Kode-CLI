@@ -82,4 +82,34 @@ describe('Message group rendering', () => {
     expect(out).toContain('current weather today')
     expect(out).toContain('done')
   })
+
+  it('keeps an unavailable tool call visible instead of dropping it', async () => {
+    const message = makeAssistantMessage([
+      {
+        type: 'tool_use',
+        id: 'call_missing',
+        name: 'UnloadedTool',
+        input: { path: '/tmp/example.ts' },
+      },
+    ])
+
+    const out = await renderToText(
+      <Message
+        message={message}
+        messages={[]}
+        addMargin={false}
+        tools={[]}
+        verbose={false}
+        debug={false}
+        erroredToolUseIDs={new Set()}
+        inProgressToolUseIDs={new Set()}
+        unresolvedToolUseIDs={new Set()}
+        shouldAnimate={false}
+        shouldShowDot={false}
+      />,
+    )
+
+    expect(out).toContain('UnloadedTool')
+    expect(out).toContain('tool unavailable')
+  })
 })

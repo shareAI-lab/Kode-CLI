@@ -33,19 +33,38 @@ export function __areSuggestionItemPropsEqualForTests(
     prevProps.suggestion.value === nextProps.suggestion.value &&
     prevProps.suggestion.displayValue === nextProps.suggestion.displayValue &&
     prevProps.theme.suggestion === nextProps.theme.suggestion &&
+    prevProps.theme.text === nextProps.theme.text &&
     prevProps.maxWidth === nextProps.maxWidth
   )
+}
+
+export function __getSuggestionDisplayColorForTests(args: {
+  suggestion: Pick<Suggestion, 'type' | 'metadata'>
+  isSelected: boolean
+  theme: Theme
+}): string | undefined {
+  if (args.isSelected) {
+    // Slash commands are a work surface, not a status signal. Keep their
+    // active row readable and neutral; provider/agent entries retain their
+    // intentional color coding below.
+    return args.suggestion.type === 'command'
+      ? args.theme.text
+      : args.theme.suggestion
+  }
+
+  return args.suggestion.metadata?.color
+    ? resolveAgentColor(args.suggestion.metadata.color)
+    : undefined
 }
 
 // 使用 React.memo 优化建议列表渲染
 const SuggestionItem = React.memo(
   ({ suggestion, isSelected, theme, maxWidth }: SuggestionItemProps) => {
-    const hasColor = Boolean(suggestion.metadata?.color)
-    const displayColor = isSelected
-      ? theme.suggestion
-      : hasColor
-        ? resolveAgentColor(suggestion.metadata?.color)
-        : undefined
+    const displayColor = __getSuggestionDisplayColorForTests({
+      suggestion,
+      isSelected,
+      theme,
+    })
 
     return (
       <Box flexDirection="row" width={maxWidth} overflow="hidden">
