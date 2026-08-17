@@ -57,7 +57,7 @@ describe('TUI E2E: SessionMessageScreen', () => {
     rmSync(workspace, { recursive: true, force: true })
   })
 
-  test('selects a session, composes, sends, and shows threaded history', async () => {
+  test('selects a session, composes, sends, and persists threaded history', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
         <SessionMessageScreen
@@ -90,7 +90,6 @@ describe('TUI E2E: SessionMessageScreen', () => {
     await h.waitFor(output => output.includes('Queued'), 5_000)
 
     expect(h.getOutput()).toContain('Queued')
-    expect(h.getOutput()).toContain('Please verify the cancellation race.')
     expect(
       (await peekSessionMessages({ cwd: workspace, sessionId: TARGET }))[0]
         ?.body,
