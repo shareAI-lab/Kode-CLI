@@ -12,7 +12,7 @@ const checkpoint = {
   description: 'Create or list file-level Git checkpoints',
   argumentHint: 'create [label] | list',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args) {
     const [subcommand = '', ...rest] = args.trim().split(/\s+/).filter(Boolean)

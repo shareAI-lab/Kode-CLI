@@ -47,7 +47,7 @@ describe('__computeAutoTriggerActionForTests', () => {
     expect(result.action).toBe('reset')
   })
 
-  test('suppresses auto-trigger during likely IME input when panel is inactive', () => {
+  test('suppresses auto-trigger when the edit introduces non-ASCII text (IME)', () => {
     const context: CompletionContext = {
       type: 'command',
       prefix: '/h',
@@ -60,10 +60,10 @@ describe('__computeAutoTriggerActionForTests', () => {
     ]
 
     const result = __computeAutoTriggerActionForTests({
-      previousInput: '/',
-      input: '/h',
+      previousInput: '你',
+      input: '你好/h',
       now: 1000,
-      lastInputTime: 950, // 50ms => IME heuristic triggers
+      lastInputTime: 950,
       isEnabled: true,
       state: makeState({ isActive: false, context: null }),
       context,
@@ -73,7 +73,10 @@ describe('__computeAutoTriggerActionForTests', () => {
     expect(result.action).toBe('none')
   })
 
-  test('auto-triggers when not in IME heuristic window', () => {
+  test('auto-triggers for fast ASCII edits even right after another keystroke', () => {
+    // Regression: the old time-only IME heuristic (fast typing < 150ms) kept
+    // the completion panel closed when "/cmd" was typed quickly after a CJK
+    // sentence. Only content with non-ASCII text is treated as IME now.
     const context: CompletionContext = {
       type: 'command',
       prefix: '/h',
@@ -89,7 +92,7 @@ describe('__computeAutoTriggerActionForTests', () => {
       previousInput: '/',
       input: '/h',
       now: 1000,
-      lastInputTime: 0, // 1000ms => not IME heuristic
+      lastInputTime: 950, // 50ms apart — previously misclassified as IME
       isEnabled: true,
       state: makeState({ isActive: false, context: null }),
       context,

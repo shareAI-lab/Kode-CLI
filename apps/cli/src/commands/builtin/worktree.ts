@@ -16,7 +16,7 @@ const worktree = {
   description: 'Create, inspect, and release managed agent worktrees',
   argumentHint: 'create|list|release ...',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args) {
     const tokens = args.trim().split(/\s+/).filter(Boolean)

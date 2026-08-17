@@ -1,6 +1,7 @@
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
 import { createUserMessage } from '#core/utils/messages'
+import type { AgentConfig } from '@kode/agent'
 
 export type GeneratedAgent = {
   identifier: string
@@ -526,6 +527,14 @@ export function generateAgentFileContent(
   systemPrompt: string,
   model?: string,
   color?: string,
+  runtime?: Pick<
+    AgentConfig,
+    | 'disallowedTools'
+    | 'skills'
+    | 'permissionMode'
+    | 'forkContext'
+    | 'maxExecutionTimeMs'
+  >,
 ): string {
   // Quote + escape description and use literal "\n" sequences so the YAML frontmatter
   // stays one-line and parseable even when the description contains colons, quotes, or
@@ -548,6 +557,19 @@ export function generateAgentFileContent(
     toolsList === undefined ? '' : `\ntools: ${toolsList.join(', ')}`
   const modelLine = model ? `\nmodel: ${model}` : ''
   const colorLine = color ? `\ncolor: ${color}` : ''
+  const disallowedToolsLine = runtime?.disallowedTools?.length
+    ? `\ndisallowedTools: ${JSON.stringify(runtime.disallowedTools)}`
+    : ''
+  const skillsLine = runtime?.skills?.length
+    ? `\nskills: ${JSON.stringify(runtime.skills)}`
+    : ''
+  const permissionModeLine = runtime?.permissionMode
+    ? `\npermissionMode: ${runtime.permissionMode}`
+    : ''
+  const forkContextLine = runtime?.forkContext ? '\nforkContext: true' : ''
+  const maxExecutionTimeLine = runtime?.maxExecutionTimeMs
+    ? `\nmaxExecutionTimeMs: ${runtime.maxExecutionTimeMs}`
+    : ''
 
-  return `---\nname: ${agentType}\ndescription: "${escapedDescription}"${toolsLine}${modelLine}${colorLine}\n---\n\n${systemPrompt}\n`
+  return `---\nname: ${agentType}\ndescription: "${escapedDescription}"${toolsLine}${modelLine}${colorLine}${disallowedToolsLine}${skillsLine}${permissionModeLine}${forkContextLine}${maxExecutionTimeLine}\n---\n\n${systemPrompt}\n`
 }

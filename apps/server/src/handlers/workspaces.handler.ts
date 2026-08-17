@@ -66,10 +66,14 @@ async function execArgs(
     wasAborted = true
     try {
       abortController.abort()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     try {
       proc?.kill()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   if (options.abortSignal) {
@@ -118,7 +122,9 @@ async function execArgs(
       onAbort()
       try {
         await exitPromise
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
 
       return {
         stdout: '',

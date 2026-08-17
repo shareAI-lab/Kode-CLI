@@ -97,7 +97,9 @@ export function createInkHarnessManager() {
       while (mounted.length > 0) {
         try {
           mounted.pop()?.unmount()
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
     },
   }

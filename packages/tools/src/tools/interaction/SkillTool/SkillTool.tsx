@@ -165,6 +165,13 @@ export const SkillTool = {
   isReadOnly() {
     return false
   },
+  workspaceMutationScope(_input?: Input, output?: Output) {
+    // Expanded in-context messages are assessed when their tools run; forked
+    // skills execute through Task and own their verification in the child.
+    return output?.success === false
+      ? ('direct' as const)
+      : ('delegated' as const)
+  },
   isConcurrencySafe() {
     return false
   },
@@ -306,7 +313,7 @@ ${availableSkills}
     if ('status' in output && output.status === 'forked') {
       const result = (output.result || '').trim()
       const resultBlock = result ? `\n\nResult:\n${result}` : ''
-      return `Skill "${output.commandName}" completed (forked execution).${resultBlock}\n\nAgent ID: ${output.agentId}`
+      return `Skill "${output.commandName}" ${output.success ? 'completed' : 'failed'} (forked execution).${resultBlock}\n\nAgent ID: ${output.agentId}`
     }
     return `Launching skill: ${output.commandName}`
   },
@@ -423,7 +430,7 @@ ${availableSkills}
 
       const agentId = taskResult.agentId
       const resultText =
-        taskResult.status === 'completed'
+        taskResult.status === 'completed' || taskResult.status === 'failed'
           ? taskResult.content
               .map(b => b.text)
               .join('\n')
@@ -431,7 +438,7 @@ ${availableSkills}
           : ''
 
       const output: ForkedOutput = {
-        success: true,
+        success: taskResult.status === 'completed',
         commandName: skillName,
         status: 'forked',
         agentId,

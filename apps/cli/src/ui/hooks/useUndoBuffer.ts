@@ -66,7 +66,12 @@ export function useUndoBuffer<TExtra>(args: {
       }
 
       const now = Date.now()
-      if (now - lastPushAtRef.current < debounceMs) {
+      // The very first entry establishes the undo baseline. If it were
+      // debounced, a fast first burst would collapse into a single entry and
+      // Ctrl+_ could not step back through it.
+      const bufferEmpty =
+        stateRef.current.entries.length === 0 && stateRef.current.cursor === -1
+      if (!bufferEmpty && now - lastPushAtRef.current < debounceMs) {
         timeoutRef.current = setTimeout(() => {
           timeoutRef.current = null
           flushPending()

@@ -89,21 +89,35 @@ export function getReplStaticPrefixLength(
   orderedMessages: NormalizedMessage[],
   allMessages: NormalizedMessage[],
   unresolvedToolUseIDs: Set<string>,
+  keepRecentInFrame = true,
 ): number {
   const progressMessages = indexProgressMessages(allMessages)
   const getProgressMessage = (toolUseID: string) =>
     progressMessages.get(toolUseID)
   for (let i = 0; i < orderedMessages.length; i++) {
-    const message = orderedMessages[i]!
     if (
       !shouldRenderWithProgressLookup(
-        message,
+        orderedMessages[i]!,
         unresolvedToolUseIDs,
         getProgressMessage,
       )
     ) {
-      return i
+      // A message is still in flight. Everything before it is complete, but
+      // keep the most recent completed messages in the transient frame so the
+      // view stays anchored to the bottom (newest output) while executing.
+      if (!keepRecentInFrame) return i
+      return Math.max(0, i - RECENT_MESSAGES_KEPT_IN_FRAME)
     }
   }
-  return orderedMessages.length
+  if (!keepRecentInFrame) return orderedMessages.length
+  // All messages are complete: only history that falls above the bottom-anchored
+  // frame needs to be frozen into <Static> (Ink's append-only scrollback).
+  return Math.max(0, orderedMessages.length - RECENT_MESSAGES_KEPT_IN_FRAME)
 }
+
+/**
+ * How many most-recent completed messages stay rendered in the bottom-anchored
+ * transient frame instead of being frozen into the top <Static> scrollback.
+ * This keeps finished output visibly attached to the live prompt area.
+ */
+export const RECENT_MESSAGES_KEPT_IN_FRAME = 6

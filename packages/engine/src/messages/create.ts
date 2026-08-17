@@ -7,7 +7,7 @@ import type {
   ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/index.mjs'
 
-import type { Tool } from '@kode/tool-interface/Tool'
+import type { Tool, ToolResultMetadata } from '@kode/tool-interface/Tool'
 import { createAnthropicUsage } from '@kode/protocol/anthropic'
 import type {
   AssistantMessage,
@@ -75,6 +75,7 @@ export function createAssistantAPIErrorMessage(
 export type FullToolUseResult = {
   data: unknown
   resultForAssistant: ToolResultBlockParam['content']
+  metadata?: ToolResultMetadata
   newMessages?: Message[]
   contextModifier?: { modifyContext: (ctx: any) => any }
 }

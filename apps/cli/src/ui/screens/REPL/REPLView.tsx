@@ -11,8 +11,10 @@ import {
   buildRunningTasksLayoutSignature,
   RunningTasksPanel,
 } from '#ui-ink/components/RunningTasksPanel'
+import { GoalStatusPanel } from '#ui-ink/components/GoalStatusPanel'
 import { CostThresholdDialog } from '#ui-ink/components/CostThresholdDialog'
 import { BinaryFeedback } from '#ui-ink/components/binary-feedback/BinaryFeedback'
+import type { Goal } from '#core/goals'
 import { MessageSelector } from '#ui-ink/components/MessageSelector'
 import { PermissionProvider } from '#ui-ink/contexts/PermissionContext'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
@@ -34,7 +36,14 @@ import { AssistantStreamPreview } from './AssistantStreamPreview'
 import type { AssistantStreamStore } from './assistantStreamStore'
 
 const VIEWPORT_SAFE_MARGIN_ROWS = 1
-const MEASURE_DEBOUNCE_MS = 400
+const MEASURE_DEBOUNCE_MS = 150
+
+export function getMessageSelectorLayoutSignature(
+  isVisible: boolean,
+  messageCount: number,
+): number {
+  return isVisible ? messageCount : 0
+}
 
 export function REPLView({
   conversationKey,
@@ -47,9 +56,13 @@ export function REPLView({
   showStartupHeader = false,
   transientItems,
   assistantStreamStore,
+  activeGoal,
   toolJSX,
   toolUseConfirm,
   setToolUseConfirm,
+  pendingToolUseConfirmCount,
+  allowAllPendingToolUseConfirms,
+  rejectAllPendingToolUseConfirms,
   toast,
   binaryFeedbackContext,
   setBinaryFeedbackContext,
@@ -79,6 +92,7 @@ export function REPLView({
   showStartupHeader?: boolean
   transientItems: TranscriptItem[]
   assistantStreamStore: AssistantStreamStore
+  activeGoal: Goal | null
   toolJSX: {
     jsx: ReactNode | null
     shouldHidePromptInput: boolean
@@ -86,6 +100,9 @@ export function REPLView({
   } | null
   toolUseConfirm: ToolUseConfirm | null
   setToolUseConfirm: (confirm: ToolUseConfirm | null) => void
+  pendingToolUseConfirmCount: number
+  allowAllPendingToolUseConfirms: () => void
+  rejectAllPendingToolUseConfirms: () => void
   toast: string | null
   binaryFeedbackContext: BinaryFeedbackContext | null
   setBinaryFeedbackContext: (ctx: BinaryFeedbackContext | null) => void
@@ -126,6 +143,10 @@ export function REPLView({
   const hasToolUseConfirm = Boolean(toolUseConfirm)
   const hasBinaryFeedback = Boolean(binaryFeedbackContext)
   const hasToast = Boolean(toast)
+  const messageSelectorLayoutSignature = getMessageSelectorLayoutSignature(
+    isMessageSelectorVisible,
+    messageSelectorMessages.length,
+  )
   const promptInputMeasureSignature = useMemo(() => {
     if (!shouldShowPromptInput) return ''
 
@@ -178,11 +199,19 @@ export function REPLView({
   const mountedStaticOutputEpochRef = useRef<number | null>(null)
   const staticOutputKey = `static-${staticOutputEpoch}`
   const shouldRenderStartupHeaderInControls = shouldRenderStartupHeader
+  // Ink's Static owns an append cursor. Keep its item identity frozen while a
+  // fullscreen/permission surface obscures the REPL so reopening the normal
+  // layout appends only new output instead of replaying history from index 0.
+  const staticItemsForRenderRef = useRef<{
+    epoch: number
+    items: TranscriptItem[]
+  }>({ epoch: staticOutputEpoch, items: staticItems })
 
   const [mainControlsHeight, setMainControlsHeight] = useState(0)
   const [messageSelectorHeight, setMessageSelectorHeight] = useState(0)
   const [isLayoutMeasurementPending, setIsLayoutMeasurementPending] =
     useState(false)
+  const stableControlsHeightRef = useRef(0)
   const layoutMeasureKey = useMemo(
     () =>
       [
@@ -200,7 +229,7 @@ export function REPLView({
         startupHeaderMeasureSignature,
         isLoading ? 1 : 0,
         promptInputMeasureSignature,
-        messageSelectorMessages.length,
+        messageSelectorLayoutSignature,
       ].join(':'),
     [
       rows,
@@ -217,7 +246,7 @@ export function REPLView({
       startupHeaderMeasureSignature,
       isLoading,
       promptInputMeasureSignature,
-      messageSelectorMessages.length,
+      messageSelectorLayoutSignature,
     ],
   )
   const isLayoutMeasurementStale =
@@ -279,18 +308,29 @@ export function REPLView({
 
   const isMinimizedViewport = normalizedRows <= 0
   const isMicroViewport = normalizedRows > 0 && normalizedRows <= 4
+  const stableControlsHeight = useMemo(() => {
+    const measuredHeight = mainControlsHeight
+    if (stableControlsHeightRef.current === 0) {
+      stableControlsHeightRef.current = measuredHeight
+    } else {
+      const diff = Math.abs(measuredHeight - stableControlsHeightRef.current)
+      if (diff > 4) {
+        stableControlsHeightRef.current = measuredHeight
+      }
+    }
+    return stableControlsHeightRef.current
+  }, [mainControlsHeight])
   const transientMaxHeight = Math.max(
     0,
     normalizedRows -
-      mainControlsHeight -
+      stableControlsHeight -
       messageSelectorHeight -
       VIEWPORT_SAFE_MARGIN_ROWS,
   )
   const canShowTransientRegion =
-    !isLayoutMeasurementStale &&
-    !isLayoutMeasurementPending &&
     !isMicroViewport &&
-    transientMaxHeight > 0
+    transientMaxHeight > 0 &&
+    (isLoading || (!isLayoutMeasurementStale && !isLayoutMeasurementPending))
   const showRequestStatus =
     !isMicroViewport &&
     !toolJSX &&
@@ -322,19 +362,29 @@ export function REPLView({
               ? 'Working… Esc cancel'
               : null
   const hasStaticOutput = staticItems.length > 0
+  const isStaticOutputObscured = isFullScreenToolView || hasToolUseConfirm
+  if (staticItemsForRenderRef.current.epoch !== staticOutputEpoch) {
+    staticItemsForRenderRef.current = {
+      epoch: staticOutputEpoch,
+      items: isStaticOutputObscured ? [] : staticItems,
+    }
+  } else if (!isStaticOutputObscured) {
+    staticItemsForRenderRef.current = {
+      epoch: staticOutputEpoch,
+      items: staticItems,
+    }
+  }
+  const staticItemsForRender = staticItemsForRenderRef.current.items
   const shouldMountStaticOutputNormally =
     !isMinimizedViewport &&
     !isMicroViewport &&
-    !isFullScreenToolView &&
-    !toolUseConfirm &&
+    !isStaticOutputObscured &&
     hasStaticOutput
   if (shouldMountStaticOutputNormally) {
     mountedStaticOutputEpochRef.current = staticOutputEpoch
   }
   const shouldPreserveStaticOutputInConstrainedViewport =
-    (isMinimizedViewport || isMicroViewport) &&
-    !isFullScreenToolView &&
-    !toolUseConfirm &&
+    (isMinimizedViewport || isMicroViewport || isStaticOutputObscured) &&
     hasStaticOutput &&
     mountedStaticOutputEpochRef.current === staticOutputEpoch
   const shouldRenderStaticOutput =
@@ -346,11 +396,12 @@ export function REPLView({
       <TransientViewportProvider value={transientViewportValue}>
         <PermissionProvider
           conversationKey={conversationKey}
+          safeMode={safeMode}
           isBypassPermissionsModeAvailable={!safeMode}
         >
           <Box ref={rootUiRef} flexDirection="column" width="100%">
             {shouldRenderStaticOutput && (
-              <Static key={staticOutputKey} items={staticItems}>
+              <Static key={staticOutputKey} items={staticItemsForRender}>
                 {(item: TranscriptItem) => item.jsx}
               </Static>
             )}
@@ -365,6 +416,7 @@ export function REPLView({
       <TransientViewportProvider value={transientViewportValue}>
         <PermissionProvider
           conversationKey={conversationKey}
+          safeMode={safeMode}
           isBypassPermissionsModeAvailable={!safeMode}
         >
           <Box
@@ -375,7 +427,7 @@ export function REPLView({
             width="100%"
           >
             {shouldRenderStaticOutput && (
-              <Static key={staticOutputKey} items={staticItems}>
+              <Static key={staticOutputKey} items={staticItemsForRender}>
                 {(item: TranscriptItem) => item.jsx}
               </Static>
             )}
@@ -401,24 +453,38 @@ export function REPLView({
     <TransientViewportProvider value={transientViewportValue}>
       <PermissionProvider
         conversationKey={conversationKey}
+        safeMode={safeMode}
         isBypassPermissionsModeAvailable={!safeMode}
       >
         {isFullScreenToolView && toolJSX ? (
           <Box ref={rootUiRef} flexDirection="column" width="100%">
+            {shouldRenderStaticOutput && (
+              <Static key={staticOutputKey} items={staticItemsForRender}>
+                {(item: TranscriptItem) => item.jsx}
+              </Static>
+            )}
             {toolJSX.jsx}
           </Box>
         ) : toolUseConfirm ? (
           <Box ref={rootUiRef} flexDirection="column" width="100%">
+            {shouldRenderStaticOutput && (
+              <Static key={staticOutputKey} items={staticItemsForRender}>
+                {(item: TranscriptItem) => item.jsx}
+              </Static>
+            )}
             <PermissionRequest
               toolUseConfirm={toolUseConfirm}
               onDone={() => setToolUseConfirm(null)}
               verbose={verbose}
+              pendingCount={pendingToolUseConfirmCount}
+              onAllowAllPending={allowAllPendingToolUseConfirms}
+              onRejectAllPending={rejectAllPendingToolUseConfirms}
             />
           </Box>
         ) : (
           <Box ref={rootUiRef} flexDirection="column" width="100%">
             {shouldRenderStaticOutput && (
-              <Static key={staticOutputKey} items={staticItems}>
+              <Static key={staticOutputKey} items={staticItemsForRender}>
                 {(item: TranscriptItem) => item.jsx}
               </Static>
             )}
@@ -428,6 +494,7 @@ export function REPLView({
               transientItems={transientItems}
               maxHeight={transientMaxHeight}
               isVisible={canShowTransientRegion}
+              isActive={isLoading}
               debug={debug}
             />
 
@@ -459,6 +526,14 @@ export function REPLView({
                     maxWidth={columns}
                     tasks={backgroundTasks}
                   />
+                )}
+
+              {!toolUseConfirm &&
+                !toolJSX &&
+                !binaryFeedbackContext &&
+                !isMessageSelectorVisible &&
+                !showingCostDialog && (
+                  <GoalStatusPanel maxWidth={columns} goal={activeGoal} />
                 )}
 
               {toast &&

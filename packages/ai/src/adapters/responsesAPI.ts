@@ -5,10 +5,8 @@ import {
   ReasoningStreamingContext,
 } from '../internal/modelCapabilityTypes'
 import { Tool, getToolDescription } from '@kode/tool-interface/Tool'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import { processResponsesStream } from './responsesStreaming'
-import { debug as debugLogger } from '../internal/debug'
-import { logAiError } from '../internal/runtimeConfig'
 import {
   buildInstructions,
   convertMessagesToInput,
@@ -21,6 +19,74 @@ type StreamingFunctionCallState = {
   callId?: string
   name?: string
   arguments: string
+}
+
+type ReasoningPartKind = 'summary' | 'text'
+
+function getReasoningPartKey(parsed: any, kind: ReasoningPartKind): string {
+  const item =
+    typeof parsed.item_id === 'string'
+      ? parsed.item_id
+      : typeof parsed.output_index === 'number'
+        ? `output:${parsed.output_index}`
+        : 'unknown'
+  const index =
+    kind === 'summary'
+      ? (parsed.summary_index ?? 0)
+      : (parsed.content_index ?? 0)
+  return `${kind}:${item}:${index}`
+}
+
+function initializeReasoningPart(
+  reasoningContext: ReasoningStreamingContext,
+  key: string,
+): string {
+  if (!reasoningContext.seenReasoningPartKeys) {
+    reasoningContext.seenReasoningPartKeys = new Set()
+  }
+  if (reasoningContext.seenReasoningPartKeys.has(key)) return ''
+
+  reasoningContext.seenReasoningPartKeys.add(key)
+  return reasoningContext.thinkingContent ? '\n\n' : ''
+}
+
+function appendReasoningDelta(
+  reasoningContext: ReasoningStreamingContext,
+  key: string,
+  delta: string,
+): string {
+  if (!reasoningContext.reasoningPartText) {
+    reasoningContext.reasoningPartText = new Map()
+  }
+
+  const separator = initializeReasoningPart(reasoningContext, key)
+  const previous = reasoningContext.reasoningPartText.get(key) ?? ''
+  reasoningContext.reasoningPartText.set(key, previous + delta)
+  reasoningContext.thinkingContent =
+    (reasoningContext.thinkingContent ?? '') + separator + delta
+  return separator + delta
+}
+
+function appendReasoningCompletion(
+  reasoningContext: ReasoningStreamingContext,
+  key: string,
+  text: string,
+): string {
+  const previous = reasoningContext.reasoningPartText?.get(key) ?? ''
+  if (!text || text === previous || !text.startsWith(previous)) return ''
+
+  const delta = text.slice(previous.length)
+  if (!delta) return ''
+
+  if (!reasoningContext.reasoningPartText) {
+    reasoningContext.reasoningPartText = new Map()
+  }
+
+  const separator = initializeReasoningPart(reasoningContext, key)
+  reasoningContext.reasoningPartText.set(key, text)
+  reasoningContext.thinkingContent =
+    (reasoningContext.thinkingContent ?? '') + separator + delta
+  return separator + delta
 }
 
 export class ResponsesAPIAdapter extends OpenAIAdapter {
@@ -63,12 +129,20 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
     const include: string[] = []
     if (
       this.capabilities.parameters.supportsReasoningEffort &&
-      (this.shouldIncludeReasoningEffort() || reasoningEffort)
+      (this.shouldIncludeReasoningEffort() || reasoningEffort) &&
+      params.reasoning?.enable !== false
     ) {
       include.push('reasoning.encrypted_content')
       request.reasoning = {
         effort:
-          reasoningEffort || this.modelProfile.reasoningEffort || 'medium',
+          params.reasoning?.effort ||
+          reasoningEffort ||
+          this.modelProfile.reasoningEffort ||
+          'medium',
+        // OpenAI only emits reasoning summary events when a summary is
+        // requested. Keep the provider-visible summary separate from the
+        // encrypted continuity item above.
+        summary: params.reasoning?.summary ?? 'auto',
       }
     }
 
@@ -133,37 +207,28 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
     const isPlainObject = (obj: unknown): obj is Record<string, unknown> => {
       return obj !== null && typeof obj === 'object' && !Array.isArray(obj)
     }
+    const isZodSchema = (schema: unknown): boolean => {
+      return isPlainObject(schema) && '_zod' in schema
+    }
 
     return tools.map(tool => {
       // Prefer pre-built JSON schema if available
       let parameters: Record<string, unknown> | undefined = tool.inputJSONSchema
 
-      // Otherwise, check if inputSchema is already a JSON schema (not Zod)
-      if (!parameters && tool.inputSchema) {
+      if (!parameters) {
         const inputSchema: unknown = tool.inputSchema
-        if (
+        if (isZodSchema(inputSchema)) {
+          parameters = toInputJsonSchema(tool.inputSchema)
+        } else if (
           isPlainObject(inputSchema) &&
           ('type' in inputSchema || 'properties' in inputSchema)
         ) {
+          // Retain support for legacy callers that pass a JSON schema directly.
           parameters = inputSchema
         } else {
-          // Try to convert Zod schema
-          try {
-            const converted: unknown = zodToJsonSchema(tool.inputSchema)
-            parameters =
-              isPlainObject(converted) &&
-              ('type' in converted || 'properties' in converted)
-                ? converted
-                : { type: 'object', properties: {} }
-          } catch (error) {
-            logAiError(error)
-            debugLogger.warn('RESPONSES_API_TOOL_SCHEMA_CONVERSION_FAILED', {
-              toolName: tool.name,
-              error: error instanceof Error ? error.message : String(error),
-            })
-            // Use minimal schema as fallback
-            parameters = { type: 'object', properties: {} }
-          }
+          throw new TypeError(
+            `Tool "${tool.name}" must provide a Zod input schema or JSON Schema`,
+          )
         }
       }
 
@@ -171,7 +236,7 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
         type: 'function',
         name: tool.name,
         description: getToolDescription(tool),
-        parameters: parameters ?? { type: 'object', properties: {} },
+        parameters,
       }
     })
   }
@@ -349,26 +414,30 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
     accumulatedContent: string,
     reasoningContext?: ReasoningStreamingContext,
   ): AsyncGenerator<StreamingEvent> {
-    // Handle reasoning summary part events
+    // The Responses API emits summary and reasoning text as independently
+    // indexed parts. Keep each accumulator separate so the final *.done
+    // event can fill a missing delta without duplicating normal deltas.
     if (parsed.type === 'response.reasoning_summary_part.added') {
-      const partIndex = parsed.summary_index || 0
+      return
+    }
 
-      // Initialize reasoning state if not already done
-      if (!reasoningContext?.thinkingContent) {
-        reasoningContext!.thinkingContent = ''
-        reasoningContext!.currentPartIndex = -1
-      }
+    if (
+      parsed.type === 'response.reasoning_summary_text.delta' ||
+      parsed.type === 'response.reasoning_text.delta'
+    ) {
+      const delta = parsed.delta || ''
 
-      reasoningContext!.currentPartIndex = partIndex
-
-      // If this is not the first part and we have content, add newline separator
-      if (partIndex > 0 && reasoningContext!.thinkingContent) {
-        reasoningContext!.thinkingContent += '\n\n'
-
-        // Keep provider reasoning separate from user-facing output.
+      if (delta && reasoningContext) {
+        const kind: ReasoningPartKind = parsed.type.includes('summary')
+          ? 'summary'
+          : 'text'
         yield {
           type: 'thinking_delta',
-          delta: '\n\n',
+          delta: appendReasoningDelta(
+            reasoningContext,
+            getReasoningPartKey(parsed, kind),
+            delta,
+          ),
           responseId,
         }
       }
@@ -376,40 +445,22 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
       return
     }
 
-    // Handle reasoning summary text delta
-    if (parsed.type === 'response.reasoning_summary_text.delta') {
-      const delta = parsed.delta || ''
-
-      if (delta && reasoningContext) {
-        // Accumulate thinking content
-        reasoningContext.thinkingContent += delta
-
-        // Do not turn reasoning into user-facing text. A thinking-only
-        // response must remain detectable by the turn recovery pipeline.
-        yield {
-          type: 'thinking_delta',
-          delta,
-          responseId,
-        }
-      }
-
-      return
-    }
-
-    // Handle reasoning text delta
-    if (parsed.type === 'response.reasoning_text.delta') {
-      const delta = parsed.delta || ''
-
-      if (delta && reasoningContext) {
-        // Accumulate thinking content
-        reasoningContext.thinkingContent += delta
-
-        // Do not turn reasoning into user-facing text. A thinking-only
-        // response must remain detectable by the turn recovery pipeline.
-        yield {
-          type: 'thinking_delta',
-          delta,
-          responseId,
+    if (
+      parsed.type === 'response.reasoning_summary_text.done' ||
+      parsed.type === 'response.reasoning_text.done'
+    ) {
+      const text = parsed.text || ''
+      if (text && reasoningContext) {
+        const kind: ReasoningPartKind = parsed.type.includes('summary')
+          ? 'summary'
+          : 'text'
+        const delta = appendReasoningCompletion(
+          reasoningContext,
+          getReasoningPartKey(parsed, kind),
+          text,
+        )
+        if (delta) {
+          yield { type: 'thinking_delta', delta, responseId }
         }
       }
 

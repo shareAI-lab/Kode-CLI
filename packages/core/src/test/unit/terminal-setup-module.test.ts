@@ -27,7 +27,7 @@ describe('terminalSetup module resolution', () => {
     const mod = await import('#cli-commands/builtin/terminal-setup')
     const cmd = mod.default
     expect(cmd.description).toContain('Shift+Enter')
-    expect(cmd.isHidden).toBe(false)
+    expect(cmd.isHidden).toBe(true)
     expect(typeof cmd.call).toBe('function')
   })
 })

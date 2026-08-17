@@ -10,8 +10,7 @@ import {
 describe('toolPermissionContext (Reference CLI xC + mW parity)', () => {
   test('createDefaultToolPermissionContext matches expected defaults', () => {
     const ctx = createDefaultToolPermissionContext()
-    expect(ctx.mode).toBe('yolo')
-    expect(ctx.isBypassPermissionsModeAvailable).toBe(false)
+    expect(ctx.mode).toBe('acceptEdits')
     expect(ctx.additionalWorkingDirectories).toBeInstanceOf(Map)
     expect(ctx.additionalWorkingDirectories.size).toBe(0)
     expect(ctx.alwaysAllowRules).toEqual({})

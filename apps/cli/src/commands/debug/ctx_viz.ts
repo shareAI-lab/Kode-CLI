@@ -3,7 +3,7 @@ import type { Tool } from '#core/tooling/Tool'
 import Table from 'cli-table3'
 import { getSystemPrompt } from '#core/constants/prompts'
 import { getContext } from '@kode/context'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import { getMessagesGetter } from '#core/messages'
 import { PROJECT_FILE } from '#core/constants/product'
 // Quick and dirty estimate of bytes per token for rough token counts
@@ -190,9 +190,7 @@ const command: Command = {
       const schema = JSON.stringify(
         'inputJSONSchema' in t && t.inputJSONSchema
           ? t.inputJSONSchema
-          : zodToJsonSchema(
-              t.inputSchema as any as Parameters<typeof zodToJsonSchema>[0],
-            ),
+          : toInputJsonSchema(t.inputSchema),
       )
 
       return {

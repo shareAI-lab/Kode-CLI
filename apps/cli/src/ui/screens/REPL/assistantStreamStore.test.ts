@@ -51,23 +51,25 @@ function update(
 }
 
 describe('assistantStreamStore', () => {
-  test('clears stale retry text on provider start and ignores subagents', () => {
+  test('clears stale retry content on provider start and ignores subagents', () => {
     const store = createAssistantStreamStore()
     const turn = new AbortController()
     store.beginTurn(turn)
 
+    store.handleUpdate(turn, update('thinking_delta', 'first plan'))
+    expect(store.getSnapshot().thinking).toBe('first plan')
     store.handleUpdate(turn, update('text_delta', 'first attempt'))
-    expect(store.getSnapshot().text).toBe('first attempt')
 
     store.handleUpdate(turn, update('start', undefined, 'worker-1'))
     store.handleUpdate(
       turn,
       update('text_delta', 'hidden worker text', 'worker-1'),
     )
-    expect(store.getSnapshot().text).toBe('first attempt')
+    expect(store.getSnapshot().thinking).toBe('first plan')
 
     store.handleUpdate(turn, update('start', undefined, 'main'))
     expect(store.getSnapshot().text).toBe('')
+    expect(store.getSnapshot().thinking).toBe('')
 
     store.handleUpdate(turn, update('text_delta', 'retry'))
     expect(store.getSnapshot().text).toBe('retry')
@@ -152,6 +154,42 @@ describe('assistantStreamStore', () => {
     fake.advance(33)
     expect(store.getSnapshot().text).toBe('456789AB')
     expect(store.getSnapshot().text.length).toBe(8)
+  })
+
+  test('coalesces a large mixed stream into one render frame per interval', () => {
+    const fake = createFakeScheduler()
+    const store = createAssistantStreamStore({
+      frameIntervalMs: 33,
+      maxTailChars: 32,
+      scheduler: fake.scheduler,
+    })
+    const turn = new AbortController()
+    let publishes = 0
+    store.subscribe(() => {
+      publishes += 1
+    })
+    store.beginTurn(turn)
+
+    store.handleUpdate(turn, update('thinking_delta', '0'))
+    for (let index = 1; index <= 10_000; index += 1) {
+      store.handleUpdate(
+        turn,
+        update(
+          index % 2 === 0 ? 'thinking_delta' : 'text_delta',
+          String(index),
+        ),
+      )
+    }
+
+    expect(publishes).toBe(1)
+    expect(fake.pendingCount()).toBe(1)
+    expect(store.getSnapshot().thinking).toBe('0')
+
+    fake.advance(33)
+
+    expect(publishes).toBe(2)
+    expect(store.getSnapshot().thinking.length).toBeLessThanOrEqual(32)
+    expect(store.getSnapshot().text.length).toBeLessThanOrEqual(32)
   })
 
   test('does not split a surrogate pair at the bounded tail edge', () => {

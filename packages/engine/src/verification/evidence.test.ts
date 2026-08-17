@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Message } from '../pipeline/types'
+import type { Message, UserMessage } from '../pipeline/types'
 import {
   collectGoalVerificationEvidence,
   getTurnVerificationState,
@@ -34,7 +34,7 @@ function toolUse(
   }
 }
 
-function toolResult(data: unknown, toolUseId = receipt.toolUseId): Message {
+function toolResult(data: unknown, toolUseId = receipt.toolUseId): UserMessage {
   return {
     type: 'user',
     uuid: crypto.randomUUID() as never,
@@ -49,6 +49,42 @@ function toolResult(data: unknown, toolUseId = receipt.toolUseId): Message {
       ],
     },
     toolUseResult: { data, resultForAssistant: 'tool output' },
+  }
+}
+
+function toolResultWithMutation(
+  data: unknown,
+  toolUseId: string,
+  scope: 'none' | 'direct' | 'delegated',
+): Message {
+  const message = toolResult(data, toolUseId)
+  if (!message.toolUseResult) throw new Error('Expected tool result metadata')
+  message.toolUseResult.metadata = {
+    workspaceMutation: {
+      version: 1,
+      toolUseId,
+      scope,
+      basis: scope === 'delegated' ? 'delegated' : 'observed',
+    },
+  }
+  return message
+}
+
+function rejectedToolResult(toolUseId: string): Message {
+  return {
+    type: 'user',
+    uuid: crypto.randomUUID() as never,
+    message: {
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: toolUseId,
+          content: 'Permission denied',
+          is_error: true,
+        },
+      ],
+    },
   }
 }
 
@@ -82,6 +118,36 @@ describe('goal verification evidence', () => {
     ])
 
     expect(evidence).toEqual([receipt])
+  })
+
+  test('accepts a trusted background verification receipt from TaskOutput', () => {
+    const taskOutputReceipt = {
+      ...receipt,
+      toolUseId: 'task-output-1',
+    }
+    const messages: Message[] = [
+      userPrompt('Implement and test the change in the background.'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      toolResultWithMutation({}, 'edit-1', 'direct'),
+      toolUse([
+        {
+          id: 'task-output-1',
+          name: 'TaskOutput',
+          input: { task_id: 'background-test-1', block: true },
+        },
+      ]),
+      toolResultWithMutation(
+        { verification: taskOutputReceipt },
+        'task-output-1',
+        'none',
+      ),
+    ]
+
+    expect(getTurnVerificationState(messages)).toMatchObject({
+      hasMutation: true,
+      hasTerminalEvidence: true,
+      evidence: [taskOutputReceipt],
+    })
   })
 
   test('drops a receipt after a later file write or non-read-only Bash command', () => {
@@ -184,6 +250,80 @@ describe('goal verification evidence', () => {
     ])
 
     expect(evidence).toEqual([])
+  })
+
+  test('does not mistake delegated code exploration for a workspace write', () => {
+    const state = getTurnVerificationState([
+      userPrompt('Read the loop implementation and explain it.'),
+      toolUse([
+        {
+          id: 'task-1',
+          name: 'Task',
+          input: { subagent_type: 'Explore', prompt: 'Read code' },
+        },
+      ]),
+      toolResultWithMutation({}, 'task-1', 'delegated'),
+      toolUse([
+        {
+          id: 'read-1',
+          name: 'Read',
+          input: { file_path: '/workspace/a.ts' },
+        },
+      ]),
+      toolResult({}, 'read-1'),
+    ])
+
+    expect(state).toMatchObject({
+      hasMutation: false,
+      hasTerminalEvidence: false,
+    })
+  })
+
+  test('uses engine mutation receipts instead of guessing from a tool name', () => {
+    const observedReadOnly = getTurnVerificationState([
+      userPrompt('Inspect with a workspace plugin.'),
+      toolUse([
+        {
+          id: 'mcp-read-1',
+          name: 'mcp',
+          input: { server: 'workspace-plugin', tool: 'inspect' },
+        },
+      ]),
+      toolResultWithMutation({}, 'mcp-read-1', 'none'),
+    ])
+    const observedWrite = getTurnVerificationState([
+      userPrompt('Run a custom workspace operation.'),
+      toolUse([
+        {
+          id: 'read-looks-safe',
+          name: 'Read',
+          input: { file_path: '/workspace/a.ts' },
+        },
+      ]),
+      toolResultWithMutation({}, 'read-looks-safe', 'direct'),
+    ])
+
+    expect(observedReadOnly.hasMutation).toBe(false)
+    expect(observedWrite.hasMutation).toBe(true)
+  })
+
+  test('does not require verification for a write tool rejected before execution', () => {
+    const state = getTurnVerificationState([
+      userPrompt('Edit a.ts'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      rejectedToolResult('edit-1'),
+    ])
+
+    expect(state.hasMutation).toBe(false)
+  })
+
+  test('keeps interrupted direct tools fail-closed when no result exists', () => {
+    const state = getTurnVerificationState([
+      userPrompt('Edit a.ts'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+    ])
+
+    expect(state.hasMutation).toBe(true)
   })
 
   test('rejects unmatched, malformed, and non-Bash receipt-shaped data', () => {

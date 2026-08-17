@@ -46,14 +46,6 @@ const FILESYSTEM_LIKE_TOOL_NAMES = new Set([
   'Grep',
 ])
 
-function parseBoolLike(value: string | undefined): boolean {
-  if (!value) return false
-  const normalized = value.trim().toLowerCase()
-  return ['1', 'true', 'yes', 'y', 'on', 'enable', 'enabled'].includes(
-    normalized,
-  )
-}
-
 function flattenPermissionRuleGroups(
   groups: Partial<Record<string, string[]>> | undefined,
 ): string[] {
@@ -69,18 +61,10 @@ function flattenPermissionRuleGroups(
   return out
 }
 
-function checkBypassSafetyFloor(args: {
+function checkWriteSafetyFloor(args: {
   tool: Tool
   input: Record<string, unknown>
-  safeMode: boolean
 }): PermissionResult | null {
-  // SECURITY: KODE_BYPASS_SAFETY_FLOOR has been removed.
-  // The safety floor (preventing writes to sensitive system paths) must
-  // always be enforced regardless of permission mode. This prevents
-  // accidental or malicious writes to /etc, ~/.ssh, etc.
-  // Previously: parseBoolLike(process.env.KODE_BYPASS_SAFETY_FLOOR) could
-  // disable this check, which is a security anti-pattern.
-
   const denyIfUnsafeWrite = (toolPath: string): PermissionResult | null => {
     const safety = getWriteSafetyCheckForPath(toolPath)
     if ('message' in safety) {
@@ -157,6 +141,18 @@ function buildEffectiveContext(args: {
   return effectiveToolPermissionContext
 }
 
+function isReadOnlyToolUse(
+  tool: Tool,
+  input: Record<string, unknown>,
+): boolean {
+  try {
+    return tool.isReadOnly(input as never)
+  } catch (error) {
+    logError(`Error checking whether ${tool.name} is read-only: ${error}`)
+    return false
+  }
+}
+
 export const hasPermissionsToUseTool: CanUseToolFn = async (
   tool,
   input,
@@ -164,41 +160,47 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
   assistantMessage,
 ): Promise<PermissionResult> => {
   const rawPermissionMode = getPermissionMode(context)
-  const permissionMode = normalizePermissionMode(rawPermissionMode)
-  const isDontAskMode = permissionMode === 'dontAsk'
-  const isYoloMode = permissionMode === 'yolo'
+  const normalizedPermissionMode = normalizePermissionMode(rawPermissionMode)
   const shouldAvoidPermissionPrompts =
     context.options?.shouldAvoidPermissionPrompts === true
   const safeMode = Boolean(context.options?.safeMode ?? context.safeMode)
+  const permissionMode =
+    safeMode && normalizedPermissionMode === 'acceptEdits'
+      ? 'cautious'
+      : normalizedPermissionMode
+  const isEditMode = permissionMode === 'acceptEdits'
   const requiresUserInteraction =
     tool.requiresUserInteraction?.(input as never) ?? false
 
-  const dontAskDenied: PermissionResult = {
-    result: false,
-    message: `Permission to use ${tool.name} has been auto-denied in dontAsk mode.`,
-    shouldPromptUser: false,
-  }
+  const safetyFloor = checkWriteSafetyFloor({ tool, input })
+  if (safetyFloor) return safetyFloor
+
   const promptsUnavailableDenied: PermissionResult = {
     result: false,
     message: `Permission to use ${tool.name} has been auto-denied (prompts unavailable).`,
     shouldPromptUser: false,
   }
 
-  // Note: YOLO mode auto-approve is applied at the end, after deny/ask rules are checked
-
-  if (permissionMode === 'bypassPermissions' && !requiresUserInteraction) {
-    const denied = checkBypassSafetyFloor({ tool, input, safeMode })
-    if (denied) return denied
-
-    return { result: true }
-  }
-
   if (requiresUserInteraction) {
-    if (isDontAskMode) return dontAskDenied
     if (shouldAvoidPermissionPrompts) return promptsUnavailableDenied
     return {
       result: false,
       message: `${PRODUCT_NAME} requested permissions to use ${tool.name}, but you haven't granted it yet.`,
+    }
+  }
+
+  // Plan is a real execution boundary, not merely a UI label. Every call is
+  // classified using its actual input: Read remains usable, while Edit,
+  // Write, dangerous Bash commands, and write-capable delegation are denied.
+  // Tools that require user interaction (for example ExitPlanMode) were
+  // handled above so an explicit approval can intentionally change modes.
+  if (permissionMode === 'plan') {
+    if (!isReadOnlyToolUse(tool, input)) {
+      return {
+        result: false,
+        message: `${tool.name} is unavailable in read-only Plan mode. Exit Plan mode and explicitly choose an editing permission mode to continue.`,
+        shouldPromptUser: false,
+      }
     }
   }
 
@@ -306,7 +308,6 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
           message: `${PRODUCT_NAME} requested permissions to write to ${toolPath}, but you haven't granted it yet.`,
           blockedPath: toolPath,
           decisionReason: askedRule,
-          requiresExplicitApproval: true,
         }
       }
     }
@@ -356,12 +357,17 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     checkEditPermissionForPath,
   })
 
+  // Edit is the full-permission execution mode for ordinary operations.
+  // Configured ask rules no longer interrupt it, while high-risk results keep
+  // requiresExplicitApproval and hard denials remain non-bypassable.
   if (
-    isDontAskMode &&
+    isEditMode &&
+    !requiresUserInteraction &&
     permissionResult.result === false &&
-    permissionResult.shouldPromptUser !== false
+    permissionResult.shouldPromptUser !== false &&
+    permissionResult.requiresExplicitApproval !== true
   ) {
-    return dontAskDenied
+    return { result: true }
   }
 
   if (
@@ -370,18 +376,6 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     permissionResult.shouldPromptUser !== false
   ) {
     return promptsUnavailableDenied
-  }
-
-  // YOLO mode: if result would prompt user (not explicitly denied), auto-approve instead
-  // Explicit deny rules (shouldPromptUser: false) are still respected
-  if (
-    isYoloMode &&
-    !requiresUserInteraction &&
-    permissionResult.result === false &&
-    permissionResult.shouldPromptUser !== false &&
-    permissionResult.requiresExplicitApproval !== true
-  ) {
-    return { result: true }
   }
 
   return permissionResult

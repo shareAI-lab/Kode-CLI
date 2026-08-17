@@ -9,13 +9,15 @@ const PRIMARY_COMMAND_ORDER = [
   'login',
   'init',
   'resume',
-  'goal',
-  'loop',
+  'model',
+  'plan',
   'work',
-  'tasks',
+  'session',
   'review',
   'status',
-  'plan',
+  'inspect',
+  'settings',
+  'extensions',
 ] as const
 
 export const PRIMARY_COMMAND_NAMES = new Set<string>(PRIMARY_COMMAND_ORDER)

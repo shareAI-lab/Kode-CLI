@@ -57,7 +57,7 @@ describe('Tool registry', () => {
 })
 
 describe('Plan mode gating', () => {
-  test('does not auto-deny write tool while in plan mode', async () => {
+  test('hard-denies writes while in plan mode', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))
     process.env.KODE_CONFIG_DIR = configDir
     __resetPlanModeForTests()
@@ -74,7 +74,7 @@ describe('Plan mode gating', () => {
       )
       expect(result.result).toBe(false)
       if (result.result === false) {
-        expect(result.shouldPromptUser).not.toBe(false)
+        expect(result.shouldPromptUser).toBe(false)
       } else {
         throw new Error('Expected permission denied result')
       }
@@ -110,7 +110,7 @@ describe('Plan mode gating', () => {
     }
   })
 
-  test('allows writing the plan file while in plan mode', async () => {
+  test('hard-denies writing the plan file while in plan mode', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))
     process.env.KODE_CONFIG_DIR = configDir
     __resetPlanModeForTests()
@@ -128,14 +128,19 @@ describe('Plan mode gating', () => {
         ctx,
         createAssistantMessage(''),
       )
-      expect(result.result).toBe(true)
+      expect(result.result).toBe(false)
+      if (result.result === false) {
+        expect(result.shouldPromptUser).toBe(false)
+      } else {
+        throw new Error('Expected permission denied result')
+      }
       exitPlanMode(ctx)
     } finally {
       rmSync(configDir, { recursive: true, force: true })
     }
   })
 
-  test('allows writing agent plan files while in plan mode', async () => {
+  test('hard-denies writing agent plan files while in plan mode', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))
     process.env.KODE_CONFIG_DIR = configDir
     __resetPlanModeForTests()
@@ -153,7 +158,7 @@ describe('Plan mode gating', () => {
       )
       expect(result.result).toBe(false)
       if (result.result === false) {
-        expect(result.shouldPromptUser).not.toBe(false)
+        expect(result.shouldPromptUser).toBe(false)
       } else {
         throw new Error('Expected permission denied result')
       }

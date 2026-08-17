@@ -16,6 +16,9 @@ describe('WebFetch network boundary', () => {
       '10.0.0.1',
       '100.64.0.1',
       '0.0.0.0',
+      // 0.0.0.0/8 routes to the loopback interface on Linux.
+      '0.1.2.3',
+      '0.255.255.255',
       '::1',
       'fc00::1',
       'fe80::1',
@@ -29,6 +32,15 @@ describe('WebFetch network boundary', () => {
     }
     expect(isPublicNetworkAddress('8.8.8.8')).toBe(true)
     expect(isPublicNetworkAddress('2606:4700:4700::1111')).toBe(true)
+  })
+
+  test('allows the 198.18.0.0/15 benchmarking range used by proxy fake-ip', () => {
+    // RFC 2544 benchmarking space is not routed on the public internet and
+    // cannot reach internal networks; Clash/Surge fake-ip maps it as a
+    // virtual range whose traffic is forwarded to the validated hostname.
+    expect(isPublicNetworkAddress('198.18.0.1')).toBe(true)
+    expect(isPublicNetworkAddress('198.18.2.61')).toBe(true)
+    expect(isPublicNetworkAddress('198.19.255.255')).toBe(true)
   })
 
   test('normalizes alternate IP spellings before validating URLs', () => {

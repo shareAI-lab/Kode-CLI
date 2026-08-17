@@ -93,7 +93,7 @@ export function buildRunningTasksLayoutSignature(
   }`
 }
 
-export function RunningTasksPanel({
+export const RunningTasksPanel = React.memo(function RunningTasksPanel({
   maxWidth,
   tasks,
 }: {
@@ -138,4 +138,4 @@ export function RunningTasksPanel({
       )}
     </Box>
   )
-}
+})

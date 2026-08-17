@@ -64,6 +64,33 @@ export function useBracketedPasteSequences({
     incomplete: '',
     buffer: '',
   })
+  const mountedRef = React.useRef(true)
+  const deferredPasteTimersRef = React.useRef(
+    new Set<ReturnType<typeof setTimeout>>(),
+  )
+
+  React.useEffect(() => {
+    const deferredPasteTimers = deferredPasteTimersRef.current
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      for (const timer of deferredPasteTimers) {
+        clearTimeout(timer)
+      }
+      deferredPasteTimers.clear()
+    }
+  }, [])
+
+  const schedulePasteCallback = React.useCallback(
+    (text: string) => {
+      const timer = setTimeout(() => {
+        deferredPasteTimersRef.current.delete(timer)
+        if (mountedRef.current) onPaste?.(text)
+      }, 0)
+      deferredPasteTimersRef.current.add(timer)
+    },
+    [onPaste],
+  )
 
   const flushBracketedPasteBuffer = React.useCallback(
     (rawText: string) => {
@@ -74,14 +101,14 @@ export function useBracketedPasteSequences({
       ) {
         // Schedule callback outside the keypress frame so large paste handling
         // doesn't block cursor updates.
-        setTimeout(() => onPaste(normalized), 0)
+        schedulePasteCallback(normalized)
         return
       }
 
       // Normal paste: insert directly into input.
       insertText(normalized)
     },
-    [insertText, onPaste, terminalColumns],
+    [insertText, onPaste, schedulePasteCallback, terminalColumns],
   )
 
   return React.useCallback(

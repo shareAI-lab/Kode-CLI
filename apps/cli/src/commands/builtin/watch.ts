@@ -171,7 +171,7 @@ const watch = {
   description: 'Run bounded read-only GitHub PR or workflow probes',
   argumentHint: '<pr|run> <owner>/<repo>#<number>',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args: string, context: { abortController: AbortController }) {
     const target = parseWatchTarget(args)

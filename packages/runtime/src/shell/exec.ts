@@ -57,7 +57,7 @@ export async function exec(
   const sandbox = options?.sandbox
   const shouldAttemptSandbox = sandbox?.enabled === true
   const executionCwd =
-    shouldAttemptSandbox && sandbox?.chdir ? sandbox.chdir : state.cwd
+    (shouldAttemptSandbox && sandbox?.chdir) || options?.cwd || state.cwd
 
   const runOnce = async (
     cmd: string[],
@@ -75,10 +75,14 @@ export async function exec(
     if (options?.stdin !== undefined && processRef.stdin) {
       try {
         processRef.stdin.write(options.stdin)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       try {
         processRef.stdin.end()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     const exitPromise = new Promise<
@@ -175,7 +179,7 @@ export async function exec(
       const sandboxCmd = buildSandboxCommand({
         command,
         sandbox: sandbox!,
-        cwd: state.cwd,
+        cwd: executionCwd,
       })
       if (!sandboxCmd) {
         if (sandbox?.require) {

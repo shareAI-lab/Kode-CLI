@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -181,6 +182,66 @@ describe('legacy session import (read-only discover + explicit copy into kodeRoo
           const result = importLegacySession({ cwd: projectDir, sessionId })
           expect(result.kind).toBe('already_present')
           expect(readFileSync(destinationPath, 'utf8')).toBe('existing\n')
+        },
+      )
+    } finally {
+      rmSync(kodeRoot, { recursive: true, force: true })
+      rmSync(claudeRoot, { recursive: true, force: true })
+      rmSync(projectDir, { recursive: true, force: true })
+    }
+  })
+
+  test('a failed copy leaves no partial destination so import can retry', async () => {
+    const kodeRoot = mkdtempSync(join(tmpdir(), 'kode-import-root-'))
+    const claudeRoot = mkdtempSync(join(tmpdir(), 'claude-import-root-'))
+    const projectDir = mkdtempSync(join(tmpdir(), 'kode-import-proj-'))
+
+    try {
+      await withEnv(
+        {
+          KODE_CONFIG_DIR: kodeRoot,
+          CLAUDE_CONFIG_DIR: claudeRoot,
+          ANYKODE_CONFIG_DIR: undefined,
+        },
+        () => {
+          const sessionId = '33333333-3333-4333-8333-333333333333'
+          const projectName = sanitizeProjectNameForSessionStore(projectDir)
+          const sourcePath = join(
+            claudeRoot,
+            'projects',
+            projectName,
+            `${sessionId}.jsonl`,
+          )
+          const destinationPath = getSessionLogFilePath({
+            cwd: projectDir,
+            sessionId,
+          })
+
+          // A directory where a session log is expected makes copyFileSync
+          // fail deterministically (EISDIR), simulating a copy error/crash
+          // mid-import.
+          mkdirSync(dirname(sourcePath), { recursive: true })
+          mkdirSync(sourcePath, { recursive: true })
+
+          const first = importLegacySession({ cwd: projectDir, sessionId })
+          expect(first.kind).toBe('failed')
+
+          expect(existsSync(destinationPath)).toBe(false)
+          expect(
+            readdirSync(dirname(destinationPath)).some(name =>
+              name.endsWith('.import.tmp'),
+            ),
+          ).toBe(false)
+
+          // Repair the source and retry: the destination must be importable.
+          rmSync(sourcePath, { recursive: true, force: true })
+          writeFileSync(sourcePath, '{"type":"user","uuid":"u1"}\n', 'utf8')
+
+          const retried = importLegacySession({ cwd: projectDir, sessionId })
+          expect(retried.kind).toBe('imported')
+          expect(readFileSync(destinationPath, 'utf8')).toBe(
+            '{"type":"user","uuid":"u1"}\n',
+          )
         },
       )
     } finally {

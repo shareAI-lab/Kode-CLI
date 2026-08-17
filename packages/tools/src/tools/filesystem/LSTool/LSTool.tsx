@@ -55,6 +55,7 @@ export const LSTool = {
     return DESCRIPTION
   },
   inputSchema,
+  readModeAccess: 'always',
   async isEnabled() {
     return true
   },

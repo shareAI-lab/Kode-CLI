@@ -114,14 +114,18 @@ export const getProjectMcpServerDefinitions = memoize(
       try {
         const parsed = safeParseJSON(readFileSync(mcpJsonPath, 'utf-8'))
         mcpJsonServers = parseMcpServersFromMcpJson(parsed)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     if (existsSync(mcprcPath)) {
       try {
         const parsed = safeParseJSON(readFileSync(mcprcPath, 'utf-8'))
         mcprcServers = parseMcpServersFromMcprc(parsed)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     const sources: Record<string, '.mcp.json' | '.mcprc'> = {}
@@ -145,13 +149,17 @@ export const getProjectMcpServerDefinitions = memoize(
     if (existsSync(mcpJsonPath)) {
       try {
         parts.push('mcp.json', readFileSync(mcpJsonPath, 'utf-8'))
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     if (existsSync(mcprcPath)) {
       try {
         parts.push('mcprc', readFileSync(mcprcPath, 'utf-8'))
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     return parts.join(':')

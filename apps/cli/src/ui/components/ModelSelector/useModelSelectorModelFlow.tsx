@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { fetchModelsForProvider } from './flow/actions/fetchModels'
 import {
@@ -21,6 +22,14 @@ import type { ModelParamsField } from './viewTypes'
 
 export function useModelSelectorModelFlow(state: ModelSelectorState) {
   const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+  const activeFetchIdRef = useRef(0)
+
+  useEffect(
+    () => () => {
+      activeFetchIdRef.current += 1
+    },
+    [],
+  )
 
   function parseCredentialInput(
     value: string,
@@ -61,7 +70,7 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     return trimmed.length > 240 ? `${trimmed.slice(0, 240)}…` : trimmed
   }
 
-  async function fetchModels(): Promise<ModelInfo[]> {
+  async function fetchModels(isCurrent: () => boolean): Promise<ModelInfo[]> {
     const apiKey = readApiKey(state.apiKeyEnv) ?? ''
     if (!apiKey && state.selectedProvider !== 'ollama') {
       throw new Error(
@@ -75,18 +84,30 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
       providerBaseUrl: state.providerBaseUrl,
       customBaseUrl: state.customBaseUrl,
       modelFetchers,
-      setIsLoadingModels: state.setIsLoadingModels,
-      setModelLoadError: state.setModelLoadError,
-      setAvailableModels: state.setAvailableModels,
-      navigateTo: state.navigateTo,
+      setIsLoadingModels: isLoading => {
+        if (isCurrent()) state.setIsLoadingModels(isLoading)
+      },
+      setModelLoadError: error => {
+        if (isCurrent()) state.setModelLoadError(error)
+      },
+      setAvailableModels: models => {
+        if (isCurrent()) state.setAvailableModels(models)
+      },
+      navigateTo: screen => {
+        if (isCurrent()) state.navigateTo(screen)
+      },
     })
   }
 
   async function fetchModelsWithRetry(): Promise<ModelInfo[]> {
     const MAX_RETRIES = 2
     let lastError: Error | null = null
+    const fetchId = activeFetchIdRef.current + 1
+    activeFetchIdRef.current = fetchId
+    const isCurrent = () => activeFetchIdRef.current === fetchId
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      if (!isCurrent()) return []
       state.setFetchRetryCount(attempt)
       state.setIsRetrying(attempt > 1)
 
@@ -95,15 +116,18 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
           `Attempt ${attempt}/${MAX_RETRIES}: Retrying model discovery...`,
         )
         await new Promise(resolve => setTimeout(resolve, 1000))
+        if (!isCurrent()) return []
       }
 
       try {
-        const models = await fetchModels()
+        const models = await fetchModels(isCurrent)
+        if (!isCurrent()) return []
         state.setFetchRetryCount(0)
         state.setIsRetrying(false)
         state.setModelLoadError(null)
         return models
       } catch (error) {
+        if (!isCurrent()) return []
         lastError = error instanceof Error ? error : new Error(String(error))
         debugLogger.warn('MODEL_FETCH_RETRY_FAILED', {
           attempt,
@@ -116,6 +140,7 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
       }
     }
 
+    if (!isCurrent()) return []
     state.setIsRetrying(false)
     const errorMessage = summarizeErrorMessage(lastError?.message || '')
 
@@ -123,6 +148,13 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
       `Model discovery could not use the credential after ${MAX_RETRIES} attempts: ${errorMessage}`,
     )
     throw new Error(`Model discovery failed: ${errorMessage}`)
+  }
+
+  function cancelPendingModelFetch(): void {
+    activeFetchIdRef.current += 1
+    state.setFetchRetryCount(0)
+    state.setIsRetrying(false)
+    state.setIsLoadingModels(false)
   }
 
   async function handleApiKeySubmit(key: string) {
@@ -319,6 +351,7 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
 
   return {
     fetchModelsWithRetry,
+    cancelPendingModelFetch,
     handleApiKeySubmit,
     handleResourceNameSubmit,
     handleCustomBaseUrlSubmit,

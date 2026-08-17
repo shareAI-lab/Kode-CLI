@@ -108,7 +108,7 @@ function CompletionNavigationHarness({
     resetCompletion,
     updateState,
     generateSuggestions: () => [],
-    completeWith: () => {},
+    completeWith: () => '@empty/',
     activateCompletion: (suggestions, context) => {
       setState(prev => ({
         ...prev,
@@ -125,6 +125,55 @@ function CompletionNavigationHarness({
   })
 
   return <Text>EMPTY:{state.emptyDirMessage}</Text>
+}
+
+function DirectoryFollowupTypingHarness({
+  generatedContexts,
+}: {
+  generatedContexts: CompletionContext[]
+}): React.ReactNode {
+  const [input, setInput] = useState('@em')
+  const [state, setState] = useState(() =>
+    makeState({
+      suggestions: [directorySuggestion],
+      isActive: true,
+      context: { ...directoryContext, prefix: 'em', endPos: 3 },
+    }),
+  )
+
+  const resetCompletion = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      suggestions: [],
+      selectedIndex: 0,
+      isActive: false,
+      context: null,
+      preview: null,
+      emptyDirMessage: '',
+    }))
+  }, [])
+
+  useUnifiedCompletionNavigationKeys({
+    input,
+    state,
+    resetCompletion,
+    updateState: next => setState(prev => ({ ...prev, ...next })),
+    generateSuggestions: context => {
+      generatedContexts.push(context)
+      return []
+    },
+    completeWith: () => {
+      setInput('@empty/')
+      setTimeout(() => setInput('@empty/x'), 10)
+      return '@empty/'
+    },
+    activateCompletion: () => {},
+    onInputChange: setInput,
+    setCursorOffset: () => {},
+    isEnabled: true,
+  })
+
+  return <Text>INPUT:{input}</Text>
 }
 
 function TabCompletionHarness({
@@ -221,6 +270,23 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     await h.wait(3200)
 
     expect(updates).toEqual([{ emptyDirMessage: 'Directory is empty: empty/' }])
+  })
+
+  test('does not reopen directory completion after the user keeps typing', async () => {
+    const generatedContexts: CompletionContext[] = []
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <DirectoryFollowupTypingHarness generatedContexts={generatedContexts} />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(25)
+    h.stdin.write('\u001b[C')
+    await h.wait(100)
+
+    expect(h.getOutput()).toContain('INPUT:@empty/x')
+    expect(generatedContexts).toEqual([])
   })
 
   test('Tab accepts the selected slash command and closes completion', async () => {

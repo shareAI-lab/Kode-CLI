@@ -11,9 +11,11 @@ export type AgentLocation = 'built-in' | 'plugin' | 'user' | 'project'
 export type AgentModel = 'inherit' | 'haiku' | 'sonnet' | 'opus' | (string & {})
 
 export type AgentPermissionMode =
-  | 'default'
   | 'acceptEdits'
+  | 'cautious'
   | 'plan'
+  | 'yolo'
+  | 'default'
   | 'bypassPermissions'
   | 'dontAsk'
   | 'delegate'
@@ -38,4 +40,6 @@ export interface AgentConfig {
   model?: AgentModel
   permissionMode?: AgentPermissionMode
   forkContext?: boolean
+  /** Per-run wall-clock deadline. The runtime still applies its hard cap. */
+  maxExecutionTimeMs?: number
 }

@@ -1,6 +1,6 @@
 import { Box, Text } from 'ink'
 import * as React from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { GITHUB_ISSUES_REPO_URL } from '#core/constants/product'
 import { MACRO } from '#core/constants/macros'
@@ -29,6 +29,7 @@ export function Bug({ onDone }: Props): React.ReactNode {
   const [description, setDescription] = useState('')
   const [isOpening, setIsOpening] = useState(false)
   const isOpeningRef = useRef(false)
+  const mountedRef = useRef(true)
   const textInputColumns = computeAvailableColumns({
     columns: layout.columns,
     reservedColumns: layout.paddingX * 2 + 10,
@@ -36,6 +37,14 @@ export function Bug({ onDone }: Props): React.ReactNode {
 
   const requestExit = useCliExit()
   const exitState = useExitOnCtrlCD(() => requestExit(0))
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningRef.current = false
+    }
+  }, [])
 
   const canContinue = description.trim().length > 0
   const footerText = getBugFooterText({
@@ -55,7 +64,13 @@ export function Bug({ onDone }: Props): React.ReactNode {
       title: (description.trim() || 'Bug Report').slice(0, 80),
       description: description.trim(),
     })
-    const opened = await openBrowser(issueUrl)
+    let opened = false
+    try {
+      opened = await openBrowser(issueUrl)
+    } catch {
+      opened = false
+    }
+    if (!mountedRef.current) return
 
     if (opened) {
       onDone('<bash-stdout>Opened GitHub issue</bash-stdout>')

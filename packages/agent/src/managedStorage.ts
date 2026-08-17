@@ -31,6 +31,7 @@ export type ManagedAgentInput = {
   model?: AgentModel
   permissionMode?: AgentPermissionMode
   forkContext?: boolean
+  maxExecutionTimeMs?: number
   color?: string
 }
 
@@ -129,6 +130,9 @@ function toManagedAgent(args: {
     agent.permissionMode = args.config.permissionMode
   }
   if (args.config.forkContext === true) agent.forkContext = true
+  if (args.config.maxExecutionTimeMs !== undefined) {
+    agent.maxExecutionTimeMs = args.config.maxExecutionTimeMs
+  }
   if (args.config.color !== undefined) agent.color = args.config.color
   return agent
 }
@@ -217,6 +221,9 @@ function formatAgentFile(input: ManagedAgentInput): string {
   if (input.forkContext === true) {
     lines.push(`forkContext: ${stringifyString('true')}`)
   }
+  if (input.maxExecutionTimeMs !== undefined) {
+    lines.push(`maxExecutionTimeMs: ${input.maxExecutionTimeMs}`)
+  }
   if (input.color !== undefined)
     lines.push(`color: ${stringifyString(input.color)}`)
   lines.push('---', '', input.systemPrompt.trim(), '')
@@ -241,6 +248,14 @@ function assertInput(input: ManagedAgentInput): ManagedAgentInput {
   ) {
     throw new ManagedAgentStoreError('invalid')
   }
+  if (
+    input.maxExecutionTimeMs !== undefined &&
+    (!Number.isSafeInteger(input.maxExecutionTimeMs) ||
+      input.maxExecutionTimeMs < 1_000 ||
+      input.maxExecutionTimeMs > 3_600_000)
+  ) {
+    throw new ManagedAgentStoreError('invalid')
+  }
   return { ...input, agentType }
 }
 
@@ -248,7 +263,9 @@ function writeAtomically(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   try {
     chmodSync(dirname(path), 0o700)
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 
   const temporaryPath = `${path}.tmp.${process.pid}.${randomUUID()}`
   let descriptor: number | null = null
@@ -261,16 +278,22 @@ function writeAtomically(path: string, content: string): void {
     renameSync(temporaryPath, path)
     try {
       chmodSync(path, 0o600)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   } catch (error) {
     if (descriptor !== null) {
       try {
         closeSync(descriptor)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
     try {
       unlinkSync(temporaryPath)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     throw error
   }
 }

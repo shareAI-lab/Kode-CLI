@@ -93,6 +93,26 @@ describe('model selector actions', () => {
     expect(setAllPointersCalls).toEqual(['m1'])
   })
 
+  test('saving without switching leaves all current pointers intact', () => {
+    const setModelPointerCalls: Array<[string, string]> = []
+    const setAllPointersCalls: string[] = []
+
+    applyPointersForNewModel({
+      modelId: 'oauth-model',
+      isOnboarding: false,
+      activateAsMain: false,
+      setModelPointerFn: (pointer, modelId) => {
+        setModelPointerCalls.push([String(pointer), String(modelId)])
+      },
+      setAllPointersToModelFn: modelId => {
+        setAllPointersCalls.push(String(modelId))
+      },
+    })
+
+    expect(setModelPointerCalls).toEqual([])
+    expect(setAllPointersCalls).toEqual([])
+  })
+
   test('saving a profile persists an environment reference but not an API key', async () => {
     let savedProfile: any = null
 

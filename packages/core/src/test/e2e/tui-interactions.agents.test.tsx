@@ -9,6 +9,23 @@ import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
 const harnessManager = createInkHarnessManager()
 
+async function waitFor(
+  harness: ReturnType<typeof createInkTestHarness>,
+  condition: () => boolean,
+  description: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) return
+    await harness.wait(25)
+  }
+
+  throw new Error(
+    `Timed out waiting for ${description}: ${harness.getOutput().slice(-4_000)}`,
+  )
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -57,13 +74,15 @@ describe('TUI E2E regression (Ink render): Agents', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(h, () => h.getOutput().includes('Create new agent'), 'list')
+    h.clearOutput()
     h.stdin.write('\x1b[B')
-    await h.wait(50)
+    await waitFor(h, () => h.getOutput().includes('reviewer'), 'reviewer focus')
+    h.clearOutput()
     h.stdin.write('\x1b[B')
-    await h.wait(50)
+    await waitFor(h, () => h.getOutput().includes('planner'), 'planner focus')
     h.stdin.write('\r')
-    await h.wait(25)
+    await waitFor(h, () => selected === 'planner', 'planner selection')
 
     expect(selected).toBe('planner')
     expect(created).toBe(0)
@@ -84,7 +103,11 @@ describe('TUI E2E regression (Ink render): Agents', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(
+      h,
+      () => h.getOutput().includes('● purple-reviewer'),
+      'agent color marker',
+    )
 
     expect(h.getOutput()).toContain('● purple-reviewer')
   })
@@ -104,15 +127,16 @@ describe('TUI E2E regression (Ink render): Agents', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(h, () => h.getOutput().includes('Automatic color'), 'picker')
+    h.clearOutput()
     h.stdin.write('\x1b[B')
-    await h.wait(35)
+    await waitFor(h, () => h.getOutput().includes('Red'), 'red color focus')
 
     expect(h.getOutput()).toContain('Red')
     expect(h.getOutput()).toContain('selected')
 
     h.stdin.write('\r')
-    await h.wait(25)
+    await waitFor(h, () => selected === 'red', 'red color selection')
 
     expect(selected).toBe('red')
   })
@@ -147,15 +171,34 @@ describe('TUI E2E regression (Ink render): Agents', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(h, () => h.getOutput().includes('plugin-reviewer'), 'list')
+    h.clearOutput()
     h.stdin.write('\x1b[B')
-    await h.wait(35)
+    await waitFor(
+      h,
+      () => h.getOutput().includes('plugin-reviewer'),
+      'plugin focus',
+    )
+    h.clearOutput()
     h.stdin.write('\x1b[B')
-    await h.wait(35)
+    await waitFor(
+      h,
+      () => h.getOutput().includes('flag-reviewer'),
+      'flag focus',
+    )
+    h.clearOutput()
     h.stdin.write('\x1b[B')
-    await h.wait(35)
+    await waitFor(
+      h,
+      () => h.getOutput().includes('builtin-reviewer'),
+      'built-in focus',
+    )
     h.stdin.write('\r')
-    await h.wait(25)
+    await waitFor(
+      h,
+      () => selected === 'builtin-reviewer',
+      'built-in selection',
+    )
 
     expect(selected).toBe('builtin-reviewer')
   })
@@ -175,7 +218,7 @@ describe('TUI E2E regression (Ink render): Agents', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(h, () => h.getOutput().includes('Read-only agent'), 'menu')
     const output = h.getOutput()
 
     expect(output).toContain('Read-only agent')

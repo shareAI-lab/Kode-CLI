@@ -211,7 +211,9 @@ export async function runCommandHook(args: {
   const onAbort = () => {
     try {
       proc.kill()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
   if (args.signal) {
     if (args.signal.aborted) onAbort()
@@ -254,7 +256,9 @@ export async function runCommandHook(args: {
     if (args.signal) {
       try {
         args.signal.removeEventListener('abort', onAbort)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   }
 }
@@ -277,7 +281,9 @@ function mergeAbortSignals(signals: Array<AbortSignal | undefined>): {
     cleanups.push(() => {
       try {
         signal.removeEventListener('abort', onAbort)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     })
   }
 
@@ -337,7 +343,7 @@ export function coerceHookMessage(stdout: string, stderr: string): string {
 }
 
 export function coerceHookPermissionMode(mode: unknown): 'ask' | 'allow' {
-  if (mode === 'acceptEdits' || mode === 'bypassPermissions') return 'allow'
+  if (mode === 'acceptEdits') return 'allow'
   return 'ask'
 }
 

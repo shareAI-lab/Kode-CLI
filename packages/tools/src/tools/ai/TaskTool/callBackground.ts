@@ -6,30 +6,32 @@ import type { Message as ConversationMessage } from '#core/query'
 import {
   getLastAssistantMessageId,
   createAssistantMessage,
+  createUserMessage,
 } from '#core/utils/messages'
 import {
+  getQueuedBackgroundAgentGuidanceIds,
+  hasQueuedBackgroundAgentGuidance,
   upsertBackgroundAgentTask,
+  updateBackgroundAgentActivity,
   type BackgroundAgentTaskRuntime,
 } from '#core/utils/backgroundTasks'
 import { saveAgentTranscript } from '#core/utils/agentTranscripts'
-import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { hasPermissionsToUseTool } from '#core/permissions'
 import {
   appendBackgroundTaskOutput,
-  getBackgroundTaskOutputFilePath,
+  flushBackgroundTaskOutput,
   touchBackgroundTaskOutputFile,
 } from '#core/tasks/backgroundRegistry'
-import {
-  createDurableRun,
-  finishDurableRun,
-  heartbeatDurableRun,
-} from '#core/runs'
-import { getCwd } from '#core/utils/state'
 import type { AgentSupervisor } from '#core/utils/agentSupervisor'
 
 import type { PreparedTaskToolRun } from './callTypes'
 import type { Input, Output } from './schema'
 import { asyncLaunchMessage } from './assistantText'
+import {
+  awaitAgentIteratorNext,
+  BackgroundAgentLifecycle,
+  runInPreparedAgentScope,
+} from './backgroundLifecycle'
 
 function isTextBlock(block: unknown): block is TextBlock {
   return (
@@ -56,46 +58,24 @@ export async function* callTaskToolBackground(
   resultForAssistant: string
 }> {
   const bgAbortController = new AbortController()
-  touchBackgroundTaskOutputFile(prepared.agentId)
-  const durableRunEnabled = process.env.NODE_ENV !== 'test'
-  if (durableRunEnabled) {
-    try {
-      createDurableRun({
-        id: prepared.agentId,
-        kind: 'agent',
-        cwd: getCwd(),
-        sessionId: getKodeAgentSessionId(),
-        command: input.description,
-        outputFile: getBackgroundTaskOutputFilePath(prepared.agentId),
-      })
-    } catch {
-      // The in-memory task must remain usable if durable journaling is blocked.
-    }
+  const outputFile = touchBackgroundTaskOutputFile(prepared.agentId)
+  if (!metadata?.supervisor) {
+    throw new Error('Background agent requires a supervisor')
   }
-
-  const heartbeatDurableTask = () => {
-    if (!durableRunEnabled) return
-    try {
-      heartbeatDurableRun({ id: prepared.agentId })
-    } catch {
-      // Best-effort only.
-    }
-  }
-  const finishDurableTask = (
-    status: 'completed' | 'failed' | 'cancelled',
-    error?: string,
-  ) => {
-    if (!durableRunEnabled) return
-    try {
-      finishDurableRun({
-        id: prepared.agentId,
-        status,
-        ...(error ? { error } : {}),
-      })
-    } catch {
-      // Best-effort only.
-    }
-  }
+  const lifecycle = new BackgroundAgentLifecycle({
+    agentId: prepared.agentId,
+    description: input.description,
+    cwd: prepared.cwd,
+    sessionId: prepared.sessionId,
+    outputFile,
+    abortController: bgAbortController,
+    supervisor: metadata.supervisor,
+  })
+  const bgMessages: ConversationMessage[] = [...prepared.messagesForQuery]
+  const bgTranscriptMessages: ConversationMessage[] = [
+    ...prepared.transcriptMessages,
+  ]
+  const runTranscriptStartIndex = bgTranscriptMessages.length
 
   const taskRecord: BackgroundAgentTaskRuntime = {
     type: 'async_agent',
@@ -107,61 +87,108 @@ export async function* callTaskToolBackground(
     description: input.description,
     prompt: prepared.effectivePrompt,
     status: 'running',
-    cwd: getCwd(),
-    sessionId: getKodeAgentSessionId(),
+    cwd: prepared.cwd,
+    sessionId: prepared.sessionId,
     startedAt: Date.now(),
-    messages: [...prepared.transcriptMessages],
+    lastActivityAt: Date.now(),
+    turnCount: 0,
+    guidance: [],
+    messages: bgTranscriptMessages,
     abortController: bgAbortController,
     done: Promise.resolve(),
   }
 
-  taskRecord.done = (async () => {
+  taskRecord.done = runInPreparedAgentScope(prepared, async () => {
     try {
-      const bgMessages: ConversationMessage[] = [...prepared.messagesForQuery]
-      const bgTranscriptMessages: ConversationMessage[] = [
-        ...prepared.transcriptMessages,
-      ]
+      const childToolUseContext = {
+        abortController: bgAbortController,
+        options: prepared.queryOptions,
+        messageId: getLastAssistantMessageId(bgMessages),
+        agentId: prepared.agentId,
+        readFileTimestamps: prepared.readFileTimestamps,
+        setToolJSX: () => {},
+        turnCount: 0,
+      }
 
-      for await (const msg of prepared.queryFn(
-        bgMessages,
-        prepared.systemPrompt,
-        prepared.context,
-        hasPermissionsToUseTool,
-        {
-          abortController: bgAbortController,
-          options: prepared.queryOptions,
-          messageId: getLastAssistantMessageId(bgMessages),
-          agentId: prepared.agentId,
-          readFileTimestamps: prepared.readFileTimestamps,
-          setToolJSX: () => {},
-        },
-      )) {
-        bgMessages.push(msg)
-        bgTranscriptMessages.push(msg)
+      // Guidance can arrive while the provider is producing a final answer.
+      // Re-enter the same bounded context when that happens, so the instruction
+      // is observed without resetting the hard turn cap.
+      while (true) {
+        const queuedAtTurnStart = getQueuedBackgroundAgentGuidanceIds(
+          prepared.agentId,
+        ).join(',')
+        childToolUseContext.messageId = getLastAssistantMessageId(bgMessages)
+        const queryStream = prepared.queryFn(
+          bgMessages,
+          prepared.systemPrompt,
+          prepared.context,
+          hasPermissionsToUseTool,
+          childToolUseContext,
+        )
+        const queryIterator = queryStream[Symbol.asyncIterator]()
+        let pendingNext = queryIterator.next()
+        while (true) {
+          const step = await awaitAgentIteratorNext(
+            queryIterator,
+            pendingNext,
+            bgAbortController.signal,
+          )
+          if (step.done === true) break
+          const msg = step.value
+          bgMessages.push(msg)
+          bgTranscriptMessages.push(msg)
 
-        if (msg.type === 'assistant') {
-          const content = msg.message.content
-          const text =
-            typeof content === 'string'
-              ? content
-              : Array.isArray(content)
+          if (msg.type === 'assistant') {
+            const content = msg.message.content
+            const text =
+              typeof content === 'string'
                 ? content
-                    .filter(isTextBlock)
-                    .map(b => b.text)
-                    .join('\n')
-                : ''
-          if (text) {
-            appendBackgroundTaskOutput(prepared.agentId, text.trimEnd() + '\n')
+                : Array.isArray(content)
+                  ? content
+                      .filter(isTextBlock)
+                      .map(b => b.text)
+                      .join('\n')
+                  : ''
+            if (text) {
+              appendBackgroundTaskOutput(
+                prepared.agentId,
+                text.trimEnd() + '\n',
+              )
+            }
           }
+
+          taskRecord.lastActivityAt = Date.now()
+          taskRecord.turnCount = childToolUseContext.turnCount ?? 0
+          upsertBackgroundAgentTask(taskRecord)
+          lifecycle.heartbeat()
+          pendingNext = queryIterator.next()
         }
 
-        taskRecord.messages = [...bgTranscriptMessages]
-        upsertBackgroundAgentTask(taskRecord)
-        heartbeatDurableTask()
+        updateBackgroundAgentActivity({
+          agentId: prepared.agentId,
+          turnCount: childToolUseContext.turnCount ?? 0,
+        })
+        if (!hasQueuedBackgroundAgentGuidance(prepared.agentId)) break
+        const queuedAtTurnEnd = getQueuedBackgroundAgentGuidanceIds(
+          prepared.agentId,
+        ).join(',')
+        if (queuedAtTurnStart && queuedAtTurnStart === queuedAtTurnEnd) {
+          throw new Error(
+            'Background agent query adapter did not consume queued runtime guidance.',
+          )
+        }
+
+        const continuation = createUserMessage(
+          'Continue the task using the latest runtime guidance from the main agent.',
+        )
+        bgMessages.push(continuation)
+        bgTranscriptMessages.push(continuation)
       }
 
       const lastAssistant = last(
-        bgTranscriptMessages.filter(m => m.type === 'assistant'),
+        bgTranscriptMessages
+          .slice(runTranscriptStartIndex)
+          .filter(m => m.type === 'assistant'),
       )
       const content =
         lastAssistant?.type === 'assistant'
@@ -169,11 +196,17 @@ export async function* callTaskToolBackground(
           : []
 
       const resultText = content.map(b => b.text).join('\n')
+      const childFailed =
+        !lastAssistant || lastAssistant.isApiErrorMessage === true
 
       if (taskRecord.status !== 'killed') {
-        taskRecord.status = 'completed'
+        taskRecord.status = childFailed ? 'failed' : 'completed'
         taskRecord.completedAt = Date.now()
         taskRecord.resultText = resultText
+        if (childFailed) {
+          taskRecord.error =
+            resultText || 'Subagent ended without an assistant response.'
+        }
       } else {
         taskRecord.completedAt = taskRecord.completedAt ?? Date.now()
         if (resultText) taskRecord.resultText = resultText
@@ -182,16 +215,19 @@ export async function* callTaskToolBackground(
           '\n[task killed]\n'.replace(/^\n+/, ''),
         )
       }
-      taskRecord.messages = [...bgTranscriptMessages]
       upsertBackgroundAgentTask(taskRecord)
-      saveAgentTranscript(prepared.agentId, bgTranscriptMessages)
-      finishDurableTask(
-        taskRecord.status === 'killed' ? 'cancelled' : 'completed',
+      saveAgentTranscript(
+        {
+          agentId: prepared.agentId,
+          cwd: prepared.cwd,
+          sessionId: prepared.sessionId,
+        },
+        bgTranscriptMessages,
       )
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
 
-      if (taskRecord.status === 'killed' || bgAbortController.signal.aborted) {
+      if (taskRecord.status === 'killed') {
         taskRecord.status = 'killed'
         taskRecord.completedAt = taskRecord.completedAt ?? Date.now()
         taskRecord.error = taskRecord.error ?? (message || 'Killed by user')
@@ -209,15 +245,18 @@ export async function* callTaskToolBackground(
         )
       }
       upsertBackgroundAgentTask(taskRecord)
-      finishDurableTask(
-        taskRecord.status === 'killed' ? 'cancelled' : 'failed',
-        message,
-      )
     } finally {
-      // Release supervisor slot regardless of outcome
-      metadata?.supervisor?.release()
+      flushBackgroundTaskOutput(prepared.agentId)
+      lifecycle.finish(
+        taskRecord.status === 'completed'
+          ? 'completed'
+          : taskRecord.status === 'killed'
+            ? 'cancelled'
+            : 'failed',
+        taskRecord.error,
+      )
     }
-  })()
+  })
 
   upsertBackgroundAgentTask(taskRecord)
 

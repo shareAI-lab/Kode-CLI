@@ -51,7 +51,9 @@ export function TrustScreen({ onDone }: Props): React.ReactNode {
 
   useKeypress((_input, key) => {
     if (key.escape) {
-      requestExit(0)
+      // Escaping is the same "refuse to trust" decision as choosing
+      // "No, exit", so it must not look like a successful exit in scripts.
+      requestExit(1)
       return
     }
   })

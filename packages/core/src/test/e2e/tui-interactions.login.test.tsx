@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import React from 'react'
 
 import { LoginScreen } from '#ui-ink/components/LoginScreen'
+import { ExternalOAuthLoginScreen } from '#ui-ink/components/ExternalOAuthLoginScreen'
 import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
@@ -30,44 +31,173 @@ afterEach(async () => {
 })
 
 describe('TUI E2E regression (Ink render): login selector', () => {
-  test('starts the supported Codex browser login and detects completion', async () => {
-    let loginStarted = false
+  test('does not exit the Codex flow until its model profile has been saved', async () => {
     let done = false
-
+    let resolveSave: (() => void) | undefined
     const h = createInkTestHarness(
       <KeypressProvider>
         <LoginScreen
           onDone={() => {
             done = true
           }}
-          pollIntervalMs={10}
           codexAuth={{
-            getStatus: async () =>
-              loginStarted
-                ? { kind: 'authenticated' as const }
-                : { kind: 'unauthenticated' as const },
-            startLogin: async () => {
-              loginStarted = true
-            },
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {},
+          }}
+          saveProfile={async () => {
+            await new Promise<void>(resolve => {
+              resolveSave = resolve
+            })
+            return 'codex-oauth:gpt-runtime-default'
           }}
         />
       </KeypressProvider>,
     )
     harnessManager.track(h)
 
-    await waitForOutput(h, 'Codex is not signed in yet.')
-    expect(h.getOutput()).toContain('Codex / ChatGPT')
-    expect(h.getOutput()).toContain('OpenAI API key (GPT-5-Codex)')
+    await waitForOutput(h, 'Codex is already signed in.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Activating its model for Kode')
 
     h.stdin.write('\r')
-    await waitForOutput(h, 'Codex is signed in.')
+    await h.wait(50)
+    expect(done).toBe(false)
 
-    expect(loginStarted).toBe(true)
-    expect(h.getOutput()).toContain('Codex is signed in.')
+    resolveSave?.()
+    await waitForOutput(h, 'Kode is now using GPT Runtime Default')
+    h.stdin.write('\r')
+    await h.wait(20)
+    expect(done).toBe(true)
+  })
+
+  test('OAuth model setup saves a Kode profile and explicitly switches the main model', async () => {
+    let done = false
+    const saves: Array<{ activateAsMain: boolean; model: string }> = []
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <ExternalOAuthLoginScreen
+          provider="codex-oauth"
+          title="Codex / ChatGPT OAuth"
+          onDone={() => {
+            done = true
+          }}
+          onCancel={() => {}}
+          authService={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getAvailableModels: async () => [
+              {
+                model: 'gpt-runtime-default',
+                displayName: 'GPT Runtime Default',
+                reasoningEffort: 'medium',
+              },
+            ],
+          }}
+          saveProfile={async (model, activateAsMain) => {
+            saves.push({ activateAsMain, model: model.model })
+            return 'codex-oauth:gpt-runtime-default'
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Already signed in.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Choose a model to save in Kode:')
+    expect(h.getOutput()).toContain(
+      'GPT Runtime Default (gpt-runtime-default) · medium',
+    )
+
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Use GPT Runtime Default as Kode’s main model now?')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'persisted main model.')
+    expect(saves).toEqual([
+      { activateAsMain: true, model: 'gpt-runtime-default' },
+    ])
 
     h.stdin.write('\r')
     await h.wait(20)
     expect(done).toBe(true)
+  })
+
+  test('OAuth model setup can save without switching Kode', async () => {
+    const saves: boolean[] = []
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <ExternalOAuthLoginScreen
+          provider="github-copilot"
+          title="GitHub Copilot OAuth"
+          onDone={() => {}}
+          onCancel={() => {}}
+          authService={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getAvailableModels: async () => [
+              { model: 'gpt-5-codex', displayName: 'GPT-5-Codex' },
+            ],
+          }}
+          saveProfile={async (_model, activateAsMain) => {
+            saves.push(activateAsMain)
+            return 'github-copilot:gpt-5-codex'
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Already signed in.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Choose a model to save in Kode:')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Use GPT-5-Codex as Kode’s main model now?')
+    h.stdin.write('\u001B[B')
+    await h.wait(50)
+    h.stdin.write('\r')
+    await waitForOutput(h, 'current main model was kept.')
+    expect(saves).toEqual([false])
+  })
+
+  test('opens GitHub Copilot OAuth from the login selector', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {}}
+          codexAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {},
+          }}
+          copilotAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getAvailableModels: async () => [
+              { model: 'auto', displayName: 'Auto' },
+            ],
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Use the installed Codex CLI browser sign-in')
+    h.stdin.write('\u001B[B')
+    await waitForOutput(h, 'official GitHub Copilot browser or device OAuth')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'GitHub Copilot OAuth')
+    await waitForOutput(h, 'Already signed in.')
   })
 
   test('opens the OpenAI API-key setup directly from the login selector', async () => {
@@ -78,13 +208,21 @@ describe('TUI E2E regression (Ink render): login selector', () => {
           codexAuth={{
             getStatus: async () => ({ kind: 'authenticated' as const }),
             startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {},
           }}
         />
       </KeypressProvider>,
     )
     harnessManager.track(h)
 
-    await waitForOutput(h, 'Codex is already signed in.')
+    await waitForOutput(h, 'Use the installed Codex CLI browser sign-in')
+    h.stdin.write('\u001B[B')
+    h.stdin.write('\u001B[B')
     h.stdin.write('\u001B[B')
     await waitForOutput(h, 'Configure an OpenAI model profile')
     h.stdin.write('\r')

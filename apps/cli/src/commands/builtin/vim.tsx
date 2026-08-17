@@ -6,7 +6,7 @@ const vim = {
   name: 'vim',
   description: 'Toggle between Vim and Normal editing modes',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(onDone) {
     const current = getGlobalConfig().editorMode ?? 'normal'
     const normalized = current === 'emacs' ? 'normal' : current

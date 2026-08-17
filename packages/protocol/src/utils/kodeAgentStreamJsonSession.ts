@@ -161,7 +161,9 @@ export async function runKodeAgentStreamJsonSession<
       queryError = e
       try {
         turnAbortController.abort()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     } finally {
       args.onActiveTurnAbortControllerChanged?.(null)
       args.onProcessingStateChange?.(false)
@@ -200,7 +202,7 @@ export async function runKodeAgentStreamJsonSession<
       try {
         const fenced = String(resultText).trim()
         const unfenced = (() => {
-          const m = fenced.match(/^```(?:json)?\\s*([\\s\\S]*?)\\s*```$/i)
+          const m = fenced.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
           return m ? m[1]!.trim() : fenced
         })()
 

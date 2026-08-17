@@ -39,7 +39,10 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     }
 
     const result = await handleMessageStream(stream() as any)
-    const message = result.choices[0]!.message as Record<string, unknown>
+    const message = result.choices[0]!.message as unknown as Record<
+      string,
+      unknown
+    >
     expect(message.type).toBe('function')
     expect(message.id).toBe('call_abc123')
     expect(message.role).toBe('assistant')
@@ -62,6 +65,60 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     const message = result.choices[0]!.message as { content: string }
     // endsWith check keeps a single copy instead of 100 concatenations.
     expect(message.content.length).toBe(1000)
+  })
+
+  test('accepts growing full-content snapshots and only forwards new text', async () => {
+    const updates: Array<{ type: string; delta?: string }> = []
+
+    async function* stream() {
+      yield chunk({ content: 'Hel' })
+      yield chunk({ content: 'Hello' })
+      yield chunk({ content: 'Hello, world' })
+    }
+
+    const result = await handleMessageStream(stream() as any, undefined, {
+      onAssistantStreamUpdate: event => {
+        updates.push(event)
+      },
+    })
+    const message = result.choices[0]!.message as { content: string }
+
+    expect(message.content).toBe('Hello, world')
+    expect(updates).toEqual([
+      { type: 'start' },
+      { type: 'text_delta', delta: 'Hel' },
+      { type: 'text_delta', delta: 'lo' },
+      { type: 'text_delta', delta: ', world' },
+    ])
+  })
+
+  test('accepts growing reasoning snapshots and only forwards new thinking', async () => {
+    const updates: Array<{ type: string; delta?: string }> = []
+
+    async function* stream() {
+      yield chunk({ reasoning_content: 'Inspect' })
+      yield chunk({ reasoning_content: 'Inspect the request' })
+      yield chunk({ content: 'Answer' })
+    }
+
+    const result = await handleMessageStream(stream() as any, undefined, {
+      onAssistantStreamUpdate: event => {
+        updates.push(event)
+      },
+    })
+    const message = result.choices[0]!.message as unknown as Record<
+      string,
+      unknown
+    >
+
+    expect(message.reasoning_content).toBe('Inspect the request')
+    expect(message.content).toBe('Answer')
+    expect(updates).toEqual([
+      { type: 'start' },
+      { type: 'thinking_delta', delta: 'Inspect' },
+      { type: 'thinking_delta', delta: ' the request' },
+      { type: 'text_delta', delta: 'Answer' },
+    ])
   })
 
   test('deduplicates repeated tool-call arguments (full-repeat provider)', async () => {
@@ -97,6 +154,36 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     expect(toolCalls[0]!.function.arguments.length).toBe(args.length)
   })
 
+  test('accepts growing full tool-argument snapshots', async () => {
+    async function* stream() {
+      yield chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call_xyz',
+            type: 'function',
+            function: { name: 'Bash', arguments: '{"command":"' },
+          },
+        ],
+      })
+      yield chunk({
+        tool_calls: [
+          {
+            index: 0,
+            type: 'function',
+            function: { arguments: '{"command":"pwd"}' },
+          },
+        ],
+      })
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const toolCalls = result.choices[0]!.message.tool_calls as Array<{
+      function: { arguments: string }
+    }>
+    expect(toolCalls[0]!.function.arguments).toBe('{"command":"pwd"}')
+  })
+
   test('still accumulates genuine incremental content deltas', async () => {
     async function* stream() {
       yield chunk({ content: 'Hel' })
@@ -107,6 +194,35 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     const result = await handleMessageStream(stream() as any)
     const message = result.choices[0]!.message as { content: string }
     expect(message.content).toBe('Hello, world')
+  })
+
+  test('accepts growing reasoning snapshots and only forwards new thinking', async () => {
+    const updates: Array<{ type: string; delta?: string }> = []
+
+    async function* stream() {
+      yield chunk({ reasoning_content: 'Inspect' })
+      yield chunk({ reasoning_content: 'Inspect the request' })
+      yield chunk({ content: 'Answer' })
+    }
+
+    const result = await handleMessageStream(stream() as any, undefined, {
+      onAssistantStreamUpdate: event => {
+        updates.push(event)
+      },
+    })
+    const message = result.choices[0]!.message as unknown as Record<
+      string,
+      unknown
+    >
+
+    expect(message.reasoning_content).toBe('Inspect the request')
+    expect(message.content).toBe('Answer')
+    expect(updates).toEqual([
+      { type: 'start' },
+      { type: 'thinking_delta', delta: 'Inspect' },
+      { type: 'thinking_delta', delta: ' the request' },
+      { type: 'text_delta', delta: 'Answer' },
+    ])
   })
 
   test('still accumulates genuine incremental tool arguments', async () => {

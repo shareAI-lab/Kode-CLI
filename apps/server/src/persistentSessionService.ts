@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path'
 
 import type { Session } from '@kode/protocol'
 import type { Message } from '@kode/core/query'
-import { isUuid } from '@kode/core/utils/uuid'
+import { isUuid } from '@kode/runtime'
 import {
   appendSessionCustomTitleRecord,
   appendSessionSessionSummaryRecord,
@@ -238,7 +238,9 @@ function writeForkTranscript(args: {
   } catch (error) {
     try {
       rmSync(temporaryPath, { force: true })
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     throw error
   }
 }
@@ -595,12 +597,16 @@ export class PersistentSessionService {
           rmSync(getSessionLogFilePath({ cwd: args.cwd, sessionId }), {
             force: true,
           })
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
         try {
           rmSync(getSessionMetadataFilePath({ cwd: args.cwd, sessionId }), {
             force: true,
           })
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
       return {
         ok: false,

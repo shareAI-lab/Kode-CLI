@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   __computeCompletionActivationForTests,
   __computeCompletionRefreshForTests,
+  __shouldGenerateCompletionRefreshSuggestionsForTests,
   __shouldLoadMentionSuggestionsForTests,
 } from './hook'
 import type {
@@ -148,6 +149,41 @@ describe('__computeCompletionRefreshForTests', () => {
     })
 
     expect(result.action).toBe('none')
+  })
+})
+
+describe('__shouldGenerateCompletionRefreshSuggestionsForTests', () => {
+  test('avoids rebuilding suggestions while the panel is inactive', () => {
+    expect(
+      __shouldGenerateCompletionRefreshSuggestionsForTests({
+        isEnabled: true,
+        isActive: false,
+        context: commandContext,
+        isPreviewActive: false,
+      }),
+    ).toBe(false)
+  })
+
+  test('avoids rebuilding suggestions while a preview is active', () => {
+    expect(
+      __shouldGenerateCompletionRefreshSuggestionsForTests({
+        isEnabled: true,
+        isActive: true,
+        context: commandContext,
+        isPreviewActive: true,
+      }),
+    ).toBe(false)
+  })
+
+  test('refreshes only active, non-preview completion panels', () => {
+    expect(
+      __shouldGenerateCompletionRefreshSuggestionsForTests({
+        isEnabled: true,
+        isActive: true,
+        context: commandContext,
+        isPreviewActive: false,
+      }),
+    ).toBe(true)
   })
 })
 

@@ -1,24 +1,13 @@
 import type { RenderOptions } from 'ink'
 
-import { runPrintMode } from '../print/runPrintMode'
 import { setup } from '../setup'
 import { showSetupScreens } from '../setupScreens'
-import { clearOutputStyleCache } from '#cli-services/outputStyles'
-import { isDefaultSlowAndCapableModel } from '#core/utils/model'
-import { dateToFilename } from '#core/utils/log'
-import { assertMinVersion } from '#core/utils/autoUpdater'
 import { LEGACY_ENV } from '#core/compat/legacyEnv'
-import { clearAgentCache, setFlagAgentsFromCliJson } from '@kode/agent'
 import {
   setEnabledSettingSourcesFromCli,
   getCurrentProjectConfig,
 } from '#config'
 import { shouldRunHeadlessMode } from './headlessMode'
-
-import {
-  renderRepl,
-  renderResumeConversationSelector,
-} from '../interactive/renderers'
 
 import type { Message } from '#core/query'
 
@@ -162,11 +151,11 @@ export function createRootAction(args: {
     }
     const normalizedPermissionMode =
       typeof permissionMode === 'string' ? permissionMode.trim() : ''
-    // --trust flag sets the permission mode to 'yolo' (auto-approve safe operations)
-    const effectivePermissionMode = trust ? 'yolo' : normalizedPermissionMode
-    const bypassPermissionsRequested =
-      effectivePermissionMode === 'bypassPermissions' ||
-      dangerouslySkipPermissions === true
+    // --trust is retained as a compatibility shortcut for Edit mode.
+    const effectivePermissionMode = trust
+      ? 'acceptEdits'
+      : normalizedPermissionMode
+    const bypassPermissionsRequested = dangerouslySkipPermissions === true
 
     if (bypassPermissionsRequested) {
       const isRoot =
@@ -254,6 +243,13 @@ export function createRootAction(args: {
       }
     }
 
+    const [
+      { setFlagAgentsFromCliJson, clearAgentCache },
+      { clearOutputStyleCache },
+    ] = await Promise.all([
+      import('@kode/agent'),
+      import('#cli-services/outputStyles'),
+    ])
     setFlagAgentsFromCliJson(agents)
     clearAgentCache()
     clearOutputStyleCache()
@@ -279,6 +275,14 @@ export function createRootAction(args: {
 
     await setup(cwd, safe)
 
+    // Kick off the (potentially slow) default-model check in parallel with the
+    // remaining setup work so it is not on the critical path to first render.
+    const isDefaultModelPromise = import('#core/utils/model')
+      .then(({ isDefaultSlowAndCapableModel }) =>
+        isDefaultSlowAndCapableModel(),
+      )
+      .catch(() => false)
+
     if (web) {
       const { runWebOnlyMode } = await import('./rootAction/webOnlyMode')
       await runWebOnlyMode({ cwd, webHost, webPort })
@@ -289,6 +293,7 @@ export function createRootAction(args: {
       effectiveHeadless,
     )
 
+    const { assertMinVersion } = await import('#core/utils/autoUpdater')
     assertMinVersion()
 
     {
@@ -313,35 +318,29 @@ export function createRootAction(args: {
       }
     }
 
-    const [{ ask }, { getTools }, { getCommands }, mcpClientModule] =
-      await Promise.all([
-        import('#cli-utils/ask'),
-        import('#tools'),
-        import('#cli-commands'),
-        import('#core/mcp/client'),
-      ])
-    const commands = await getCommands()
-
-    const mcpClientsPromise =
-      (Array.isArray(mcpConfig) && mcpConfig.length > 0) ||
-      strictMcpConfig === true
+    const toolsPromise = import('#tools').then(({ getTools }) =>
+      getTools(
+        enableArchitect ?? getCurrentProjectConfig().enableArchitectTool,
+      ).then(allTools =>
+        disableSlashCommands === true
+          ? allTools.filter(t => t.name !== 'SlashCommand')
+          : allTools,
+      ),
+    )
+    const commandsPromise = import('#cli-commands').then(({ getCommands }) =>
+      getCommands(),
+    )
+    const mcpClientsPromise = import('#core/mcp/client').then(module => {
+      const mcpClientModule = module
+      return (Array.isArray(mcpConfig) && mcpConfig.length > 0) ||
+        strictMcpConfig === true
         ? mcpClientModule.getClientsForCliMcpConfig({
             mcpConfig: Array.isArray(mcpConfig) ? mcpConfig : [],
             strictMcpConfig: strictMcpConfig === true,
             projectDir: cwd,
           })
         : mcpClientModule.getClients()
-
-    const [allTools, mcpClients] = await Promise.all([
-      getTools(
-        enableArchitect ?? getCurrentProjectConfig().enableArchitectTool,
-      ),
-      mcpClientsPromise,
-    ])
-    const tools =
-      disableSlashCommands === true
-        ? allTools.filter(t => t.name !== 'SlashCommand')
-        : allTools
+    })
     const inputPrompt = rawInputPrompt
     const effectiveInitialPrompt =
       inputPrompt.trim().length > 0
@@ -475,6 +474,13 @@ export function createRootAction(args: {
     }
 
     if (effectiveHeadless) {
+      const [tools, commands, mcpClients, { ask }] = await Promise.all([
+        toolsPromise,
+        commandsPromise,
+        mcpClientsPromise,
+        import('#cli-utils/ask'),
+      ])
+      const { runPrintMode } = await import('../print/runPrintMode')
       await runPrintMode({
         prompt,
         stdinContent: args.stdinContent,
@@ -519,12 +525,19 @@ export function createRootAction(args: {
     }
 
     if (needsResumeSelector) {
+      const [tools, commands, mcpClients] = await Promise.all([
+        toolsPromise,
+        commandsPromise,
+        mcpClientsPromise,
+      ])
       const sessions = listKodeAgentSessions({ cwd })
       if (sessions.length === 0) {
         console.error('No conversation found to resume')
         process.exit(1)
       }
 
+      const { renderResumeConversationSelector } =
+        await import('../interactive/renderers')
       renderResumeConversationSelector(
         {
           cwd,
@@ -550,10 +563,11 @@ export function createRootAction(args: {
       return
     }
 
-    const isDefaultModel = await isDefaultSlowAndCapableModel()
+    const isDefaultModel = await isDefaultModelPromise
+    const { renderRepl } = await import('../interactive/renderers')
+    const { dateToFilename } = await import('#core/utils/log')
     await renderRepl(
       {
-        commands,
         debug: Boolean(debug),
         disableSlashCommands: disableSlashCommands === true,
         systemPromptOverride,
@@ -562,13 +576,17 @@ export function createRootAction(args: {
         messageLogName: dateToFilename(new Date()),
         shouldShowPromptInput: true,
         verbose,
-        tools,
+        tools: [],
+        commands: [],
         safeMode: safe,
-        mcpClients,
+        mcpClients: [],
         isDefaultModel,
         initialUpdateVersion: updateInfo.version,
         initialUpdateCommands: updateInfo.commands,
         initialMessages,
+        toolsPromise,
+        commandsPromise,
+        mcpClientsPromise,
       },
       args.renderContext,
     )

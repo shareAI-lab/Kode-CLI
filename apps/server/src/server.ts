@@ -3,8 +3,9 @@ import { fileURLToPath } from 'node:url'
 
 import { setCwd, setOriginalCwd } from '@kode/core/utils/state'
 import { grantReadPermissionForOriginalDir } from '@kode/core/utils/permissions/filesystem'
-import { getClients } from '@kode/core/mcp/client'
-import { probeDurableRunProcess, reconcileDurableRuns } from '@kode/core/runs'
+import { getClients } from '@kode/mcp/client'
+import { probeDurableRunProcess, reconcileDurableRuns } from '@kode/runs'
+import { GoalService, isBackgroundKeepAliveGoal } from '@kode/goals'
 import { getTools } from '@kode/tools'
 
 import { serveNode } from './server/serveNode'
@@ -20,6 +21,7 @@ import { broadcastSessionJson } from './ws/sessionBroadcaster'
 import { SessionRegistry } from './sessionRegistry'
 import { processDaemonRuntimeCoordinator } from './turnGate'
 import { GoalScheduleRunner } from './automation/goalScheduleRunner'
+import { BackgroundLoopSessions } from './automation/backgroundLoopSessions'
 
 type WebSocketData = {
   session: DaemonSession
@@ -85,6 +87,11 @@ export async function startKodeDaemon(args: {
   const sessions = new Map<string, DaemonSession>()
   const sessionRegistry = new SessionRegistry(sessions)
   const sessionService = new PersistentSessionService(sessionRegistry)
+  const goalService = new GoalService()
+  const backgroundLoopSessions = new BackgroundLoopSessions({
+    service: goalService,
+    sessionRegistry,
+  })
   const turnGate = processDaemonRuntimeCoordinator
   const checkToken = createTokenChecker({ token })
   const workspaces = createWorkspaceLister({ cwd })
@@ -119,15 +126,26 @@ export async function startKodeDaemon(args: {
     mcpClients,
   })
 
-  // Scheduled goals only run for an already-connected, idle session. The
-  // normal daemon permission flow remains in charge of every tool action;
-  // the runner merely turns a durable due prompt into a regular chat turn.
+  const isDetachedBackgroundSession = (session: DaemonSession): boolean =>
+    session.clients.size === 0 && backgroundLoopSessions.has(session)
+
+  // Ordinary schedules keep the existing connected-session boundary. A loop
+  // explicitly marked backgroundKeepAlive additionally restores its durable
+  // session after terminal/daemon restart, but remains on the same tool and
+  // permission path as a foreground chat turn.
   const goalScheduleRunner = new GoalScheduleRunner({
-    listSessions: () => sessions.values(),
+    listSessions: () => {
+      const scheduledSessions = new Map(sessions)
+      for (const session of backgroundLoopSessions.list()) {
+        scheduledSessions.set(session.sessionId, session)
+      }
+      return scheduledSessions.values()
+    },
     canDispatch: session =>
-      session.clients.size > 0 &&
+      (session.clients.size > 0 || isDetachedBackgroundSession(session)) &&
       session.turnInFlight === false &&
       turnGate.isIdle(),
+    isBackgroundSession: isDetachedBackgroundSession,
     dispatch: async ({ session, schedule }) => {
       const lease = turnGate.tryAcquire(session)
       if (!lease) throw new Error('Daemon runtime is busy.')
@@ -143,6 +161,14 @@ export async function startKodeDaemon(args: {
           toolNames,
           slashCommands,
           mcpClients,
+          shouldAvoidPermissionPrompts:
+            session.clients.size === 0 &&
+            isBackgroundKeepAliveGoal(
+              goalService.getGoal(schedule.goalId) ?? {
+                schedule,
+                metadata: undefined,
+              },
+            ),
         })
       } finally {
         lease.release()

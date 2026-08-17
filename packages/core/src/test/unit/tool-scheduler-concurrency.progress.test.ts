@@ -17,7 +17,7 @@ function deferred<T = void>() {
 
 function makeTool(options: {
   name: string
-  inputSchema?: z.ZodTypeAny
+  inputSchema?: z.ZodType<any, any>
   isConcurrencySafe: boolean
   callImpl: Tool['call']
 }): Tool {

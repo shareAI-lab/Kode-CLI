@@ -131,7 +131,10 @@ describe('messages normalization + reordering parity', () => {
     )
 
     const normalized = normalizeMessages([t1, t2, progressT2])
-    expect(getUnresolvedToolUseIDs(normalized)).toEqual(new Set(['t1', 't2']))
-    expect(getInProgressToolUseIDs(normalized)).toEqual(new Set(['t1', 't2']))
+    const unresolved = getUnresolvedToolUseIDs(normalized)
+    expect(unresolved).toEqual(new Set(['t1', 't2']))
+    expect(getInProgressToolUseIDs(normalized, unresolved)).toEqual(
+      new Set(['t1', 't2']),
+    )
   })
 })

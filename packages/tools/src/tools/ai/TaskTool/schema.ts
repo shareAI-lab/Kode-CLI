@@ -73,3 +73,14 @@ export type Output =
       totalTokens: number
       usage: TaskUsage
     }
+  | {
+      status: 'failed'
+      agentId: string
+      prompt: string
+      content: TextBlock[]
+      error: string
+      totalToolUseCount: number
+      totalDurationMs: number
+      totalTokens: number
+      usage: TaskUsage
+    }

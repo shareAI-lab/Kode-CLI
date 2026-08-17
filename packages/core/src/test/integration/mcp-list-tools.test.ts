@@ -42,7 +42,9 @@ describe('MCP server (stdio)', () => {
     } finally {
       try {
         await client.close()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       rmSync(configDir, { recursive: true, force: true })
     }
   }, 20_000)

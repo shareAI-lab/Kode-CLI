@@ -57,6 +57,7 @@ export const FileReadTool = {
     return getPrompt()
   },
   inputSchema,
+  readModeAccess: 'always',
   isReadOnly() {
     return true
   },

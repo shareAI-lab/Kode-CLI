@@ -1,40 +1,18 @@
-import { isBashCommandReadOnly } from '@kode/permissions/bash'
+import type { Tool, WorkspaceMutationScope } from '@kode/tool-interface/Tool'
 import type { GoalVerificationEvidence } from '#core/goals'
 import type { Message } from '../pipeline/types'
-import { classifyVerificationCommand } from './receipt'
+import {
+  readWorkspaceMutationReceipt,
+  resolveWorkspaceMutationScope,
+} from './mutation'
 
 const MAX_GOAL_VERIFICATION_EVIDENCE = 12
-const NON_MUTATING_TOOL_NAMES = new Set([
-  'Architect',
-  'AskExpertModel',
-  'AskUserQuestion',
-  'EnterPlanMode',
-  'ExitPlanMode',
-  'Glob',
-  'Grep',
-  'LS',
-  'LSP',
-  'ListMcpResourcesTool',
-  'MCPSearch',
-  'Read',
-  'ReadMcpResourceTool',
-  'Skill',
-  'TaskCreate',
-  'TaskGet',
-  'TaskList',
-  'TaskOutput',
-  'TaskStop',
-  'TaskUpdate',
-  'Think',
-  'TodoWrite',
-  'WebFetch',
-  'WebSearch',
-  'web_search',
-])
 
 type ToolUseInfo = {
   name: string
   messageIndex: number
+  mutationScope: WorkspaceMutationScope
+  hasResult: boolean
 }
 
 export type TurnVerificationState = {
@@ -127,23 +105,6 @@ function getToolUses(message: Message): Array<{
   })
 }
 
-function isMutatingToolUse(args: {
-  name: string
-  input: Record<string, unknown>
-}): boolean {
-  if (args.name !== 'Bash') return !NON_MUTATING_TOOL_NAMES.has(args.name)
-
-  const command = args.input.command
-  if (typeof command !== 'string') return true
-  // Direct verification commands are already represented by a receipt result;
-  // treat other shell commands conservatively unless the central permission
-  // classifier can prove they are read-only.
-  return (
-    classifyVerificationCommand(command) === null &&
-    !isBashCommandReadOnly(command)
-  )
-}
-
 function hasMatchingToolResult(message: Message, toolUseId: string): boolean {
   if (message.type !== 'user' || !Array.isArray(message.message.content)) {
     return false
@@ -188,6 +149,7 @@ function findTurnStartMessageIndex(messages: Message[]): number {
 function scanVerificationEvidence(
   messages: Message[],
   startMessageIndex: number,
+  tools?: readonly Tool[],
 ): {
   latestMutationMessageIndex: number
   evidence: GoalVerificationEvidence[]
@@ -209,13 +171,50 @@ function scanVerificationEvidence(
       toolUses.set(toolUse.id, {
         name: toolUse.name,
         messageIndex,
+        mutationScope: resolveWorkspaceMutationScope({
+          name: toolUse.name,
+          input: toolUse.input,
+          tools,
+        }),
+        hasResult: false,
       })
-      if (isMutatingToolUse(toolUse)) {
-        latestMutationMessageIndex = messageIndex
-      }
     }
 
     if (message.type !== 'user') continue
+    const metadata = asRecord(message.toolUseResult)?.metadata
+    const mutationReceipt = readWorkspaceMutationReceipt(
+      asRecord(metadata)?.workspaceMutation,
+    )
+    if (Array.isArray(message.message.content)) {
+      for (const block of message.message.content) {
+        const record = asRecord(block)
+        if (record?.type !== 'tool_result') continue
+        const toolUseId = record.tool_use_id
+        if (typeof toolUseId !== 'string') continue
+        const toolUse = toolUses.get(toolUseId)
+        if (!toolUse) continue
+        toolUse.hasResult = true
+
+        // Validation, permission, and pre-tool hook rejections do not run the
+        // tool and therefore cannot mutate the workspace. Post-start failures
+        // carry an engine-owned receipt and remain conservatively mutating.
+        const rejectedBeforeExecution =
+          record.is_error === true && message.toolUseResult === undefined
+        if (rejectedBeforeExecution) continue
+
+        const mutationScope =
+          mutationReceipt?.toolUseId === toolUseId
+            ? mutationReceipt.scope
+            : toolUse.mutationScope
+        if (mutationScope === 'direct') {
+          latestMutationMessageIndex = Math.max(
+            latestMutationMessageIndex,
+            toolUse.messageIndex,
+          )
+        }
+      }
+    }
+
     const toolResultData = asRecord(message.toolUseResult)?.data
     const receipt = readVerificationEvidence(
       asRecord(toolResultData)?.verification,
@@ -224,8 +223,19 @@ function scanVerificationEvidence(
       continue
     }
     const toolUse = toolUses.get(receipt.toolUseId)
-    if (toolUse?.name !== 'Bash') continue
+    if (toolUse?.name !== 'Bash' && toolUse?.name !== 'TaskOutput') continue
     evidence.push({ receipt, toolUseMessageIndex: toolUse.messageIndex })
+  }
+
+  // A direct write tool that never produced a result may have been interrupted
+  // after a partial write, so incomplete execution remains fail-closed.
+  for (const toolUse of toolUses.values()) {
+    if (!toolUse.hasResult && toolUse.mutationScope === 'direct') {
+      latestMutationMessageIndex = Math.max(
+        latestMutationMessageIndex,
+        toolUse.messageIndex,
+      )
+    }
   }
 
   return {
@@ -244,8 +254,9 @@ function scanVerificationEvidence(
  */
 export function collectGoalVerificationEvidence(
   messages: Message[],
+  tools?: readonly Tool[],
 ): GoalVerificationEvidence[] {
-  return scanVerificationEvidence(messages, 0).evidence
+  return scanVerificationEvidence(messages, 0, tools).evidence
 }
 
 /**
@@ -255,11 +266,13 @@ export function collectGoalVerificationEvidence(
  */
 export function getTurnVerificationState(
   messages: Message[],
+  tools?: readonly Tool[],
 ): TurnVerificationState {
   const turnStartMessageIndex = findTurnStartMessageIndex(messages)
   const { latestMutationMessageIndex, evidence } = scanVerificationEvidence(
     messages,
     Math.max(0, turnStartMessageIndex + 1),
+    tools,
   )
   return {
     turnStartMessageIndex,

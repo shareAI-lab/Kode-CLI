@@ -203,6 +203,63 @@ describe('Chat Completions API Tests', () => {
       ).toHaveLength(1)
     })
 
+    test('accepts growing tool-argument snapshots from compatible providers', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+      const streamData = [
+        `data: ${JSON.stringify({
+          id: 'chatcmpl-tool-snapshot',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_123',
+                    type: 'function',
+                    function: { name: 'Bash', arguments: '{"command":"' },
+                  },
+                ],
+              },
+            },
+          ],
+        })}\n\n`,
+        `data: ${JSON.stringify({
+          id: 'chatcmpl-tool-snapshot',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    type: 'function',
+                    function: { arguments: '{"command":"pwd"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        })}\n\n`,
+        `data: ${JSON.stringify({
+          id: 'chatcmpl-tool-snapshot',
+          choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+        })}\n\n`,
+        'data: [DONE]\\n\\n',
+      ].join('')
+
+      const unifiedResponse = await adapter.parseResponse(
+        new Response(streamData),
+      )
+
+      expect(unifiedResponse.content).toEqual([
+        {
+          type: 'tool_use',
+          id: 'call_123',
+          name: 'Bash',
+          input: { command: 'pwd' },
+        },
+      ])
+    })
+
     test('rejects incomplete streaming tool arguments', async () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
       const streamData = [

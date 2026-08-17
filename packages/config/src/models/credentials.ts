@@ -20,10 +20,28 @@ const CREDENTIAL_STORE_FILE = 'credentials.json'
 const CREDENTIAL_STORE_VERSION = 1
 const MAX_CREDENTIAL_STORE_BYTES = 1_000_000
 const MAX_API_KEY_LENGTH = 64 * 1024
+const MAX_OAUTH_CREDENTIALS = 64
+const OAUTH_CREDENTIAL_ID_PATTERN = /^oauth:[a-z0-9][a-z0-9-]{0,63}$/
 
 type CredentialStore = {
   version: typeof CREDENTIAL_STORE_VERSION
   apiKeys: Record<string, string>
+  oauthCredentials?: Record<string, OAuthCredentialBinding>
+}
+
+export type OAuthCredentialProvider =
+  'codex-oauth' | 'github-copilot' | 'grok-build'
+
+/**
+ * Non-secret Kode-side binding to the credential the official runtime owns.
+ * It is deliberately insufficient to authenticate a request on its own.
+ */
+export type OAuthCredentialBinding = {
+  provider: OAuthCredentialProvider
+  credentialStore: 'official-runtime'
+  createdAt: number
+  lastVerifiedAt: number
+  accountLabel?: string
 }
 
 function normalizeProviderForApiKeyEnvVar(provider: string): string {
@@ -33,7 +51,13 @@ function normalizeProviderForApiKeyEnvVar(provider: string): string {
 }
 
 export function providerUsesApiKey(provider: ProviderType): boolean {
-  return provider !== 'ollama'
+  return provider !== 'ollama' && !providerUsesOAuthRuntime(provider)
+}
+
+export function providerUsesOAuthRuntime(
+  provider: ProviderType,
+): provider is OAuthCredentialProvider {
+  return isOAuthCredentialProvider(provider)
 }
 
 export function getApiKeyEnvVarNames(provider: ProviderType): string[] {
@@ -69,7 +93,11 @@ export function getCredentialStorePath(): string {
 }
 
 function emptyCredentialStore(): CredentialStore {
-  return { version: CREDENTIAL_STORE_VERSION, apiKeys: {} }
+  return {
+    version: CREDENTIAL_STORE_VERSION,
+    apiKeys: {},
+    oauthCredentials: {},
+  }
 }
 
 function assertCredentialStoreDirectory(directory: string): void {
@@ -118,7 +146,61 @@ function parseCredentialStore(content: string): CredentialStore {
     apiKeys[name] = value
   }
 
-  return { version: CREDENTIAL_STORE_VERSION, apiKeys }
+  const oauthCredentials: Record<string, OAuthCredentialBinding> = {}
+  const rawOAuthCredentials = store.oauthCredentials
+  if (rawOAuthCredentials !== undefined) {
+    if (
+      !rawOAuthCredentials ||
+      typeof rawOAuthCredentials !== 'object' ||
+      Array.isArray(rawOAuthCredentials) ||
+      Object.keys(rawOAuthCredentials).length > MAX_OAUTH_CREDENTIALS
+    ) {
+      throw new Error('Kode credential store contains invalid OAuth bindings')
+    }
+    for (const [id, binding] of Object.entries(rawOAuthCredentials)) {
+      if (
+        !OAUTH_CREDENTIAL_ID_PATTERN.test(id) ||
+        !isOAuthCredentialBinding(binding)
+      ) {
+        throw new Error('Kode credential store contains invalid OAuth bindings')
+      }
+      oauthCredentials[id] = binding
+    }
+  }
+
+  return { version: CREDENTIAL_STORE_VERSION, apiKeys, oauthCredentials }
+}
+
+function isOAuthCredentialProvider(
+  value: unknown,
+): value is OAuthCredentialProvider {
+  return (
+    value === 'codex-oauth' ||
+    value === 'github-copilot' ||
+    value === 'grok-build'
+  )
+}
+
+function isOAuthCredentialBinding(
+  value: unknown,
+): value is OAuthCredentialBinding {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const binding = value as Partial<OAuthCredentialBinding>
+  return (
+    isOAuthCredentialProvider(binding.provider) &&
+    binding.credentialStore === 'official-runtime' &&
+    typeof binding.createdAt === 'number' &&
+    Number.isFinite(binding.createdAt) &&
+    binding.createdAt > 0 &&
+    typeof binding.lastVerifiedAt === 'number' &&
+    Number.isFinite(binding.lastVerifiedAt) &&
+    binding.lastVerifiedAt > 0 &&
+    (binding.accountLabel === undefined ||
+      (typeof binding.accountLabel === 'string' &&
+        binding.accountLabel.length > 0 &&
+        binding.accountLabel.length <= 120 &&
+        !/[\u0000-\u001f\u007f]/.test(binding.accountLabel)))
+  )
 }
 
 function readCredentialStore(options?: {
@@ -233,12 +315,94 @@ export function readApiKey(envVarName: string | undefined): string | undefined {
   )
 }
 
+export function getOAuthCredentialId(
+  provider: OAuthCredentialProvider,
+): string {
+  return `oauth:${provider}`
+}
+
+/**
+ * Persist a non-secret binding after the official runtime has completed OAuth.
+ * The provider's access/refresh token never enters this store: it remains in
+ * the runtime's OS credential manager or its own protected credential store.
+ */
+export function storeOAuthCredentialBinding(
+  provider: OAuthCredentialProvider,
+  options: { accountLabel?: string; verifiedAt?: number } = {},
+): string {
+  const credentialId = getOAuthCredentialId(provider)
+  const now = options.verifiedAt ?? Date.now()
+  if (!Number.isFinite(now) || now <= 0) {
+    throw new Error('OAuth credential verification time must be valid')
+  }
+  const accountLabel = options.accountLabel?.trim()
+  if (
+    accountLabel &&
+    (accountLabel.length > 120 || /[\u0000-\u001f\u007f]/.test(accountLabel))
+  ) {
+    throw new Error('OAuth account label is invalid')
+  }
+
+  const store = readCredentialStore({ failOnInvalid: true })
+  const oauthCredentials = store.oauthCredentials ?? {}
+  if (
+    !oauthCredentials[credentialId] &&
+    Object.keys(oauthCredentials).length >= MAX_OAUTH_CREDENTIALS
+  ) {
+    throw new Error('Kode credential store has reached the OAuth binding limit')
+  }
+  const existing = oauthCredentials[credentialId]
+  oauthCredentials[credentialId] = {
+    provider,
+    credentialStore: 'official-runtime',
+    createdAt: existing?.createdAt ?? now,
+    lastVerifiedAt: now,
+    ...(accountLabel
+      ? { accountLabel }
+      : existing?.accountLabel
+        ? { accountLabel: existing.accountLabel }
+        : {}),
+  }
+  store.oauthCredentials = oauthCredentials
+  writeCredentialStore(store)
+  return credentialId
+}
+
+export function getOAuthCredentialBinding(
+  credentialId: string | undefined,
+): OAuthCredentialBinding | undefined {
+  if (!credentialId || !OAUTH_CREDENTIAL_ID_PATTERN.test(credentialId)) {
+    return undefined
+  }
+  return readCredentialStore().oauthCredentials?.[credentialId]
+}
+
+export function hasOAuthCredentialBinding(
+  credentialId: string | undefined,
+  provider: OAuthCredentialProvider,
+): boolean {
+  return getOAuthCredentialBinding(credentialId)?.provider === provider
+}
+
 export type ModelCredentialStatus =
   { success: true; apiKey: string } | { success: false; error: string }
 
 export function getModelCredentialStatus(
   profile: ModelProfile,
 ): ModelCredentialStatus {
+  if (providerUsesOAuthRuntime(profile.provider)) {
+    if (
+      hasOAuthCredentialBinding(profile.oauthCredentialId, profile.provider)
+    ) {
+      return { success: true, apiKey: '' }
+    }
+    return {
+      success: false,
+      error:
+        `Model '${profile.name}' is blocked because its OAuth credential binding is missing. ` +
+        'Run /login and complete the official OAuth flow again.',
+    }
+  }
   if (!providerUsesApiKey(profile.provider)) {
     return { success: true, apiKey: '' }
   }

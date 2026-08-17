@@ -7,7 +7,7 @@ const theme = {
   name: 'theme',
   description: 'Change the theme',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone) {
     return <ThemePickerScreen onDone={onDone} />

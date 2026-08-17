@@ -8,9 +8,11 @@ import type { Message as ConversationMessage } from '#core/query'
 import { hasPermissionsToUseTool } from '#core/permissions'
 import type { SetToolJSXFn } from '@kode/tool-interface/Tool'
 import { saveAgentTranscript } from '#core/utils/agentTranscripts'
-import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import {
+  getQueuedBackgroundAgentGuidanceIds,
+  hasQueuedBackgroundAgentGuidance,
   upsertBackgroundAgentTask,
+  updateBackgroundAgentActivity,
   type BackgroundAgentTaskRuntime,
 } from '#core/utils/backgroundTasks'
 import { countTokens } from '#core/utils/tokens'
@@ -21,19 +23,25 @@ import {
 } from '#core/utils/log'
 import {
   createAssistantMessage,
+  createUserMessage,
   getLastAssistantMessageId,
 } from '#core/utils/messages'
 import {
   appendBackgroundTaskOutput,
+  flushBackgroundTaskOutput,
   touchBackgroundTaskOutputFile,
 } from '#core/tasks/backgroundRegistry'
-import { getCwd } from '#core/utils/state'
 import {
   BashToolRunInBackgroundOverlay,
   createRunInBackgroundKeypressHandler,
 } from '#tools/tools/system/BashTool/BashToolRunInBackgroundOverlay'
 
 import { asyncLaunchMessage } from './assistantText'
+import {
+  awaitAgentIteratorNext,
+  BackgroundAgentLifecycle,
+  runInPreparedAgentScope,
+} from './backgroundLifecycle'
 import type { PreparedTaskToolRun } from './callTypes'
 import type { Input, Output, TaskUsage } from './schema'
 
@@ -229,8 +237,14 @@ export async function* callTaskToolForeground(
       type: 'result'
       data: Output
       resultForAssistant: string | TextBlock[]
+      /** Internal ownership handoff; never serialized into tool output. */
+      backgroundOwnershipTransferred?: boolean
     }
 > {
+  // A resumed transcript may already end in an assistant response. Terminal
+  // status for this invocation must be derived only from newly produced
+  // messages, otherwise an empty provider stream can replay stale success.
+  const turnTranscriptStartIndex = prepared.transcriptMessages.length
   const getSidechainNumber = memoize(() =>
     getNextAvailableLogSidechainNumber(
       prepared.messageLogName,
@@ -262,11 +276,13 @@ export async function* callTaskToolForeground(
 
   let backgrounded = false
   const runAbortController = new AbortController()
+  options?.supervisor?.attachAbortController(runAbortController)
   const onParentAbort = () => {
     if (backgrounded) return
     runAbortController.abort()
   }
   prepared.abortController.signal.addEventListener('abort', onParentAbort)
+  if (prepared.abortController.signal.aborted) onParentAbort()
 
   let overlayTimeout: ReturnType<typeof setTimeout> | null = null
   if (setToolJSX) {
@@ -282,7 +298,7 @@ export async function* callTaskToolForeground(
     overlayTimeout.unref?.()
   }
 
-  touchBackgroundTaskOutputFile(prepared.agentId)
+  const outputFile = touchBackgroundTaskOutputFile(prepared.agentId)
 
   const addRecentAction = (action: string) => {
     const trimmed = action.trim()
@@ -344,27 +360,53 @@ export async function* callTaskToolForeground(
     }
   }
 
-  const queryStream = prepared.queryFn(
-    prepared.messagesForQuery,
-    prepared.systemPrompt,
-    prepared.context,
-    hasPermissionsToUseTool,
-    {
-      abortController: runAbortController,
-      options: prepared.queryOptions,
-      messageId: getLastAssistantMessageId(prepared.messagesForQuery),
-      agentId: prepared.agentId,
-      readFileTimestamps: prepared.readFileTimestamps,
-      setToolJSX: () => {},
-    },
-  )
-  const queryIterator = queryStream[Symbol.asyncIterator]()
+  const childToolUseContext = {
+    abortController: runAbortController,
+    options: prepared.queryOptions,
+    messageId: getLastAssistantMessageId(prepared.messagesForQuery),
+    agentId: prepared.agentId,
+    readFileTimestamps: prepared.readFileTimestamps,
+    setToolJSX: () => {},
+    turnCount: 0,
+  }
+  const createQueryIterator = () => {
+    childToolUseContext.messageId = getLastAssistantMessageId(
+      prepared.messagesForQuery,
+    )
+    return runInPreparedAgentScope(prepared, () => {
+      const queryStream = prepared.queryFn(
+        prepared.messagesForQuery,
+        prepared.systemPrompt,
+        prepared.context,
+        hasPermissionsToUseTool,
+        childToolUseContext,
+      )
+      return queryStream[Symbol.asyncIterator]()
+    })
+  }
+  const queryIterator = createQueryIterator()
 
-  let nextPromise = queryIterator.next()
+  let nextPromise = awaitAgentIteratorNext(
+    queryIterator,
+    runInPreparedAgentScope(prepared, () => queryIterator.next()),
+    runAbortController.signal,
+  )
 
   const startBackgroundTask = (
     firstNextPromise: Promise<IteratorResult<ConversationMessage, void>>,
   ): BackgroundAgentTaskRuntime => {
+    if (!options?.supervisor) {
+      throw new Error('Background agent requires a supervisor')
+    }
+    const lifecycle = new BackgroundAgentLifecycle({
+      agentId: prepared.agentId,
+      description: input.description,
+      cwd: prepared.cwd,
+      sessionId: prepared.sessionId,
+      outputFile,
+      abortController: runAbortController,
+      supervisor: options.supervisor,
+    })
     const taskRecord: BackgroundAgentTaskRuntime = {
       type: 'async_agent',
       agentId: prepared.agentId,
@@ -375,37 +417,88 @@ export async function* callTaskToolForeground(
       description: input.description,
       prompt: prepared.effectivePrompt,
       status: 'running',
-      cwd: getCwd(),
-      sessionId: getKodeAgentSessionId(),
+      cwd: prepared.cwd,
+      sessionId: prepared.sessionId,
       startedAt: prepared.startTime,
-      messages: [...prepared.transcriptMessages],
+      messages: prepared.transcriptMessages,
       abortController: runAbortController,
       done: Promise.resolve(),
     }
 
-    taskRecord.done = (async () => {
+    taskRecord.done = runInPreparedAgentScope(prepared, async () => {
       try {
+        let currentIterator = queryIterator
         let iterResult = await firstNextPromise
-        while (isIteratorYieldResult(iterResult)) {
-          recordMessage(iterResult.value, false)
-          taskRecord.messages = [...prepared.transcriptMessages]
-          upsertBackgroundAgentTask(taskRecord)
-          iterResult = await queryIterator.next()
+        let queuedAtQueryStart = ''
+        let queryCouldConsumeGuidance = false
+        while (true) {
+          while (isIteratorYieldResult(iterResult)) {
+            recordMessage(iterResult.value, false)
+            taskRecord.lastActivityAt = Date.now()
+            taskRecord.turnCount = childToolUseContext.turnCount ?? 0
+            upsertBackgroundAgentTask(taskRecord)
+            lifecycle.heartbeat()
+            iterResult = await awaitAgentIteratorNext(
+              currentIterator,
+              runInPreparedAgentScope(prepared, () => currentIterator.next()),
+              runAbortController.signal,
+            )
+          }
+
+          updateBackgroundAgentActivity({
+            agentId: prepared.agentId,
+            turnCount: childToolUseContext.turnCount ?? 0,
+          })
+          if (!hasQueuedBackgroundAgentGuidance(prepared.agentId)) break
+          const queuedAtQueryEnd = getQueuedBackgroundAgentGuidanceIds(
+            prepared.agentId,
+          ).join(',')
+          if (
+            queryCouldConsumeGuidance &&
+            queuedAtQueryStart &&
+            queuedAtQueryStart === queuedAtQueryEnd
+          ) {
+            throw new Error(
+              'Background agent query adapter did not consume queued runtime guidance.',
+            )
+          }
+
+          const continuation = createUserMessage(
+            'Continue the task using the latest runtime guidance from the main agent.',
+          )
+          prepared.messagesForQuery.push(continuation)
+          prepared.transcriptMessages.push(continuation)
+          queuedAtQueryStart = queuedAtQueryEnd
+          queryCouldConsumeGuidance = true
+          currentIterator = createQueryIterator()
+          iterResult = await awaitAgentIteratorNext(
+            currentIterator,
+            runInPreparedAgentScope(prepared, () => currentIterator.next()),
+            runAbortController.signal,
+          )
         }
 
         const lastAssistant = last(
-          prepared.transcriptMessages.filter(m => m.type === 'assistant'),
+          prepared.transcriptMessages
+            .slice(turnTranscriptStartIndex)
+            .filter(m => m.type === 'assistant'),
         )
         const content =
           lastAssistant?.type === 'assistant'
             ? lastAssistant.message.content.filter(isTextBlock)
             : []
         const resultText = content.map(b => b.text).join('\n')
+        const childFailed =
+          !lastAssistant || lastAssistant.isApiErrorMessage === true
 
         if (taskRecord.status !== 'killed') {
-          taskRecord.status = 'completed'
+          taskRecord.status = childFailed ? 'failed' : 'completed'
           taskRecord.completedAt = Date.now()
           taskRecord.resultText = resultText
+          if (childFailed) {
+            taskRecord.error =
+              resultText || 'Subagent ended without an assistant response.'
+          }
         } else {
           taskRecord.completedAt = taskRecord.completedAt ?? Date.now()
           if (resultText) taskRecord.resultText = resultText
@@ -415,16 +508,27 @@ export async function* callTaskToolForeground(
           )
         }
 
-        taskRecord.messages = [...prepared.transcriptMessages]
         upsertBackgroundAgentTask(taskRecord)
-        saveAgentTranscript(prepared.agentId, prepared.transcriptMessages)
+        saveAgentTranscript(
+          {
+            agentId: prepared.agentId,
+            cwd: prepared.cwd,
+            sessionId: prepared.sessionId,
+          },
+          prepared.transcriptMessages,
+        )
+        lifecycle.finish(
+          taskRecord.status === 'killed'
+            ? 'cancelled'
+            : taskRecord.status === 'failed'
+              ? 'failed'
+              : 'completed',
+          taskRecord.error,
+        )
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
 
-        if (
-          taskRecord.status === 'killed' ||
-          runAbortController.signal.aborted
-        ) {
+        if (taskRecord.status === 'killed') {
           taskRecord.status = 'killed'
           taskRecord.completedAt = taskRecord.completedAt ?? Date.now()
           taskRecord.error = taskRecord.error ?? (message || 'Killed by user')
@@ -442,10 +546,15 @@ export async function* callTaskToolForeground(
           )
         }
 
-        taskRecord.messages = [...prepared.transcriptMessages]
         upsertBackgroundAgentTask(taskRecord)
+        lifecycle.finish(
+          taskRecord.status === 'killed' ? 'cancelled' : 'failed',
+          message,
+        )
+      } finally {
+        flushBackgroundTaskOutput(prepared.agentId)
       }
-    })()
+    })
 
     upsertBackgroundAgentTask(taskRecord)
     return taskRecord
@@ -453,9 +562,6 @@ export async function* callTaskToolForeground(
 
   try {
     while (true) {
-      // Enforce wall-clock timeout on each iteration
-      options?.supervisor?.checkLimits(toolUseCount)
-
       const raced = await Promise.race([
         nextPromise.then(res => ({ kind: 'next' as const, res })),
         backgroundRequestedPromise.then(() => ({
@@ -484,6 +590,7 @@ export async function* callTaskToolForeground(
           type: 'result',
           data: output,
           resultForAssistant: asyncLaunchMessage(prepared.agentId),
+          backgroundOwnershipTransferred: true,
         }
         return
       }
@@ -509,19 +616,26 @@ export async function* callTaskToolForeground(
         lastProgressEmitAt = now
       }
 
-      nextPromise = queryIterator.next()
+      nextPromise = awaitAgentIteratorNext(
+        queryIterator,
+        runInPreparedAgentScope(prepared, () => queryIterator.next()),
+        runAbortController.signal,
+      )
     }
   } finally {
+    flushBackgroundTaskOutput(prepared.agentId)
     if (overlayTimeout) clearTimeout(overlayTimeout)
     prepared.abortController.signal.removeEventListener('abort', onParentAbort)
     setToolJSX?.(null)
   }
 
   const lastAssistant = last(
-    prepared.transcriptMessages.filter(m => m.type === 'assistant'),
+    prepared.transcriptMessages
+      .slice(turnTranscriptStartIndex)
+      .filter(m => m.type === 'assistant'),
   )
   if (!lastAssistant || lastAssistant.type !== 'assistant') {
-    throw new Error('No assistant messages found')
+    throw new Error('Subagent ended without an assistant response.')
   }
 
   const content = lastAssistant.message.content.filter(isTextBlock)
@@ -530,8 +644,14 @@ export async function* callTaskToolForeground(
   const totalTokens = countTokens(prepared.transcriptMessages)
   const usage = normalizeUsage(lastAssistant.message.usage)
 
-  const output: Output = {
-    status: 'completed',
+  const childFailed = lastAssistant.isApiErrorMessage === true
+  const failureText = content
+    .map(block => block.text)
+    .join('\n')
+    .trim()
+  const failureMessage =
+    failureText || 'Subagent stopped before completing verification.'
+  const outputBase = {
     agentId: prepared.agentId,
     prompt: prepared.effectivePrompt,
     content,
@@ -540,6 +660,9 @@ export async function* callTaskToolForeground(
     totalTokens,
     usage,
   }
+  const output: Output = childFailed
+    ? { ...outputBase, status: 'failed', error: failureMessage }
+    : { ...outputBase, status: 'completed' }
   const agentIdBlock: TextBlock = {
     type: 'text',
     text: `agentId: ${prepared.agentId} (for resuming to continue this agent's work if needed)`,
@@ -549,6 +672,15 @@ export async function* callTaskToolForeground(
   yield {
     type: 'result',
     data: output,
-    resultForAssistant: [...content, agentIdBlock],
+    resultForAssistant: childFailed
+      ? [
+          {
+            type: 'text',
+            text: `Subagent failed: ${failureMessage}`,
+            citations: [],
+          },
+          agentIdBlock,
+        ]
+      : [...content, agentIdBlock],
   }
 }

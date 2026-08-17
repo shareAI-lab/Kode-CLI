@@ -15,6 +15,12 @@ import {
   formatVerificationSystemMessage,
 } from '../verification/receipt'
 import {
+  canObserveWorkspaceMutationDuringCall,
+  finalizeWorkspaceMutationReceipt,
+  resolveWorkspaceMutationScope,
+} from '../verification/mutation'
+import { captureWorkspaceFingerprint } from '../verification/workspaceFingerprint'
+import {
   getHookTranscriptPath,
   queueHookAdditionalContexts,
   queueHookSystemMessages,
@@ -29,6 +35,31 @@ import { normalizeToolInput, preprocessToolInput } from './tool-input'
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object') return null
   return value as Record<string, unknown>
+}
+
+function getReadModeValidationError(
+  tool: Tool,
+  input: Record<string, unknown>,
+  enforceReadMode: boolean,
+): string | null {
+  if (!enforceReadMode) return null
+  if (!tool.readModeAccess) {
+    return 'This tool is not available in the Kode read-only tool profile.'
+  }
+
+  const parsed = (tool.readModeInputSchema ?? tool.inputSchema).safeParse(input)
+  const readModeInput = parsed.success ? asRecord(parsed.data) : null
+  if (!readModeInput) {
+    return 'This tool call does not satisfy the Kode read-only input contract.'
+  }
+
+  try {
+    return tool.isReadOnly(readModeInput as never)
+      ? null
+      : 'This tool call is not read-only and was blocked by the Kode read-only tool profile.'
+  } catch {
+    return 'Kode could not verify that this tool call is read-only.'
+  }
 }
 
 function isPipelineMessage(value: unknown): value is Message {
@@ -94,6 +125,7 @@ export async function* checkPermissionsAndCallTool(
   canUseTool: EngineCanUseToolFn,
   assistantMessage: AssistantMessage,
   shouldSkipPermissionCheck?: boolean,
+  enforceReadMode = false,
 ): AsyncGenerator<Message, void> {
   const preprocessedInput = preprocessToolInput(tool, input)
   const isValidInput = tool.inputSchema.safeParse(preprocessedInput)
@@ -117,6 +149,23 @@ export async function* checkPermissionsAndCallTool(
   }
 
   let normalizedInput = normalizeToolInput(tool, isValidInput.data)
+
+  const initialReadModeValidationError = getReadModeValidationError(
+    tool,
+    normalizedInput,
+    enforceReadMode,
+  )
+  if (initialReadModeValidationError) {
+    yield createUserMessage([
+      {
+        type: 'tool_result',
+        content: initialReadModeValidationError,
+        is_error: true,
+        tool_use_id: toolUseID,
+      },
+    ])
+    return
+  }
 
   const windowsAutomationBlock = getWindowsAutomationPolicyBlock(
     tool,
@@ -225,6 +274,22 @@ export async function* checkPermissionsAndCallTool(
       return
     }
     normalizedInput = normalizeToolInput(tool, parsed.data)
+    const hookReadModeValidationError = getReadModeValidationError(
+      tool,
+      normalizedInput,
+      enforceReadMode,
+    )
+    if (hookReadModeValidationError) {
+      yield createUserMessage([
+        {
+          type: 'tool_result',
+          content: hookReadModeValidationError,
+          is_error: true,
+          tool_use_id: toolUseID,
+        },
+      ])
+      return
+    }
     const isValidUpdate = await tool.validateInput?.(
       normalizedInput as never,
       context,
@@ -255,14 +320,14 @@ export async function* checkPermissionsAndCallTool(
   const permissionContextForCall =
     hookPermissionDecision === 'ask' &&
     context.options?.toolPermissionContext &&
-    context.options.toolPermissionContext.mode !== 'default'
+    context.options.toolPermissionContext.mode !== 'cautious'
       ? ({
           ...context,
           options: {
             ...context.options,
             toolPermissionContext: {
               ...context.options.toolPermissionContext,
-              mode: 'default',
+              mode: 'cautious',
             },
           },
         } as const)
@@ -308,6 +373,22 @@ export async function* checkPermissionsAndCallTool(
       return
     }
     normalizedInput = normalizeToolInput(tool, parsed.data)
+    const permissionReadModeValidationError = getReadModeValidationError(
+      tool,
+      normalizedInput,
+      enforceReadMode,
+    )
+    if (permissionReadModeValidationError) {
+      yield createUserMessage([
+        {
+          type: 'tool_result',
+          content: permissionReadModeValidationError,
+          is_error: true,
+          tool_use_id: toolUseID,
+        },
+      ])
+      return
+    }
     const isValidUpdate = await tool.validateInput?.(
       normalizedInput as never,
       context,
@@ -325,6 +406,40 @@ export async function* checkPermissionsAndCallTool(
     }
   }
 
+  const workspaceAwareTools = [
+    tool,
+    ...(context.options?.tools ?? []).filter(candidate => candidate !== tool),
+  ]
+  const declaredMutationScope = resolveWorkspaceMutationScope({
+    name: tool.name,
+    input: normalizedInput,
+    tools: workspaceAwareTools,
+  })
+  const observesMutationDuringCall = canObserveWorkspaceMutationDuringCall({
+    name: tool.name,
+    declaredScope: declaredMutationScope,
+  })
+  const workspaceFingerprintBefore = observesMutationDuringCall
+    ? captureWorkspaceFingerprint(getCwd())
+    : null
+  const mutationReceipt = (output?: unknown) => {
+    const completedMutationScope = resolveWorkspaceMutationScope({
+      name: tool.name,
+      input: normalizedInput,
+      output,
+      tools: workspaceAwareTools,
+    })
+    return finalizeWorkspaceMutationReceipt({
+      toolUseId: toolUseID,
+      declaredScope: completedMutationScope,
+      beforeFingerprint: workspaceFingerprintBefore,
+      afterFingerprint:
+        completedMutationScope === 'direct' && observesMutationDuringCall
+          ? captureWorkspaceFingerprint(getCwd())
+          : null,
+    })
+  }
+
   try {
     const generator = tool.call(normalizedInput as never, {
       ...context,
@@ -334,6 +449,7 @@ export async function* checkPermissionsAndCallTool(
     for await (const result of generator) {
       switch (result.type) {
         case 'result': {
+          const workspaceMutation = mutationReceipt(result.data)
           const verificationReceipt = createVerificationReceipt({
             toolName: tool.name,
             isTrustedExecutionTool: tool.isTrustedExecutionTool === true,
@@ -403,6 +519,7 @@ export async function* checkPermissionsAndCallTool(
             {
               data,
               resultForAssistant: content,
+              metadata: { workspaceMutation },
               ...(newMessages.length > 0 ? { newMessages } : {}),
               ...(result.contextModifier
                 ? { contextModifier: result.contextModifier }
@@ -431,14 +548,22 @@ export async function* checkPermissionsAndCallTool(
     const content = formatError(error)
     logError(error)
 
-    yield createUserMessage([
+    const workspaceMutation = mutationReceipt()
+    yield createUserMessage(
+      [
+        {
+          type: 'tool_result',
+          content,
+          is_error: true,
+          tool_use_id: toolUseID,
+        },
+      ],
       {
-        type: 'tool_result',
-        content,
-        is_error: true,
-        tool_use_id: toolUseID,
+        data: {},
+        resultForAssistant: content,
+        metadata: { workspaceMutation },
       },
-    ])
+    )
   }
 }
 

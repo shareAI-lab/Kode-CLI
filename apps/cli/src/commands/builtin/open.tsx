@@ -7,7 +7,7 @@ const open = {
   name: 'open',
   description: 'Browse project files and open in $EDITOR',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone) {
     return <OpenFileScreen onDone={onDone} />

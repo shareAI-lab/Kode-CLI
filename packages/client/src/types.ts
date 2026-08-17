@@ -8,6 +8,7 @@ import type {
   DaemonAgentSource,
   DaemonAgentUpdateRequest,
   DaemonGoalScheduleSummary,
+  DaemonGoalScheduleEvent,
   DaemonManagedAgent,
   DaemonPermissionSnapshot,
   DaemonPermissionUpdate,
@@ -18,7 +19,7 @@ import type {
   Session,
 } from '@kode/protocol'
 
-export type { DaemonGoalScheduleSummary }
+export type { DaemonGoalScheduleEvent, DaemonGoalScheduleSummary }
 
 export type ToolPermissionDecision = 'allow_once' | 'allow_always' | 'deny'
 
@@ -243,6 +244,8 @@ export interface TaskControlKodeClient {
 export type GoalScheduleCreateRequest = {
   sessionId: string
   objective: string
+  acceptanceCriteria?: string[]
+  maxIterations?: number
   schedule:
     | { kind: 'once'; runAt?: number }
     | { kind: 'interval'; everyMs: number; anchorAt?: number }
@@ -251,8 +254,19 @@ export type GoalScheduleCreateRequest = {
 export type GoalScheduleActionRequest = {
   sessionId: string
   expectedRevision: number
-  action: 'pause' | 'resume' | 'cancel'
+  action: 'pause' | 'resume' | 'retry' | 'run_now' | 'cancel'
   reason?: string
+}
+
+export type GoalScheduleUpdateRequest = {
+  sessionId: string
+  expectedRevision: number
+  objective?: string
+  acceptanceCriteria?: string[]
+  maxIterations?: number
+  schedule?:
+    | { kind: 'once'; runAt?: number }
+    | { kind: 'interval'; everyMs: number; anchorAt?: number }
 }
 
 export interface GoalScheduleControlKodeClient {
@@ -262,10 +276,18 @@ export interface GoalScheduleControlKodeClient {
   createGoalSchedule(
     request: GoalScheduleCreateRequest,
   ): Promise<DaemonGoalScheduleSummary>
+  updateGoalSchedule(
+    scheduleId: string,
+    request: GoalScheduleUpdateRequest,
+  ): Promise<DaemonGoalScheduleSummary>
   transitionGoalSchedule(
     scheduleId: string,
     request: GoalScheduleActionRequest,
   ): Promise<DaemonGoalScheduleSummary>
+  listGoalScheduleEvents(
+    scheduleId: string,
+    options: { sessionId: string; limit?: number },
+  ): Promise<DaemonGoalScheduleEvent[]>
 }
 
 /** Daemon-only permission snapshots and explicitly-audited updates. */

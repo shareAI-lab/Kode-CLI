@@ -6,7 +6,7 @@ import type { SetToolJSXFn } from '@kode/tool-interface/Tool'
 import { createAssistantMessage } from '#core/utils/messages'
 import { isInDirectory } from '#core/utils/file'
 import { logError } from '#core/utils/log'
-import { getCwd, getOriginalCwd } from '#core/utils/state'
+import { getCwd, getOriginalCwd, setCwd } from '#core/utils/state'
 import { BunShell } from '#runtime/shell'
 import type { BunShellSandboxOptions } from '#runtime/shell'
 import {
@@ -67,6 +67,7 @@ export async function* executeForegroundBash(options: {
       abortController.signal,
       timeout,
       {
+        cwd: getCwd(),
         sandbox: options.sandboxOptions,
         onStdoutChunk: onChunk,
         onStderrChunk: onChunk,
@@ -166,7 +167,7 @@ export async function* executeForegroundBash(options: {
 
         if (!isInDirectory(getCwd(), getOriginalCwd())) {
           // Shell directory is outside original working directory, reset it
-          await BunShell.getInstance().setCwd(getOriginalCwd())
+          await setCwd(getOriginalCwd())
           stderr = `${stderr.trim()}${EOL}Shell cwd was reset to ${getOriginalCwd()}`
         }
 

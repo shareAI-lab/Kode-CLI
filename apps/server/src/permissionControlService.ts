@@ -5,8 +5,8 @@ import {
   canUserModifyToolPermissionUpdate,
   type ToolPermissionContext,
   type ToolPermissionContextUpdate,
-} from '@kode/core/types/toolPermissionContext'
-import { isPersistableToolPermissionDestination } from '@kode/core/types/toolPermissionContext'
+} from '@kode/types/toolPermissionContext'
+import { isPersistableToolPermissionDestination } from '@kode/types/toolPermissionContext'
 import {
   loadToolPermissionContextFromDisk,
   persistToolPermissionUpdateToDisk,
@@ -75,8 +75,6 @@ function contextToSnapshot(args: {
     source: args.source,
     sessionId: args.sessionId,
     mode: args.context.mode,
-    isBypassPermissionsModeAvailable:
-      args.context.isBypassPermissionsModeAvailable,
     additionalWorkingDirectories: Array.from(
       args.context.additionalWorkingDirectories.values(),
     ).map(entry => ({ path: entry.path, source: entry.source })),
@@ -284,14 +282,6 @@ export class PermissionControlService {
     if (update.destination === 'session' && !session) return 'session_required'
     if (update.type === 'setMode' && update.destination !== 'session') {
       return 'unsupported_destination'
-    }
-    if (
-      update.type === 'setMode' &&
-      update.mode === 'bypassPermissions' &&
-      !(session?.toolPermissionContext ?? this.loadDiskContext(args.cwd))
-        .isBypassPermissionsModeAvailable
-    ) {
-      return 'bypass_unavailable'
     }
     return null
   }

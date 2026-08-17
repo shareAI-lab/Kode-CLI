@@ -87,7 +87,13 @@ export async function processResponsesStream(
     }
 
     if (event.type === 'thinking_delta') {
-      if (event.delta) appendThinkingDelta(event.delta)
+      if (event.delta) {
+        appendThinkingDelta(event.delta)
+        emitAssistantStreamUpdate(options, {
+          type: 'thinking_delta',
+          delta: event.delta,
+        })
+      }
       continue
     }
 

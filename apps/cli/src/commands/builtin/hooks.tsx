@@ -9,7 +9,7 @@ const hooks = {
   name: 'hooks',
   description: 'Manage hook configurations for tool events',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   disableNonInteractive: true,
   async call(onDone, context) {

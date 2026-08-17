@@ -6,7 +6,7 @@ const cost = {
   name: 'cost',
   description: 'Show the total cost and duration of the current session',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call() {
     return formatTotalCost()
   },

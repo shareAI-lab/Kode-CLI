@@ -131,4 +131,24 @@ describe('prompt command input', () => {
     )
     expect(extractAssistantText(messages)).toContain('Note saved to AGENTS.md.')
   })
+
+  test('/note reports a safe error when AGENTS.md cannot be written', async () => {
+    mkdirSync(join(projectDir, 'AGENTS.md'))
+    __setLlmLazyQueryQuickLoaderForTests(
+      async () => async () => createAssistantMessage('# API Docs'),
+    )
+
+    const messages = await processUserInput(
+      '/note Remember to update API docs',
+      'prompt',
+      () => {},
+      makeContext(),
+      null,
+    )
+
+    expect(extractAssistantText(messages)).toContain(
+      'Unable to save the note to AGENTS.md. Check the file path and permissions, then retry.',
+    )
+    expect(extractAssistantText(messages)).not.toContain('EISDIR')
+  })
 })

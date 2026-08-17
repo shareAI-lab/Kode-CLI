@@ -7,7 +7,7 @@ const config = {
   name: 'config',
   description: 'Open config panel',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone) {
     return <ConfigScreen onClose={onDone} />

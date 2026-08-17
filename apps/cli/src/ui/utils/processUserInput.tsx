@@ -23,7 +23,10 @@ import {
 import { parseBuiltinInputCommand } from './builtinInputCommands'
 import type { SetForkConvoWithMessagesOnTheNextRender } from '#ui-ink/types/conversationReset'
 import { interpretHashCommand } from '#ui-ink/components/PromptInput/hashCommand'
-import { handleHashCommand } from '#core/utils/hashCommand'
+import {
+  handleHashCommand,
+  HASH_COMMAND_SAVE_FAILURE_MESSAGE,
+} from '#core/utils/hashCommand'
 
 export async function processUserInput(
   input: string,
@@ -64,7 +67,14 @@ export async function processUserInput(
 
     try {
       const interpreted = await interpretHashCommand(builtinCommand.args)
-      handleHashCommand(interpreted)
+      if (!handleHashCommand(interpreted)) {
+        return [
+          userMessage,
+          createAssistantMessage(
+            `<local-command-stderr>${HASH_COMMAND_SAVE_FAILURE_MESSAGE}</local-command-stderr>`,
+          ),
+        ]
+      }
       return [
         userMessage,
         createAssistantMessage(
@@ -76,7 +86,7 @@ export async function processUserInput(
       return [
         userMessage,
         createAssistantMessage(
-          `<local-command-stderr>Note failed: ${error instanceof Error ? error.message : String(error)}</local-command-stderr>`,
+          `<local-command-stderr>${HASH_COMMAND_SAVE_FAILURE_MESSAGE}</local-command-stderr>`,
         ),
       ]
     }

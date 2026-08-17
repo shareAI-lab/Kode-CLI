@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useState } from 'react'
 import { Box, Text } from 'ink'
 import figures from 'figures'
 
@@ -7,13 +7,44 @@ import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
-import { useScopedIndexState } from '#ui-ink/hooks/useScopedIndexState'
 import { PressableRow } from '#ui-ink/primitives/list/PressableRow'
 
-type ThinkingToggleOption = {
-  value: boolean
+export type ThinkingMode = 'auto' | 'enabled' | 'disabled'
+
+export type ThinkingModeOption = {
+  value: ThinkingMode
   label: string
   description: string
+}
+
+export const THINKING_MODE_OPTIONS: readonly ThinkingModeOption[] = [
+  {
+    value: 'auto',
+    label: 'Automatic',
+    description:
+      'Use the model profile; “ultrathink” enables it when supported',
+  },
+  {
+    value: 'enabled',
+    label: 'Enabled',
+    description: 'Request extended thinking from providers that support it',
+  },
+  {
+    value: 'disabled',
+    label: 'Disabled',
+    description: 'Do not request or display provider reasoning summaries',
+  },
+]
+
+export function getThinkingModeLabel(mode: ThinkingMode): string {
+  switch (mode) {
+    case 'enabled':
+      return 'ON'
+    case 'disabled':
+      return 'OFF'
+    default:
+      return 'AUTO'
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -21,53 +52,39 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function ThinkingToggleScreen({
-  currentValue,
+  currentMode,
   isMidConversation,
   onSelect,
   onDone,
 }: {
-  currentValue: boolean
+  currentMode: ThinkingMode
   isMidConversation: boolean
-  onSelect: (value: boolean) => void
+  onSelect: (value: ThinkingMode) => void
   onDone: () => void
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
   const exitState = { pending: false, keyName: null as null } as const
 
-  const options: ThinkingToggleOption[] = useMemo(
-    () => [
-      {
-        value: true,
-        label: 'Enabled',
-        description: 'The model will think before responding',
-      },
-      {
-        value: false,
-        label: 'Disabled',
-        description: 'The model will respond without extended thinking',
-      },
-    ],
-    [],
+  const initialIndex = Math.max(
+    0,
+    THINKING_MODE_OPTIONS.findIndex(option => option.value === currentMode),
   )
-
-  const initialIndex = currentValue ? 0 : 1
-  const [selectedIndex, setSelectedIndex] = useScopedIndexState({
-    scope: 'thinking-toggle',
-    itemCount: options.length,
-    initialIndex,
-  })
+  // This is a confirmation menu, rather than a navigation list. Retaining an
+  // unconfirmed cursor from a prior invocation makes the highlighted row diverge
+  // from the active session mode, so deliberately keep its state local.
+  const [selectedIndex, setSelectedIndex] = useState(initialIndex)
 
   const selectOption = useCallback(
     (index: number) => {
-      const option = options[index]
+      const option = THINKING_MODE_OPTIONS[index]
       if (!option) return false
       setSelectedIndex(index)
       onSelect(option.value)
       onDone()
       return true
     },
-    [onDone, onSelect, options, setSelectedIndex],
+    [onDone, onSelect],
   )
 
   const confirm = useCallback(() => {
@@ -94,14 +111,14 @@ export function ThinkingToggleScreen({
 
       if (key.upArrow || inputChar === 'k') {
         setSelectedIndex(prev =>
-          clamp(prev - 1, 0, Math.max(0, options.length - 1)),
+          clamp(prev - 1, 0, Math.max(0, THINKING_MODE_OPTIONS.length - 1)),
         )
         return true
       }
 
       if (key.downArrow || inputChar === 'j') {
         setSelectedIndex(prev =>
-          clamp(prev + 1, 0, Math.max(0, options.length - 1)),
+          clamp(prev + 1, 0, Math.max(0, THINKING_MODE_OPTIONS.length - 1)),
         )
         return true
       }
@@ -128,18 +145,19 @@ export function ThinkingToggleScreen({
 
         <Box flexDirection="column">
           <Text dimColor wrap="truncate-end">
-            Enable or disable thinking for this session.
+            This applies to new requests in this session. Model capability and
+            policy determine how the request is honored.
           </Text>
           {isMidConversation && (
             <Text color={theme.warning}>
-              Changing mid-conversation may reduce quality. For best results,
-              set this at the start of a session.
+              Existing messages are unchanged. Set this before a new request for
+              predictable results.
             </Text>
           )}
         </Box>
 
         <Box flexDirection="column">
-          {options.map((option, idx) => {
+          {THINKING_MODE_OPTIONS.map((option, idx) => {
             const isSelected = idx === selectedIndex
             return (
               <PressableRow

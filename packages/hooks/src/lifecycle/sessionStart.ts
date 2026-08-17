@@ -231,7 +231,9 @@ export async function getSessionStartAdditionalContext(args?: {
     applyEnvFileToProcessEnv(envFilePath)
     try {
       rmSync(envFileDir, { recursive: true, force: true })
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   const additionalContext = additionalContexts.filter(Boolean).join('\n\n')

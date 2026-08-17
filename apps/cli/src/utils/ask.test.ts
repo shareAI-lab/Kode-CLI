@@ -126,4 +126,63 @@ describe('ask(): system prompt flags', () => {
 
     expect(out.resultText).toBe('4')
   })
+
+  test('passes headless permissions and runtime options to query()', async () => {
+    let capturedContext: any = null
+    const toolPermissionContext = {
+      mode: 'acceptEdits',
+      additionalWorkingDirectories: new Map(),
+      alwaysAllowRules: { cliArg: ['Write(output.html)'] },
+      alwaysDenyRules: {},
+      alwaysAskRules: {},
+      isBypassPermissionsModeAvailable: true,
+    } as any
+    const mcpClients = [{ name: 'test-mcp' }] as any
+
+    await ask(
+      {
+        commands: [] as any,
+        tools: [] as any,
+        hasPermissionsToUseTool: (() => ({ result: true })) as any,
+        messageLogName: 'test',
+        prompt: 'write it',
+        cwd: '/tmp',
+        toolPermissionContext,
+        shouldAvoidPermissionPrompts: true,
+        model: 'task',
+        mcpClients,
+      },
+      {
+        setCwd: async () => {},
+        getCurrentOutputStyleDefinition: () => null,
+        buildSystemPromptForSession: async () => ['DEFAULT'],
+        getContext: async () => ({}),
+        getMaxThinkingTokens: async () => 0,
+        query: async function* (
+          _messages,
+          _system,
+          _context,
+          _canUseTool,
+          toolUseContext,
+        ) {
+          capturedContext = toolUseContext
+          yield {
+            type: 'assistant',
+            uuid: 'assistant-uuid',
+            message: { content: [{ type: 'text', text: 'ok' }] },
+          } as any
+        },
+        getMessagesPath: () => 'messages.json',
+        overwriteLog: () => {},
+        getTotalCost: () => 0,
+      },
+    )
+
+    expect(capturedContext.options.toolPermissionContext).toBe(
+      toolPermissionContext,
+    )
+    expect(capturedContext.options.shouldAvoidPermissionPrompts).toBe(true)
+    expect(capturedContext.options.model).toBe('task')
+    expect(capturedContext.options.mcpClients).toBe(mcpClients)
+  })
 })

@@ -6,7 +6,7 @@ const files = {
   name: 'files',
   description: 'List all files currently in context',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(_args, context) {
     const timestamps = (context as any)?.readFileTimestamps as
       Record<string, number> | undefined

@@ -2,10 +2,16 @@ import { resolve } from 'node:path'
 
 import {
   GoalService,
+  MAX_GOAL_ACCEPTANCE_CRITERIA,
+  MAX_GOAL_CONTINUATIONS,
+  MAX_GOAL_CRITERION_CHARS,
+  MAX_GOAL_OBJECTIVE_CHARS,
   type ControlPlaneGoalScheduleAction,
+  type ControlPlaneGoalScheduleInput,
   type Goal,
-} from '@kode/core/goals'
-import { isUuid } from '@kode/core/utils/uuid'
+  type GoalEvent,
+} from '@kode/goals'
+import { isUuid } from '@kode/runtime'
 
 export type GoalScheduleSummary = {
   id: string
@@ -14,9 +20,16 @@ export type GoalScheduleSummary = {
   status: Goal['status']
   revision: number
   nextRunAt: number | null
+  retryAt: number | null
   createdAt: number
   updatedAt: number
   objective: string
+  acceptanceCriteria: string[]
+  maxIterations: number
+  turnCount: number | null
+  pausedReason: string | null
+  lastError: Goal['lastError'] | null
+  lastClaimedAt: number | null
   runAt?: number
   everyMs?: number
   anchorAt?: number
@@ -29,18 +42,29 @@ type GoalScheduleRouteContext = {
     | 'listGoals'
     | 'createScheduledForControlPlane'
     | 'transitionScheduleForControlPlane'
+    | 'updateScheduleForControlPlane'
+    | 'listScheduleEventsForControlPlane'
   >
   listWorkspaces?: () => Promise<{
     workspaces: Array<{ id: string; path: string }>
     currentId: string
   }>
+  sessionExists: (args: {
+    cwd: string
+    sessionId: string
+  }) => boolean | Promise<boolean>
   maxSchedules?: number
 }
 
 const MAX_ACTION_REQUEST_BYTES = 8 * 1024
-const MAX_CREATE_REQUEST_BYTES = 16 * 1024
+// The public field contract permits 32 x 1,000-character criteria plus a
+// 4,000-character objective. Keep the transport cap aligned with that valid
+// payload instead of rejecting otherwise legal definitions.
+const MAX_DEFINITION_REQUEST_BYTES = 192 * 1024
 const MAX_ACTION_REASON_CHARS = 1_000
-const MAX_OBJECTIVE_CHARS = 4_000
+const MIN_CONTROL_PLANE_INTERVAL_MS = 1_000
+const DEFAULT_EVENT_LIMIT = 40
+const MAX_EVENT_LIMIT = 100
 
 function parseSessionId(
   url: URL,
@@ -82,13 +106,186 @@ export function toGoalScheduleSummary(goal: Goal): GoalScheduleSummary {
     status: goal.status,
     revision: goal.revision,
     nextRunAt: schedule.nextRunAt,
+    retryAt: schedule.retryAt ?? null,
     createdAt: goal.createdAt,
     updatedAt: goal.updatedAt,
     objective: goal.objective,
+    acceptanceCriteria: [...goal.acceptanceCriteria],
+    maxIterations: goal.loop.maxIterations,
+    turnCount: goal.activeRun?.turnCount ?? null,
+    pausedReason: goal.pausedReason ?? null,
+    lastError: goal.lastError ? { ...goal.lastError } : null,
+    lastClaimedAt: schedule.lastClaimedAt ?? null,
     ...(schedule.kind === 'once' ? { runAt: schedule.runAt } : {}),
     ...(schedule.kind === 'interval'
       ? { everyMs: schedule.everyMs, anchorAt: schedule.anchorAt }
       : {}),
+  }
+}
+
+export type GoalScheduleEventSummary = Pick<
+  GoalEvent,
+  'id' | 'goalId' | 'type' | 'at' | 'revision' | 'from' | 'to' | 'message'
+>
+
+function toGoalScheduleEventSummary(
+  event: GoalEvent,
+): GoalScheduleEventSummary {
+  return {
+    id: event.id,
+    goalId: event.goalId,
+    type: event.type,
+    at: event.at,
+    revision: event.revision,
+    ...(event.from ? { from: event.from } : {}),
+    ...(event.to ? { to: event.to } : {}),
+    ...(event.message ? { message: event.message } : {}),
+  }
+}
+
+function parseExpectedRevision(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1
+    ? value
+    : null
+}
+
+function parseAcceptanceCriteriaField(
+  value: unknown,
+): { ok: true; value: string[] } | { ok: false; response: Response } {
+  if (
+    !Array.isArray(value) ||
+    value.length > MAX_GOAL_ACCEPTANCE_CRITERIA ||
+    value.some(
+      criterion =>
+        typeof criterion !== 'string' ||
+        !criterion.trim() ||
+        criterion.trim().length > MAX_GOAL_CRITERION_CHARS,
+    )
+  ) {
+    return {
+      ok: false,
+      response: Response.json(
+        {
+          ok: false,
+          error: `acceptanceCriteria must contain at most ${MAX_GOAL_ACCEPTANCE_CRITERIA} non-empty strings of at most ${MAX_GOAL_CRITERION_CHARS} characters`,
+        },
+        { status: 400 },
+      ),
+    }
+  }
+  return {
+    ok: true,
+    value: value.map(criterion => String(criterion).trim()),
+  }
+}
+
+function parseMaxIterationsField(
+  value: unknown,
+): { ok: true; value: number } | { ok: false; response: Response } {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > MAX_GOAL_CONTINUATIONS
+  ) {
+    return {
+      ok: false,
+      response: Response.json(
+        {
+          ok: false,
+          error: `maxIterations must be an integer between 1 and ${MAX_GOAL_CONTINUATIONS}`,
+        },
+        { status: 400 },
+      ),
+    }
+  }
+  return { ok: true, value }
+}
+
+function parseScheduleField(
+  value: unknown,
+):
+  | { ok: true; value: ControlPlaneGoalScheduleInput }
+  | { ok: false; response: Response } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      ok: false,
+      response: Response.json(
+        { ok: false, error: 'schedule object is required' },
+        { status: 400 },
+      ),
+    }
+  }
+  const schedule = value as Record<string, unknown>
+  if (schedule.kind === 'once') {
+    if (
+      schedule.runAt !== undefined &&
+      (!Number.isSafeInteger(schedule.runAt) || (schedule.runAt as number) < 0)
+    ) {
+      return {
+        ok: false,
+        response: Response.json(
+          { ok: false, error: 'schedule.runAt must be a safe integer' },
+          { status: 400 },
+        ),
+      }
+    }
+    return {
+      ok: true,
+      value: {
+        kind: 'once',
+        ...(typeof schedule.runAt === 'number'
+          ? { runAt: schedule.runAt }
+          : {}),
+      },
+    }
+  }
+  if (schedule.kind === 'interval') {
+    if (
+      schedule.anchorAt !== undefined &&
+      (!Number.isSafeInteger(schedule.anchorAt) ||
+        (schedule.anchorAt as number) < 0)
+    ) {
+      return {
+        ok: false,
+        response: Response.json(
+          { ok: false, error: 'schedule.anchorAt must be a safe integer' },
+          { status: 400 },
+        ),
+      }
+    }
+    if (
+      !Number.isSafeInteger(schedule.everyMs) ||
+      (schedule.everyMs as number) < MIN_CONTROL_PLANE_INTERVAL_MS
+    ) {
+      return {
+        ok: false,
+        response: Response.json(
+          {
+            ok: false,
+            error: `schedule.everyMs must be an integer of at least ${MIN_CONTROL_PLANE_INTERVAL_MS}`,
+          },
+          { status: 400 },
+        ),
+      }
+    }
+    return {
+      ok: true,
+      value: {
+        kind: 'interval',
+        everyMs: schedule.everyMs as number,
+        ...(typeof schedule.anchorAt === 'number'
+          ? { anchorAt: schedule.anchorAt }
+          : {}),
+      },
+    }
+  }
+  return {
+    ok: false,
+    response: Response.json(
+      { ok: false, error: 'schedule.kind must be once or interval' },
+      { status: 400 },
+    ),
   }
 }
 
@@ -137,13 +334,56 @@ async function readJsonObject(
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; response: Response }
 > {
-  const raw = await req.text()
-  if (raw.length > maxBytes) {
+  const tooLarge = () =>
+    Response.json(
+      { ok: false, error: 'Request body too large' },
+      { status: 413 },
+    )
+  const declaredLength = req.headers.get('content-length')
+  if (
+    declaredLength &&
+    /^\d+$/.test(declaredLength) &&
+    Number(declaredLength) > maxBytes
+  ) {
+    return { ok: false, response: tooLarge() }
+  }
+
+  const reader = req.body?.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  if (reader) {
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value) continue
+        totalBytes += value.byteLength
+        if (totalBytes > maxBytes) {
+          await reader.cancel().catch(() => undefined)
+          return { ok: false, response: tooLarge() }
+        }
+        chunks.push(value)
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+  const bytes = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  let raw: string
+  try {
+    raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
     return {
       ok: false,
       response: Response.json(
-        { ok: false, error: 'Request body too large' },
-        { status: 413 },
+        { ok: false, error: 'Request body must be valid UTF-8' },
+        { status: 400 },
       ),
     }
   }
@@ -174,7 +414,9 @@ async function readJsonObject(
  * Goal schedule control plane:
  * - GET  /api/goal-schedules — list (optional session filter)
  * - POST /api/goal-schedules — create scheduled goal (body: sessionId, objective, schedule)
- * - POST /api/goal-schedules/:scheduleId/actions — pause|resume|cancel
+ * - PATCH /api/goal-schedules/:scheduleId — edit an idle definition
+ * - GET  /api/goal-schedules/:scheduleId/events — bounded event history
+ * - POST /api/goal-schedules/:scheduleId/actions — pause|resume|retry|run_now|cancel
  */
 export async function routeGoalSchedules(
   req: Request,
@@ -215,7 +457,7 @@ export async function routeGoalSchedules(
     }
 
     if (req.method === 'POST') {
-      const body = await readJsonObject(req, MAX_CREATE_REQUEST_BYTES)
+      const body = await readJsonObject(req, MAX_DEFINITION_REQUEST_BYTES)
       if (body.ok === false) return body.response
       const sessionIdRaw = body.value.sessionId
       if (typeof sessionIdRaw !== 'string' || !isUuid(sessionIdRaw.trim())) {
@@ -231,50 +473,51 @@ export async function routeGoalSchedules(
           { status: 400 },
         )
       }
-      const objective = objectiveRaw.trim().slice(0, MAX_OBJECTIVE_CHARS)
-      const scheduleRaw = body.value.schedule
-      if (
-        !scheduleRaw ||
-        typeof scheduleRaw !== 'object' ||
-        Array.isArray(scheduleRaw)
-      ) {
+      const objective = objectiveRaw.trim()
+      if (objective.length > MAX_GOAL_OBJECTIVE_CHARS) {
         return Response.json(
-          { ok: false, error: 'schedule object is required' },
+          {
+            ok: false,
+            error: `objective cannot exceed ${MAX_GOAL_OBJECTIVE_CHARS} characters`,
+          },
           { status: 400 },
         )
       }
-      const scheduleRecord = scheduleRaw as Record<string, unknown>
-      const kind = scheduleRecord.kind
-      if (kind !== 'once' && kind !== 'interval') {
+      const criteriaRaw = body.value.acceptanceCriteria
+      let acceptanceCriteria: string[] = []
+      if (criteriaRaw !== undefined) {
+        const parsedCriteria = parseAcceptanceCriteriaField(criteriaRaw)
+        if (parsedCriteria.ok === false) return parsedCriteria.response
+        acceptanceCriteria = parsedCriteria.value
+      }
+      let maxIterations: number | undefined
+      if (body.value.maxIterations !== undefined) {
+        const parsedMaxIterations = parseMaxIterationsField(
+          body.value.maxIterations,
+        )
+        if (parsedMaxIterations.ok === false) {
+          return parsedMaxIterations.response
+        }
+        maxIterations = parsedMaxIterations.value
+      }
+      const parsedSchedule = parseScheduleField(body.value.schedule)
+      if (parsedSchedule.ok === false) return parsedSchedule.response
+      let sessionFound: boolean
+      try {
+        sessionFound = await ctx.sessionExists({
+          cwd,
+          sessionId: sessionIdRaw.trim(),
+        })
+      } catch {
         return Response.json(
-          { ok: false, error: 'schedule.kind must be once or interval' },
-          { status: 400 },
+          { ok: false, error: 'Session validation unavailable' },
+          { status: 503 },
         )
       }
-      const schedule =
-        kind === 'once'
-          ? {
-              kind: 'once' as const,
-              ...(typeof scheduleRecord.runAt === 'number' &&
-              Number.isFinite(scheduleRecord.runAt)
-                ? { runAt: Math.floor(scheduleRecord.runAt) }
-                : {}),
-            }
-          : {
-              kind: 'interval' as const,
-              everyMs: Math.floor(Number(scheduleRecord.everyMs)),
-              ...(typeof scheduleRecord.anchorAt === 'number' &&
-              Number.isFinite(scheduleRecord.anchorAt)
-                ? { anchorAt: Math.floor(scheduleRecord.anchorAt) }
-                : {}),
-            }
-      if (
-        schedule.kind === 'interval' &&
-        (!Number.isFinite(schedule.everyMs) || schedule.everyMs <= 0)
-      ) {
+      if (!sessionFound) {
         return Response.json(
-          { ok: false, error: 'schedule.everyMs must be a positive number' },
-          { status: 400 },
+          { ok: false, error: 'Session not found' },
+          { status: 404 },
         )
       }
 
@@ -282,7 +525,9 @@ export async function routeGoalSchedules(
         cwd,
         sessionId: sessionIdRaw.trim(),
         objective,
-        schedule,
+        acceptanceCriteria,
+        ...(maxIterations !== undefined ? { maxIterations } : {}),
+        schedule: parsedSchedule.value,
       })
       if (!created) {
         return Response.json(
@@ -302,6 +547,121 @@ export async function routeGoalSchedules(
     return new Response('Method Not Allowed', { status: 405 })
   }
 
+  if (actionSegment === 'events') {
+    if (req.method !== 'GET') {
+      return new Response('Method Not Allowed', { status: 405 })
+    }
+    const session = parseSessionId(url, { required: true })
+    if (session.ok === false) return session.response
+    const limitRaw = url.searchParams.get('limit')
+    const limit = limitRaw === null ? DEFAULT_EVENT_LIMIT : Number(limitRaw)
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_EVENT_LIMIT) {
+      return Response.json(
+        {
+          ok: false,
+          error: `limit must be an integer between 1 and ${MAX_EVENT_LIMIT}`,
+        },
+        { status: 400 },
+      )
+    }
+    const events = service.listScheduleEventsForControlPlane({
+      cwd,
+      sessionId: session.sessionId!,
+      scheduleId,
+      limit,
+    })
+    if (!events) {
+      return Response.json(
+        { ok: false, error: 'Schedule not found' },
+        { status: 404 },
+      )
+    }
+    return Response.json({
+      scheduleId,
+      events: events.map(toGoalScheduleEventSummary),
+    })
+  }
+
+  if (!actionSegment && req.method === 'PATCH') {
+    const body = await readJsonObject(req, MAX_DEFINITION_REQUEST_BYTES)
+    if (body.ok === false) return body.response
+    const sessionIdRaw = body.value.sessionId
+    if (typeof sessionIdRaw !== 'string' || !isUuid(sessionIdRaw.trim())) {
+      return Response.json(
+        { ok: false, error: 'Valid sessionId is required' },
+        { status: 400 },
+      )
+    }
+    const expectedRevision = parseExpectedRevision(body.value.expectedRevision)
+    if (expectedRevision === null) {
+      return Response.json(
+        { ok: false, error: 'expectedRevision must be a positive integer' },
+        { status: 400 },
+      )
+    }
+
+    let objective: string | undefined
+    if (body.value.objective !== undefined) {
+      if (
+        typeof body.value.objective !== 'string' ||
+        !body.value.objective.trim() ||
+        body.value.objective.trim().length > MAX_GOAL_OBJECTIVE_CHARS
+      ) {
+        return Response.json(
+          {
+            ok: false,
+            error: `objective must be non-empty and at most ${MAX_GOAL_OBJECTIVE_CHARS} characters`,
+          },
+          { status: 400 },
+        )
+      }
+      objective = body.value.objective.trim()
+    }
+
+    let acceptanceCriteria: string[] | undefined
+    if (body.value.acceptanceCriteria !== undefined) {
+      const parsedCriteria = parseAcceptanceCriteriaField(
+        body.value.acceptanceCriteria,
+      )
+      if (parsedCriteria.ok === false) return parsedCriteria.response
+      acceptanceCriteria = parsedCriteria.value
+    }
+
+    let maxIterations: number | undefined
+    if (body.value.maxIterations !== undefined) {
+      const parsedMaxIterations = parseMaxIterationsField(
+        body.value.maxIterations,
+      )
+      if (parsedMaxIterations.ok === false) {
+        return parsedMaxIterations.response
+      }
+      maxIterations = parsedMaxIterations.value
+    }
+
+    let schedule: ControlPlaneGoalScheduleInput | undefined
+    if (body.value.schedule !== undefined) {
+      const parsedSchedule = parseScheduleField(body.value.schedule)
+      if (parsedSchedule.ok === false) return parsedSchedule.response
+      schedule = parsedSchedule.value
+    }
+
+    const result = service.updateScheduleForControlPlane({
+      cwd,
+      sessionId: sessionIdRaw.trim(),
+      scheduleId,
+      expectedRevision,
+      ...(objective !== undefined ? { objective } : {}),
+      ...(acceptanceCriteria !== undefined ? { acceptanceCriteria } : {}),
+      ...(maxIterations !== undefined ? { maxIterations } : {}),
+      ...(schedule !== undefined ? { schedule } : {}),
+    })
+    if (result.ok === false) return responseForTransitionFailure(result.reason)
+    return Response.json({
+      ok: true,
+      schedule: toGoalScheduleSummary(result.goal),
+    })
+  }
+
   if (actionSegment === 'actions') {
     if (req.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405 })
@@ -316,29 +676,44 @@ export async function routeGoalSchedules(
         { status: 400 },
       )
     }
-    const expectedRevision = body.value.expectedRevision
-    if (
-      typeof expectedRevision !== 'number' ||
-      !Number.isSafeInteger(expectedRevision) ||
-      expectedRevision < 1
-    ) {
+    const expectedRevision = parseExpectedRevision(body.value.expectedRevision)
+    if (expectedRevision === null) {
       return Response.json(
         { ok: false, error: 'expectedRevision must be a positive integer' },
         { status: 400 },
       )
     }
     const action = body.value.action
-    if (action !== 'pause' && action !== 'resume' && action !== 'cancel') {
+    if (
+      action !== 'pause' &&
+      action !== 'resume' &&
+      action !== 'retry' &&
+      action !== 'run_now' &&
+      action !== 'cancel'
+    ) {
       return Response.json(
-        { ok: false, error: 'action must be pause, resume, or cancel' },
+        {
+          ok: false,
+          error: 'action must be pause, resume, retry, run_now, or cancel',
+        },
         { status: 400 },
       )
     }
     const reasonRaw = body.value.reason
-    const reason =
-      typeof reasonRaw === 'string'
-        ? reasonRaw.trim().slice(0, MAX_ACTION_REASON_CHARS)
-        : undefined
+    if (
+      reasonRaw !== undefined &&
+      (typeof reasonRaw !== 'string' ||
+        reasonRaw.trim().length > MAX_ACTION_REASON_CHARS)
+    ) {
+      return Response.json(
+        {
+          ok: false,
+          error: `reason must be a string of at most ${MAX_ACTION_REASON_CHARS} characters`,
+        },
+        { status: 400 },
+      )
+    }
+    const reason = typeof reasonRaw === 'string' ? reasonRaw.trim() : undefined
 
     const result = service.transitionScheduleForControlPlane({
       cwd,

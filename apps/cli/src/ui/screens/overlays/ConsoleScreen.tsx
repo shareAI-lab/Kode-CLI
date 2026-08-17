@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '#core/utils/theme'
 import {
@@ -75,6 +75,8 @@ export function ConsoleScreen({
   const [scrollTop, setScrollTop] = useState(0)
   const [status, setStatus] = useState<string | null>(null)
   const [savedPath, setSavedPath] = useState<string | null>(null)
+  const isOpeningRef = useRef(false)
+  const mountedRef = useRef(true)
 
   const frameRows = computeScreenFrameReservedRows({
     paddingY: layout.paddingY,
@@ -104,6 +106,14 @@ export function ConsoleScreen({
     })
   }, [contentRows, follow, maxScrollTop])
 
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningRef.current = false
+    }
+  }, [])
+
   const refresh = useCallback(() => {
     setLines(loadCapturedLines())
     setStatus('Refreshed')
@@ -130,13 +140,30 @@ export function ConsoleScreen({
   }, [])
 
   const openSaved = useCallback(async () => {
+    if (isOpeningRef.current) return
     const path = savedPath ?? save()
     if (!path) return
-    const result = await launchExternalEditorForFilePath(path)
-    if (result.ok === true) {
-      setStatus(`Opened in ${result.editorLabel}`)
-    } else {
-      setStatus(result.error.message || 'Failed to open file')
+
+    isOpeningRef.current = true
+    setStatus('Opening external editor…')
+
+    try {
+      const result = await launchExternalEditorForFilePath(path)
+      if (!mountedRef.current) return
+
+      if (result.ok === true) {
+        setStatus(`Opened in ${result.editorLabel}`)
+      } else {
+        setStatus(result.error.message || 'Failed to open file')
+      }
+    } catch {
+      if (mountedRef.current) {
+        setStatus(
+          'Unable to open the external editor. Check $EDITOR and try again.',
+        )
+      }
+    } finally {
+      isOpeningRef.current = false
     }
   }, [save, savedPath])
 
@@ -186,6 +213,22 @@ export function ConsoleScreen({
       if (key.end) {
         setFollow(true)
         setScrollTop(maxScrollTop)
+        return true
+      }
+
+      // j/k scrolling, matching the footer and the Help/Status screens.
+      if (input === 'j') {
+        setFollow(false)
+        setScrollTop(prev => clamp(prev - 1, 0, maxScrollTop))
+        return true
+      }
+
+      if (input === 'k') {
+        setScrollTop(prev => {
+          const next = clamp(prev + 1, 0, maxScrollTop)
+          if (next >= maxScrollTop) setFollow(true)
+          return next
+        })
         return true
       }
 

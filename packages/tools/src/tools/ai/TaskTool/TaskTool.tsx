@@ -1,4 +1,4 @@
-import type { Tool } from '@kode/tool-interface/Tool'
+import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import { getAvailableAgentTypes } from '@kode/agent'
 import { getAgentTranscript } from '#core/utils/agentTranscripts'
 import { getCwd } from '#core/utils/state'
@@ -7,7 +7,7 @@ import { loadKodeAgentSidechainMessagesForResume } from '#protocol/utils/kodeAge
 
 import { TOOL_NAME } from './constants'
 import { getPrompt } from './prompt'
-import { callTaskTool } from './call'
+import { callTaskTool, getVoiceTaskDispatchError } from './call'
 import { inputSchema, type Input, type Output } from './schema'
 import {
   renderTaskToolResultForAssistant,
@@ -34,15 +34,36 @@ export const TaskTool = {
     return true
   },
   isReadOnly() {
-    return true
+    // A standalone Task can select an arbitrary agent configuration. It must
+    // therefore be treated as mutating until a constrained read-only task is
+    // represented explicitly (TaskBatch has that input-level check).
+    return false
+  },
+  workspaceMutationScope(_input?: Input, output?: Output) {
+    // The child pipeline owns mutation detection and verification. Requiring
+    // the parent to verify the Task invocation duplicates that gate and turns
+    // read-only Explore/Plan tasks into false workspace writes. A failed child
+    // may have left partial writes, so the parent takes verification ownership.
+    return output?.status === 'failed'
+      ? ('direct' as const)
+      : ('delegated' as const)
   },
   isConcurrencySafe() {
-    return true
+    // A standalone Task has no declared read/write mode and may select an
+    // unrestricted agent. Serialize it at the parent scheduler boundary.
+    // Explicitly verified read-only parallelism is available via TaskBatch.
+    return false
   },
   needsPermissions() {
     return false
   },
-  async validateInput(input: Input) {
+  async validateInput(input: Input, context?: ToolUseContext) {
+    const voiceDispatchError = context
+      ? getVoiceTaskDispatchError(context)
+      : null
+    if (voiceDispatchError) {
+      return { result: false, message: voiceDispatchError }
+    }
     if (!input.description || typeof input.description !== 'string') {
       return {
         result: false,
@@ -66,13 +87,16 @@ export const TaskTool = {
     }
 
     if (input.resume) {
-      const transcript = getAgentTranscript(input.resume)
+      const owner = {
+        agentId: input.resume,
+        cwd: getCwd(),
+        sessionId: getKodeAgentSessionId(),
+      }
+      const transcript = getAgentTranscript(owner)
       if (!transcript) {
         try {
           const disk = loadKodeAgentSidechainMessagesForResume({
-            cwd: getCwd(),
-            sessionId: getKodeAgentSessionId(),
-            agentId: input.resume,
+            ...owner,
           })
           if (disk.length === 0) {
             return {

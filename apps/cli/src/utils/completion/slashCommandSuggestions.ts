@@ -3,7 +3,12 @@ import {
   compareCommandsForDiscovery,
   getCommandCategory,
 } from '#cli-commands/catalog'
+import { matchAdvanced } from './advancedFuzzyMatcher'
 import type { UnifiedSuggestion } from './types'
+
+// An empty "/" prefix shows a curated subset instead of every command so the
+// panel stays scannable; typing filters the full registry.
+const EMPTY_PREFIX_MAX_COMMANDS = 12
 
 function buildCommandDescription(cmd: Command): string {
   const parts: string[] = []
@@ -30,6 +35,18 @@ function getCommandMatchRank(command: Command, prefix: string): number | null {
   ) {
     return 2
   }
+  // Fuzzy fallback over the command name and its aliases, so abbreviations
+  // and subsequences (e.g. "aprv" -> "approved-tools") still match. Skipped
+  // for single-character prefixes to avoid flooding the panel with matches.
+  if (
+    normalizedPrefix.length >= 2 &&
+    (matchAdvanced(name, normalizedPrefix).matched ||
+      command.aliases?.some(
+        alias => matchAdvanced(alias, normalizedPrefix).matched,
+      ))
+  ) {
+    return 3
+  }
   return null
 }
 
@@ -41,12 +58,19 @@ export function generateSlashCommandSuggestions(args: {
   const filteredCommands = commands.filter(cmd => !cmd.isHidden)
 
   if (!prefix) {
-    return filteredCommands.sort(compareCommandsForDiscovery).map(cmd => ({
+    const sorted = [...filteredCommands].sort(compareCommandsForDiscovery)
+    const visible = sorted.slice(0, EMPTY_PREFIX_MAX_COMMANDS)
+    const moreCount = Math.max(0, sorted.length - EMPTY_PREFIX_MAX_COMMANDS)
+    return visible.map(cmd => ({
       value: cmd.userFacingName(),
       displayValue: buildCommandDisplayValue(cmd),
       description: buildCommandDescription(cmd),
       type: 'command' as const,
       score: 100,
+      metadata: {
+        color: getCommandCategory(cmd).color,
+        moreCount,
+      },
     }))
   }
 
@@ -71,5 +95,8 @@ export function generateSlashCommandSuggestions(args: {
       description: buildCommandDescription(command),
       type: 'command' as const,
       score: 300 - matchRank * 100 - prefix.length,
+      metadata: {
+        color: getCommandCategory(command).color,
+      },
     }))
 }

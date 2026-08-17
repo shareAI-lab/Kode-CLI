@@ -1,9 +1,10 @@
-import React, { useCallback, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { hasPermissionsToUseTool } from '#core/permissions'
 import type { CanUseToolFn } from '#core/permissions/canUseTool'
 import { BashTool, inputSchema } from '#tools/tools/system/BashTool/BashTool'
 import { getCommandSubcommandPrefix } from '#core/utils/commands'
 import {
+  CANCEL_MESSAGE,
   REJECT_MESSAGE,
   REJECT_MESSAGE_WITH_FEEDBACK_PREFIX,
 } from '#core/utils/messages'
@@ -17,7 +18,7 @@ import { resolveToolDescription } from '#core/tooling/Tool'
 type SetState<T> = React.Dispatch<React.SetStateAction<T>>
 
 function useCanUseTool(
-  setToolUseConfirm: SetState<ToolUseConfirm | null>,
+  setToolUseConfirm: (confirm: ToolUseConfirm | null) => void,
   options?: {
     onPermissionRuleWarnings?: (
       warnings: UnreachablePermissionRuleWarning[],
@@ -35,7 +36,7 @@ function useCanUseTool(
             result: false,
             message: message
               ? `${REJECT_MESSAGE_WITH_FEEDBACK_PREFIX}${message}`
-              : REJECT_MESSAGE,
+              : CANCEL_MESSAGE,
           })
           // Trigger a synthetic assistant message in query(), to cancel
           // any other pending tool uses and stop further requests to the
@@ -44,6 +45,9 @@ function useCanUseTool(
         }
 
         if (toolUseContext.abortController.signal.aborted) {
+          // The turn was cancelled or timed out, not rejected by the user.
+          // Use CANCEL_MESSAGE so the transcript shows a cancellation rather
+          // than a misleading "User rejected" line.
           resolveWithCancelledAndAbortAllToolCalls()
           return undefined
         }

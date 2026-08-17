@@ -199,7 +199,7 @@ When asked to convert the user's shell PS1 configuration, follow these steps:
 	       "mode": "INSERT" | "NORMAL"  // Current vim editor mode
 	     },
 	     "kode": {                    // Kode CLI extensions (non-reference fields)
-	       "permission_mode": "default" | "acceptEdits" | "plan" | "bypassPermissions" | "dontAsk",
+	       "permission_mode": "acceptEdits" | "plan" | "cautious",
 	       "tasks": { ... }
 	     }
 	   }

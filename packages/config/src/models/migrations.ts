@@ -1,4 +1,5 @@
 import type { GlobalConfig, ModelPointers, ModelProfile } from '../schema'
+import { debug as debugLogger } from '../debugLogger'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -38,6 +39,18 @@ function normalizeModelProfile(profile: Record<string, unknown>): ModelProfile {
     isPositiveFiniteNumber(profile['contextLength'])
   const isActive =
     profile['isActive'] === true && hasRuntimeIdentity && hasRuntimeLimits
+
+  if (profile['isActive'] === true && !isActive) {
+    // Failing closed here is intentional, but silent deactivation hides why the
+    // user's main model was swapped; surface the reason for diagnosis.
+    debugLogger.warn('MODEL_PROFILE_DEACTIVATED', {
+      name: name || undefined,
+      modelName: modelName || undefined,
+      missingIdentity: !hasRuntimeIdentity,
+      missingLimits: !hasRuntimeLimits,
+    })
+  }
+
   const {
     id: _id,
     baseURL: _baseURL,
@@ -62,7 +75,12 @@ export function migrateModelProfilesRemoveId(
 ): GlobalConfig {
   const profilesRaw: unknown = config.modelProfiles
   if (profilesRaw === undefined) return config
-  if (!Array.isArray(profilesRaw)) return { ...config, modelProfiles: [] }
+  if (!Array.isArray(profilesRaw)) {
+    debugLogger.warn('MODEL_PROFILES_CLEARED', {
+      reason: 'modelProfiles is not an array',
+    })
+    return { ...config, modelProfiles: [] }
+  }
   if (profilesRaw.length === 0) return config
 
   const idToModelNameMap = new Map<string, string>()
@@ -89,6 +107,11 @@ export function migrateModelProfilesRemoveId(
 
   const pointersRaw: unknown = config.modelPointers
   const pointers = isRecord(pointersRaw) ? pointersRaw : null
+  if (pointersRaw !== undefined && pointers === null) {
+    debugLogger.warn('MODEL_POINTERS_CLEARED', {
+      reason: 'modelPointers is not a record',
+    })
+  }
 
   const rawMain = trimConfigString(readString(pointers, 'main'))
   const rawTask = trimConfigString(readString(pointers, 'task'))

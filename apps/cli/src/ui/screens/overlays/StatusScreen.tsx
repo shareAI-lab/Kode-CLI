@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import figures from 'figures'
 
@@ -9,7 +9,6 @@ import { getModelManager } from '#core/utils/model'
 import { getTheme } from '#core/utils/theme'
 import { getCwd } from '#core/utils/state'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
-import { useExitOnCtrlCD } from '#ui-ink/hooks/useExitOnCtrlCD'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
@@ -166,7 +165,9 @@ function buildMcpLines(context: ToolUseContext): string[] {
 export function StatusScreen({ context, onDone }: Props): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = useExitOnCtrlCD(() => onDone('Status dialog dismissed'))
+  // Single Ctrl+C closes this read-only diagnostic screen, consistent with
+  // the other overlays (double-press protection added no value here).
+  const exitState = { pending: false, keyName: null as null } as const
 
   const [tabIndex, setTabIndex] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
@@ -176,8 +177,20 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false)
   const [isCheckingTools, setIsCheckingTools] = useState(false)
   const [toolStatuses, setToolStatuses] = useState<Record<string, string>>({})
+  const isCheckingConnectivityRef = useRef(false)
+  const connectivityCheckIdRef = useRef(0)
+  const mountedRef = useRef(true)
 
   const tab = TAB_ORDER[Math.min(Math.max(0, tabIndex), TAB_ORDER.length - 1)]
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      connectivityCheckIdRef.current += 1
+      isCheckingConnectivityRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (tab !== 'Tools') return undefined
@@ -244,6 +257,10 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
         onDone('Status dialog dismissed')
         return true
       }
+      if (key.ctrl && input === 'c') {
+        onDone('Status dialog dismissed')
+        return true
+      }
       if (key.leftArrow || inputChar === 'h') {
         setTabIndex(prev => {
           const next = Math.max(0, prev - 1)
@@ -261,7 +278,8 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
         return true
       }
       if ((inputChar === 'c' || inputChar === 'C') && tab === 'Status') {
-        if (isCheckingConnectivity) return true
+        if (isCheckingConnectivityRef.current || isCheckingConnectivity)
+          return true
         const model = getModelManager().getModel('main')
         if (!model) {
           setConnectivity({
@@ -271,6 +289,12 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
           } as ConnectionTestResult)
           return true
         }
+        const checkId = connectivityCheckIdRef.current + 1
+        connectivityCheckIdRef.current = checkId
+        const isCurrent = () =>
+          mountedRef.current && connectivityCheckIdRef.current === checkId
+
+        isCheckingConnectivityRef.current = true
         setIsCheckingConnectivity(true)
         const providerBaseUrl = model.baseURL ?? ''
         const customBaseUrl = model.baseURL ?? ''
@@ -286,11 +310,19 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
             requestStrategy: model.requestStrategy ?? 'auto',
           },
           {
-            onProgress: result => setConnectivity(result),
+            onProgress: result => {
+              if (isCurrent()) setConnectivity(result)
+            },
           },
         )
-          .then(result => setConnectivity(result))
-          .finally(() => setIsCheckingConnectivity(false))
+          .then(result => {
+            if (isCurrent()) setConnectivity(result)
+          })
+          .finally(() => {
+            if (connectivityCheckIdRef.current !== checkId) return
+            isCheckingConnectivityRef.current = false
+            if (mountedRef.current) setIsCheckingConnectivity(false)
+          })
         return true
       }
       if (key.upArrow || inputChar === 'k') {

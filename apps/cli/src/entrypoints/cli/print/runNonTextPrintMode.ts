@@ -8,8 +8,6 @@ import { LEGACY_ENV } from '#core/compat/legacyEnv'
 import type { WrappedClient } from '#core/mcp/client'
 import type { Message } from '#core/query'
 import type { Tool } from '#core/tooling/Tool'
-import type { PermissionMode } from '#core/types/PermissionMode'
-import type { ToolPermissionContextUpdate } from '#core/types/toolPermissionContext'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 
 import {
@@ -20,6 +18,10 @@ import { createPrintControlRequestHandler } from './controlRequests'
 import { finishHeadlessRun, startHeadlessRun } from './headlessRunTelemetry'
 import { createStdioPermissionPromptCanUseTool } from './permissionPrompt'
 import { runSingleTurnPrint } from './runSingleTurn'
+import {
+  buildHeadlessToolPermissionContext,
+  InvalidHeadlessPermissionModeError,
+} from './headlessPermissionContext'
 
 type UUID = `${string}-${string}-${string}-${string}-${string}`
 
@@ -61,25 +63,6 @@ export type RunNonTextPrintModeArgs = {
   jsonSchema?: string
   model?: string
   mcpClients: WrappedClient[]
-}
-
-function cliRuleList(value: unknown): string[] {
-  if (!value) return []
-  const raw = Array.isArray(value) ? value : [value]
-  return raw
-    .flatMap(v => String(v ?? '').split(','))
-    .map(v => v.trim())
-    .filter(Boolean)
-}
-
-function isPermissionMode(value: string): value is PermissionMode {
-  return (
-    value === 'acceptEdits' ||
-    value === 'bypassPermissions' ||
-    value === 'default' ||
-    value === 'dontAsk' ||
-    value === 'plan'
-  )
 }
 
 export async function runNonTextPrintMode(
@@ -167,104 +150,34 @@ export async function runNonTextPrintMode(
     Boolean(args.allowDangerouslySkipPermissions) ||
     Boolean(args.dangerouslySkipPermissions)
 
-  let toolPermissionContext = loadToolPermissionContextFromDisk({
-    projectDir: args.cwd,
-    includeKodeProjectConfig: true,
-    isBypassPermissionsModeAvailable: isBypassAvailable,
-  })
-
-  const updates: ToolPermissionContextUpdate[] = []
-  const allowedRules = cliRuleList(args.allowedTools)
-  const deniedRules = cliRuleList(args.disallowedTools)
-  const additionalDirs = cliRuleList(args.addDir)
-
-  if (allowedRules.length > 0) {
-    updates.push({
-      type: 'addRules',
-      destination: 'cliArg',
-      behavior: 'allow',
-      rules: allowedRules,
+  let toolPermissionContext
+  try {
+    toolPermissionContext = buildHeadlessToolPermissionContext({
+      baseContext: loadToolPermissionContextFromDisk({
+        projectDir: args.cwd,
+        includeKodeProjectConfig: true,
+        isBypassPermissionsModeAvailable: isBypassAvailable,
+      }),
+      safe: args.safe,
+      allowedTools: args.allowedTools,
+      disallowedTools: args.disallowedTools,
+      addDir: args.addDir,
+      permissionMode: args.permissionMode,
+      dangerouslySkipPermissions: args.dangerouslySkipPermissions,
+      inputFormat: args.normalizedInputFormat,
+      hasPermissionPromptTool: Boolean(args.normalizedPermissionPromptTool),
     })
-  }
-  if (deniedRules.length > 0) {
-    updates.push({
-      type: 'addRules',
-      destination: 'cliArg',
-      behavior: 'deny',
-      rules: deniedRules,
-    })
-  }
-  if (additionalDirs.length > 0) {
-    updates.push({
-      type: 'addDirectories',
-      destination: 'cliArg',
-      directories: additionalDirs,
-    })
-  }
-
-  const normalizedPermissionMode =
-    typeof args.permissionMode === 'string' ? args.permissionMode.trim() : ''
-  const hasRuleEntries = (
-    groups: typeof toolPermissionContext.alwaysAllowRules,
-  ) =>
-    Object.values(groups).some(
-      rules => Array.isArray(rules) && rules.length > 0,
-    )
-  const hasCustomPermissions =
-    toolPermissionContext.additionalWorkingDirectories.size > 0 ||
-    hasRuleEntries(toolPermissionContext.alwaysAllowRules) ||
-    hasRuleEntries(toolPermissionContext.alwaysDenyRules) ||
-    hasRuleEntries(toolPermissionContext.alwaysAskRules)
-  const shouldAutoBypassForNonInteractive =
-    !normalizedPermissionMode &&
-    toolPermissionContext.mode === 'default' &&
-    !hasCustomPermissions &&
-    !args.safe &&
-    args.normalizedInputFormat !== 'stream-json' &&
-    !args.normalizedPermissionPromptTool
-  if (shouldAutoBypassForNonInteractive) {
-    updates.push({
-      type: 'setMode',
-      destination: 'cliArg',
-      mode: 'bypassPermissions',
-    })
-  }
-  if (normalizedPermissionMode) {
-    const normalized =
-      normalizedPermissionMode === 'delegate'
-        ? 'default'
-        : normalizedPermissionMode
-    if (!isPermissionMode(normalized)) {
-      console.error(
-        `Error: Invalid --permission-mode "${normalizedPermissionMode}". Expected one of: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan`,
-      )
+  } catch (error) {
+    if (error instanceof InvalidHeadlessPermissionModeError) {
+      console.error(`Error: ${error.message}`)
       finishHeadlessRun(headlessRun, {
         isError: true,
         resultSubtype: 'error_invalid_permission_mode',
-        error: `Invalid --permission-mode "${normalizedPermissionMode}"`,
+        error,
       })
       process.exit(1)
     }
-    updates.push({
-      type: 'setMode',
-      destination: 'cliArg',
-      mode: normalized,
-    })
-  }
-
-  if (args.dangerouslySkipPermissions) {
-    updates.push({
-      type: 'setMode',
-      destination: 'cliArg',
-      mode: 'bypassPermissions',
-    })
-  }
-
-  if (updates.length > 0) {
-    toolPermissionContext = applyToolPermissionContextUpdates(
-      toolPermissionContext,
-      updates,
-    )
+    throw error
   }
 
   const printOptions = {

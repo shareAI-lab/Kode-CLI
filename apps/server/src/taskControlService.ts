@@ -8,17 +8,13 @@ import {
 } from 'node:fs'
 import { resolve } from 'node:path'
 
-import {
-  finishDurableRun,
-  listDurableRuns,
-  type DurableRun,
-} from '@kode/core/runs'
+import { finishDurableRun, listDurableRuns, type DurableRun } from '@kode/runs'
 import {
   getBackgroundTaskSnapshot,
   killBackgroundTask,
   listBackgroundTaskSnapshots,
   type BackgroundTaskSnapshot,
-} from '@kode/core/tasks/backgroundRegistry'
+} from '@kode/tasks/backgroundRegistry'
 import type {
   DaemonTask,
   DaemonTaskKind,

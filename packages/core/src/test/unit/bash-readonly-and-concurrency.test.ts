@@ -64,14 +64,43 @@ function makeToolUse(
 
 describe('Bash read-only detection + scheduler concurrency parity', () => {
   test('read-only detector is conservative for complex commands', () => {
-    expect(isBashCommandReadOnly('pwd')).toBe(true)
-    expect(isBashCommandReadOnly('ls -la')).toBe(true)
-    expect(isBashCommandReadOnly('git status')).toBe(true)
+    for (const command of [
+      'pwd',
+      'ls -la',
+      'git status',
+      'rg -n verification packages/engine',
+      "sed -n '1,80p' packages/engine/src/message-pipeline.ts",
+      'find packages -name *.ts',
+      'ls | grep package',
+      'rg -n verification packages && git diff --check',
+      'rg -n verification packages 2>/dev/null | head -20',
+      'git -C packages/engine status --short',
+      'LC_ALL=C sort package.json',
+    ]) {
+      expect(isBashCommandReadOnly(command)).toBe(true)
+    }
 
-    expect(isBashCommandReadOnly('ls | grep foo')).toBe(false)
-    expect(isBashCommandReadOnly('ls && pwd')).toBe(false)
-    expect(isBashCommandReadOnly('cat foo > bar')).toBe(false)
-    expect(isBashCommandReadOnly('git -c core.pager=cat status')).toBe(false)
+    for (const command of [
+      'cat foo > bar',
+      'sed -i.bak s/old/new/ file.ts',
+      'find packages -name *.ts -delete',
+      'find packages -exec touch {} ;',
+      'rg --pre ./transform.sh pattern .',
+      'fd -x touch',
+      'sort input.txt -o output.txt',
+      'yq -i .name=changed package.yaml',
+      'git -c core.pager=cat status',
+      'git diff --ext-diff',
+      'git diff --output=changes.patch',
+      'git cat-file --filters HEAD:file.ts',
+      'tree -o tree.txt',
+      'fd --exec=touch',
+      'sed --in-place=.bak s/old/new/ file.ts',
+      'ls & pwd',
+      'cat $(touch changed.txt)',
+    ]) {
+      expect(isBashCommandReadOnly(command)).toBe(false)
+    }
   })
 
   test('BashTool concurrency-safe matches read-only detection', () => {

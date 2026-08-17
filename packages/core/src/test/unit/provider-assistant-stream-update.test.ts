@@ -75,11 +75,26 @@ describe('provider assistant stream updates', () => {
       {
         type: 'content_block_start',
         index: 0,
-        content_block: { type: 'text', text: '' },
+        content_block: { type: 'thinking', thinking: '', signature: '' },
       },
       {
         type: 'content_block_delta',
         index: 0,
+        delta: { type: 'thinking_delta', thinking: 'Inspect first.' },
+      },
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'signature_delta', signature: 'signed-thinking' },
+      },
+      {
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'text', text: '' },
+      },
+      {
+        type: 'content_block_delta',
+        index: 1,
         delta: { type: 'text_delta', text: 'Hello' },
       },
       {
@@ -117,11 +132,24 @@ describe('provider assistant stream updates', () => {
       },
     )
 
-    expect(response.content).toEqual([{ type: 'text', text: 'Hello' }])
+    expect(response.content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Inspect first.',
+        signature: 'signed-thinking',
+      },
+      { type: 'text', text: 'Hello' },
+    ])
     expect(rawEventTypes).toEqual(rawEvents.map(event => event.type))
     expect(updates).toEqual([
       {
         type: 'start',
+        agentId: 'agent-anthropic',
+        requestId: 'request-anthropic',
+      },
+      {
+        type: 'thinking_delta',
+        delta: 'Inspect first.',
         agentId: 'agent-anthropic',
         requestId: 'request-anthropic',
       },
@@ -189,6 +217,9 @@ describe('provider assistant stream updates', () => {
     )
     const streamData = [
       'data: {"type":"response.created","response":{"id":"resp-test"}}\n\n',
+      'data: {"type":"response.reasoning_summary_part.added","summary_index":0}\n\n',
+      'data: {"type":"response.reasoning_summary_text.delta","delta":"Inspect the request first."}\n\n',
+      'data: {"type":"response.reasoning_summary_text.done","text":"Inspect the request first."}\n\n',
       'data: {"type":"response.output_text.delta","delta":"Hello"}\n\n',
       'data: {"type":"response.output_text.delta","delta":" world"}\n\n',
       'data: {"type":"response.completed","response":{"id":"resp-test"}}\n\n',
@@ -202,11 +233,22 @@ describe('provider assistant stream updates', () => {
     })
 
     expect(response.content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Inspect the request first.',
+        signature: '',
+      },
       { type: 'text', text: 'Hello world', citations: [] },
     ])
     expect(updates).toEqual([
       {
         type: 'start',
+        agentId: 'agent-responses',
+        requestId: 'request-responses',
+      },
+      {
+        type: 'thinking_delta',
+        delta: 'Inspect the request first.',
         agentId: 'agent-responses',
         requestId: 'request-responses',
       },
@@ -222,6 +264,37 @@ describe('provider assistant stream updates', () => {
         agentId: 'agent-responses',
         requestId: 'request-responses',
       },
+    ])
+  })
+
+  test('Responses adapter recovers provider reasoning from a completion event', async () => {
+    const updates: AssistantStreamUpdate[] = []
+    const adapter = new ResponsesAPIAdapter(
+      {} as any,
+      { modelName: 'gpt-5' } as any,
+    )
+    const streamData = [
+      'data: {"type":"response.created","response":{"id":"resp-done"}}\n\n',
+      'data: {"type":"response.reasoning_summary_part.added","item_id":"rs_1","summary_index":0}\n\n',
+      'data: {"type":"response.reasoning_summary_text.done","item_id":"rs_1","summary_index":0,"text":"Recovered summary."}\n\n',
+      'data: {"type":"response.completed","response":{"id":"resp-done"}}\n\n',
+      'data: [DONE]\n\n',
+    ].join('')
+
+    const response = await adapter.parseResponse(new Response(streamData), {
+      onAssistantStreamUpdate: callbackThatThrows(updates),
+    })
+
+    expect(response.content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Recovered summary.',
+        signature: '',
+      },
+    ])
+    expect(updates).toEqual([
+      { type: 'start' },
+      { type: 'thinking_delta', delta: 'Recovered summary.' },
     ])
   })
 })

@@ -7,7 +7,7 @@ const plugins = {
   name: 'plugins',
   description: 'Manage plugins',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone) {
     return <PluginsScreen onDone={onDone} />

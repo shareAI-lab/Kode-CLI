@@ -98,7 +98,9 @@ async function openDaemonWs(
   ws.on('message', data => {
     try {
       events.push(JSON.parse(decodeWsMessageData(data)))
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   })
   await new Promise<void>((resolve, reject) => {
     ws.once('open', () => resolve())
@@ -164,7 +166,9 @@ describe('daemon (Bun HTTP+WS)', () => {
       ws.on('message', data => {
         try {
           events.push(JSON.parse(decodeWsMessageData(data)))
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       })
 
       await new Promise<void>((resolve, reject) => {
@@ -239,7 +243,9 @@ describe('daemon (Bun HTTP+WS)', () => {
       first.on('message', data => {
         try {
           firstEvents.push(JSON.parse(decodeWsMessageData(data)))
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       })
 
       await new Promise<void>((resolve, reject) => {
@@ -284,7 +290,9 @@ describe('daemon (Bun HTTP+WS)', () => {
       second.on('message', data => {
         try {
           secondEvents.push(JSON.parse(decodeWsMessageData(data)))
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       })
 
       await new Promise<void>((resolve, reject) => {

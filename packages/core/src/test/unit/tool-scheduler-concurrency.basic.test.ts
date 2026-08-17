@@ -31,7 +31,7 @@ async function waitFor(
 
 function makeTool(options: {
   name: string
-  inputSchema?: z.ZodTypeAny
+  inputSchema?: z.ZodType<any, any>
   isConcurrencySafe: boolean
   callImpl: Tool['call']
 }): Tool {

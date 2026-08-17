@@ -157,7 +157,9 @@ function getImageFromMacClipboard(): ClipboardImage | null {
   } finally {
     try {
       unlinkSync(screenshotPath)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 }
 
@@ -192,7 +194,9 @@ async function getImageFromMacClipboardAsync(): Promise<ClipboardImage | null> {
   } finally {
     try {
       await unlink(screenshotPath)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 }
 

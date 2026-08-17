@@ -490,10 +490,14 @@ export async function serveNode<TData>(
           res.statusCode = 413
           res.shouldKeepAlive = false
           res.setHeader('connection', 'close')
-          res.end('Payload Too Large')
+          res.setHeader('content-type', 'application/json')
+          res.end(
+            JSON.stringify({ error: 'Request body exceeds the size limit' }),
+          )
         } else if (!abortScope.signal.aborted) {
           res.statusCode = 500
-          res.end('Internal Server Error')
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ error: 'Internal server error' }))
         }
       }
     } finally {

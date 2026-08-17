@@ -56,7 +56,7 @@ const learning = {
   description: 'Inspect or reject project-scoped learned workflow hints',
   argumentHint: '<list|snapshots|reject> …',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args: string) {
     const action = parseLearningCommandArgs(args)

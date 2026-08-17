@@ -8,4 +8,5 @@ export const PROMPT = `- Retrieves output from a running or completed task (back
 - Use block=true (default) to wait for task completion
 - Use block=false for non-blocking check of current status
 - Task IDs can be found using the /tasks command
+- Use TaskMonitor to inspect all current tasks without waiting, and TaskGuide to redirect a running background Agent
 - Works with all task types: background shells, async agents, and remote sessions`

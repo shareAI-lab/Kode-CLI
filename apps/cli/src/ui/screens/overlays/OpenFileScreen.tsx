@@ -205,6 +205,8 @@ export function OpenFileScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  const isOpeningRef = useRef(false)
+  const mountedRef = useRef(true)
 
   const startIndexing = useCallback(
     (force = false) => {
@@ -248,8 +250,13 @@ export function OpenFileScreen({
   )
 
   useEffect(() => {
+    mountedRef.current = true
     startIndexing(false)
-    return () => abortRef.current?.abort()
+    return () => {
+      mountedRef.current = false
+      isOpeningRef.current = false
+      abortRef.current?.abort()
+    }
   }, [startIndexing])
 
   const normalizedQuery = useMemo(() => normalizeQuery(query), [query])
@@ -319,25 +326,36 @@ export function OpenFileScreen({
 
   const handleOpenFile = useCallback(
     async (relativePath: string) => {
-      if (isOpening) return
+      if (isOpeningRef.current || isOpening) return
 
+      isOpeningRef.current = true
       setIsOpening(true)
       setStatusMessage(`Opening ${relativePath}…`)
 
-      const result = await launchExternalEditorForFilePath(
-        resolvePath(cwd, relativePath),
-      )
+      let opened = false
+      try {
+        const result = await launchExternalEditorForFilePath(
+          resolvePath(cwd, relativePath),
+        )
+        if (!mountedRef.current) return
 
-      if (result.ok === true) {
-        onDone(`Opened ${relativePath} in ${result.editorLabel}`)
-        return
-      } else {
-        if ('error' in result) {
-          setStatusMessage(`Failed to open: ${result.error.message}`)
-        } else {
-          setStatusMessage('Failed to open file')
+        if (result.ok === true) {
+          onDone(`Opened ${relativePath} in ${result.editorLabel}`)
+          opened = true
+          return
         }
-        setIsOpening(false)
+
+        setStatusMessage(`Failed to open: ${result.error.message}`)
+      } catch (error) {
+        if (mountedRef.current) {
+          const message = error instanceof Error ? error.message : String(error)
+          setStatusMessage(`Failed to open: ${message || 'unknown error'}`)
+        }
+      } finally {
+        if (!opened) {
+          isOpeningRef.current = false
+          if (mountedRef.current) setIsOpening(false)
+        }
       }
     },
     [cwd, isOpening, onDone],

@@ -4,6 +4,7 @@ import { HttpClient } from '@kode/client'
 import type { KodeClient, RuntimeStatus } from '@kode/client'
 
 const RUNTIME_STATUS_POLL_MS = 5_000
+const RUNTIME_STATUS_POLL_TIMEOUT_MS = 10_000
 
 export function useRuntimeClient(args: {
   baseUrl: string
@@ -62,7 +63,22 @@ export function useRuntimeClient(args: {
     const poll = async () => {
       let nextStatus: RuntimeStatus
       try {
-        nextStatus = await client.getRuntimeStatus()
+        // The serial poll chain must never stall on a request that never
+        // settles (e.g. a wedged daemon): race it against a timeout and keep
+        // scheduling the next poll regardless.
+        const request = client.getRuntimeStatus()
+        // Swallow the eventual rejection of the abandoned request so it does
+        // not surface as an unhandled rejection.
+        void request.catch(() => {})
+        nextStatus = await Promise.race([
+          request,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error('Runtime status poll timed out')),
+              RUNTIME_STATUS_POLL_TIMEOUT_MS,
+            )
+          }),
+        ])
       } catch {
         nextStatus = {
           ok: false,
@@ -71,6 +87,8 @@ export function useRuntimeClient(args: {
           version: null,
           activeSessions: null,
         }
+      } finally {
+        if (timer) clearTimeout(timer)
       }
 
       if (cancelled) return

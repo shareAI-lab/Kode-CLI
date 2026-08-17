@@ -24,7 +24,7 @@ const refreshCommands = {
   name: 'refresh-commands',
   description: 'Reload custom commands from filesystem',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(_, context) {
     try {
       await reloadCustomCommandsForSession()

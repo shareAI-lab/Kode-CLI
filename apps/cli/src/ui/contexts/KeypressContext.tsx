@@ -167,7 +167,7 @@ type ParsedKey = {
 type KeypressHandler = (
   input: string,
   key: Key,
-) => boolean | void | Promise<void>
+) => boolean | void | Promise<boolean | void | undefined>
 type KeypressSubscribeOptions = { priority?: number }
 
 export type TerminalMouseButton =

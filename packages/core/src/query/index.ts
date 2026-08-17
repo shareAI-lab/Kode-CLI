@@ -10,7 +10,11 @@ import type { UUID } from 'crypto'
 
 import type { ModelPointerType } from '#config'
 import type { CanUseToolFn as InterfaceCanUseToolFn } from '@kode/tool-interface/canUseTool'
-import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
+import type {
+  Tool,
+  ToolResultMetadata,
+  ToolUseContext,
+} from '@kode/tool-interface/Tool'
 import type { ToolPermissionContext } from '@kode/tool-interface/permissions'
 import type {
   AnthropicUsage,
@@ -20,6 +24,7 @@ import type {
 export type FullToolUseResult = {
   data: unknown
   resultForAssistant: ToolResultBlockParam['content']
+  metadata?: ToolResultMetadata
   newMessages?: Message[]
   contextModifier?: { modifyContext: (ctx: any) => any }
 }
@@ -46,6 +51,8 @@ export interface ExtendedToolUseContext extends ToolUseContext {
     isKodingRequest?: boolean
     commandAllowedTools?: string[]
     lastUserPrompt?: string
+    voiceTurn?: boolean
+    voiceIntentPrepared?: boolean
     model?: string | ModelPointerType
     toolPermissionContext?: ToolPermissionContext
     shouldAvoidPermissionPrompts?: boolean
@@ -74,6 +81,10 @@ export type UserMessage = {
     commandName?: string
     commandArgs?: string
     requestStatusDetail?: string
+    /** Submitted through the reviewed voice UI. */
+    voiceInput?: boolean
+    /** Voice turn eligible for best-effort TTS. */
+    voiceResponse?: boolean
   }
 }
 

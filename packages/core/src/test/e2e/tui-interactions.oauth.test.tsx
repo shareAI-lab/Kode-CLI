@@ -24,6 +24,19 @@ async function waitForOutput(
   throw new Error(`Timed out waiting for OAuth output: ${expected}`)
 }
 
+async function waitForCondition(
+  condition: () => boolean,
+  message: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) return
+    await Bun.sleep(20)
+  }
+  throw new Error(`Timed out waiting for OAuth state: ${message}`)
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
 })
@@ -142,5 +155,43 @@ describe('TUI E2E regression (Ink render): OAuth flow', () => {
     h.stdin.write('\r')
     await h.wait(40)
     expect(done).toBe(true)
+  })
+
+  test('does not persist an API key when a cancelled OAuth flow resolves late', async () => {
+    let resolveOAuth: ((result: { accessToken: string }) => void) | undefined
+    let apiKeyCalls = 0
+    let cancelCalls = 0
+
+    const h = renderOAuthFlow({
+      createOAuthService: () => ({
+        startOAuthFlow: () =>
+          new Promise<{ accessToken: string }>(resolve => {
+            resolveOAuth = resolve
+          }),
+        processCallback() {},
+        cancelOAuthFlow: () => {
+          cancelCalls += 1
+        },
+      }),
+      createApiKey: async () => {
+        apiKeyCalls += 1
+        return 'sk-test'
+      },
+    })
+
+    await waitForOutput(h, 'Press Enter to login')
+    h.stdin.write('\r')
+    await waitForCondition(
+      () => resolveOAuth !== undefined,
+      'OAuth flow to start',
+    )
+
+    h.unmount()
+    if (!resolveOAuth) throw new Error('OAuth flow did not start')
+    resolveOAuth({ accessToken: 'late-oauth-token' })
+    await h.wait(25)
+
+    expect(cancelCalls).toBe(1)
+    expect(apiKeyCalls).toBe(0)
   })
 })

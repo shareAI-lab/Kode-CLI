@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { detectModelFamily, isDeepSeekReasonerModel } from './modelFamilies'
 import {
   buildOpenAIChatCompletionCreateParams,
+  resolveOpenAIStreamDecision,
   shouldDisableProviderThinking,
 } from '../llm/openai/params'
 import { estimateCostUSD, normalizeUsage } from '../llm/openai/usage'
@@ -18,21 +19,21 @@ describe('model families', () => {
 })
 
 describe('provider thinking defaults', () => {
-  test('deepseek disables thinking for tools and low effort', () => {
+  test('keeps thinking enabled for tools and low/medium effort', () => {
     expect(
       shouldDisableProviderThinking({
         model: 'deepseek-v4-flash',
         toolSchemasLength: 1,
         reasoningEffort: 'high',
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       shouldDisableProviderThinking({
         model: 'deepseek-v4-flash',
         toolSchemasLength: 0,
         reasoningEffort: 'low',
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       shouldDisableProviderThinking({
         model: 'deepseek-v4-flash',
@@ -40,6 +41,23 @@ describe('provider thinking defaults', () => {
         reasoningEffort: 'high',
       }),
     ).toBe(false)
+  })
+
+  test('disables thinking for none/minimal effort', () => {
+    expect(
+      shouldDisableProviderThinking({
+        model: 'deepseek-v4-flash',
+        toolSchemasLength: 0,
+        reasoningEffort: 'none',
+      }),
+    ).toBe(true)
+    expect(
+      shouldDisableProviderThinking({
+        model: 'mimo-v2.5-pro',
+        toolSchemasLength: 5,
+        reasoningEffort: 'minimal',
+      }),
+    ).toBe(true)
   })
 
   test('recognizes DeepSeek provider aliases', () => {
@@ -50,10 +68,10 @@ describe('provider thinking defaults', () => {
         toolSchemasLength: 1,
         reasoningEffort: 'high',
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
-  test('params set thinking disabled and max_tokens for deepseek', () => {
+  test('params use max_tokens and keep thinking enabled for low effort deepseek', () => {
     const params = buildOpenAIChatCompletionCreateParams({
       model: 'deepseek-v4-flash',
       maxTokens: 100,
@@ -70,7 +88,7 @@ describe('provider thinking defaults', () => {
     })
     expect(params.max_tokens).toBe(100)
     expect(params.max_completion_tokens).toBeUndefined()
-    expect((params as any).thinking).toEqual({ type: 'disabled' })
+    expect((params as any).thinking).toBeUndefined()
     expect(params.messages).toEqual([
       { role: 'system', content: 'sys1' },
       { role: 'system', content: 'sys2' },
@@ -118,6 +136,52 @@ describe('provider thinking defaults', () => {
       toolSchemas: [],
     })
     expect(params.temperature).toBeUndefined()
+  })
+})
+
+describe('OpenAI streaming policy', () => {
+  test('honors the configured streaming flag', () => {
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: false,
+        model: 'mimo-v2.5-pro',
+        toolNames: ['Read', 'Write'],
+      }),
+    ).toEqual({ stream: false, reason: 'configured_off' })
+  })
+
+  test('keeps streaming for MiMo file tools and other models', () => {
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'mimo-v2.5-pro',
+        toolNames: [],
+      }),
+    ).toEqual({ stream: true, reason: 'configured_on' })
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'mimo-v2.5-pro',
+        toolNames: ['Read', 'Grep', 'WebFetch'],
+      }),
+    ).toEqual({ stream: true, reason: 'configured_on' })
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'qwen3-coder',
+        toolNames: ['Read', 'Write'],
+      }),
+    ).toEqual({ stream: true, reason: 'configured_on' })
+  })
+
+  test('respects an explicit global stream disable', () => {
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: false,
+        model: 'mimo-v2.5-pro',
+        toolNames: ['Read', 'Write'],
+      }),
+    ).toEqual({ stream: false, reason: 'configured_off' })
   })
 })
 

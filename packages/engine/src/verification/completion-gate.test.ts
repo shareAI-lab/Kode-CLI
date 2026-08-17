@@ -37,7 +37,11 @@ function toolUse(
   } as AssistantMessage
 }
 
-function toolResult(id: string, data: unknown): Message {
+function toolResult(
+  id: string,
+  data: unknown,
+  mutationScope?: 'none' | 'direct' | 'delegated',
+): Message {
   return {
     ...createUserMessage([
       {
@@ -46,7 +50,25 @@ function toolResult(id: string, data: unknown): Message {
         content: 'tool output',
       },
     ]),
-    toolUseResult: { data, resultForAssistant: 'tool output' },
+    toolUseResult: {
+      data,
+      resultForAssistant: 'tool output',
+      ...(mutationScope
+        ? {
+            metadata: {
+              workspaceMutation: {
+                version: 1 as const,
+                toolUseId: id,
+                scope: mutationScope,
+                basis:
+                  mutationScope === 'delegated'
+                    ? ('delegated' as const)
+                    : ('observed' as const),
+              },
+            },
+          }
+        : {}),
+    },
   }
 }
 
@@ -122,7 +144,7 @@ describe('interactive completion verification gate', () => {
       )
       .at(-1)
     expect(last?.isApiErrorMessage).toBe(true)
-    expect(last?.message.content[0]?.text).toContain('remain unverified')
+    expect(last?.message.content[0]?.text).toContain('Verification incomplete')
     expect(context.turnCount).toBe(2)
   })
 
@@ -156,7 +178,26 @@ describe('interactive completion verification gate', () => {
     )
   })
 
-  test('does not invent verification when no trusted execution tool exists', async () => {
+  test('returns normally after delegated read-only exploration', async () => {
+    const { output, context } = await run([
+      createUserMessage('Read the implementation and explain it.'),
+      toolUse('task-1', 'Task', {
+        subagent_type: 'Explore',
+        prompt: 'Inspect the implementation without editing files.',
+      }),
+      toolResult('task-1', { status: 'completed' }, 'delegated'),
+      toolUse('read-1', 'Read', { file_path: '/workspace/a.ts' }),
+      toolResult('read-1', {}, 'none'),
+    ])
+
+    expect(queryLLM).toHaveBeenCalledTimes(1)
+    const assistants = output.filter(message => message.type === 'assistant')
+    expect(assistants).toHaveLength(1)
+    expect(assistants[0]?.isApiErrorMessage).not.toBe(true)
+    expect(context.turnCount).toBe(1)
+  })
+
+  test('preserves completion with a verification boundary when no trusted execution tool exists', async () => {
     const { output } = await run(
       [
         createUserMessage('Implement the requested change.'),
@@ -167,8 +208,71 @@ describe('interactive completion verification gate', () => {
     )
 
     expect(queryLLM).toHaveBeenCalledTimes(1)
-    expect(output.filter(message => message.type === 'assistant')).toHaveLength(
-      1,
+    const last = output
+      .filter(
+        (message): message is AssistantMessage => message.type === 'assistant',
+      )
+      .at(-1)
+    expect(last?.isApiErrorMessage).not.toBe(true)
+    expect(last?.message.content[0]?.text).toContain('Done.')
+    expect(last?.message.content[0]?.text).toContain(
+      'Automated verification was not run',
+    )
+    expect(last?.message.content[0]?.text).toContain(
+      'workspace changes applied by tools remain in place',
+    )
+  })
+
+  test('localizes the no-terminal boundary for a Chinese completion', async () => {
+    queryImplementation = async () => createAssistantMessage('已完成修改。')
+
+    const { output } = await run(
+      [
+        createUserMessage('完成修改。'),
+        toolUse('edit-1', 'Edit', { file_path: 'a.ts' }),
+        toolResult('edit-1', {}),
+      ],
+      createContext({ trustedBash: false }),
+    )
+
+    const last = output
+      .filter(
+        (message): message is AssistantMessage => message.type === 'assistant',
+      )
+      .at(-1)
+    expect(last?.message.content[0]?.text).toContain('已完成修改。')
+    expect(last?.message.content[0]?.text).toContain('未运行自动验证')
+    expect(last?.message.content[0]?.text).toContain(
+      '工具实际应用的工作区改动仍会保留',
+    )
+  })
+
+  test('adds the boundary after non-text assistant content', async () => {
+    queryImplementation = async () => {
+      const message = createAssistantMessage('')
+      message.message.content = [
+        { type: 'image', source: { type: 'base64', data: 'AA==' } },
+      ] as any
+      return message
+    }
+
+    const { output } = await run(
+      [
+        createUserMessage('Implement the requested change.'),
+        toolUse('edit-1', 'Edit', { file_path: 'a.ts' }),
+        toolResult('edit-1', {}),
+      ],
+      createContext({ trustedBash: false }),
+    )
+
+    const last = output
+      .filter(
+        (message): message is AssistantMessage => message.type === 'assistant',
+      )
+      .at(-1)
+    const text = last?.message.content.find(block => block.type === 'text')
+    expect(text?.type === 'text' ? text.text : '').toContain(
+      'Automated verification was not run',
     )
   })
 })

@@ -101,7 +101,7 @@ const outputStyle = {
   name: 'output-style',
   description: 'Set the output style directly or from a selection menu',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   argumentHint: '[style]',
   userFacingName() {

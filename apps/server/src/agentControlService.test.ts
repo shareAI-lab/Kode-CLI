@@ -17,6 +17,7 @@ const definition = {
   systemPrompt: 'Review the requested change and report concrete findings.',
   tools: ['Read', 'Grep'],
   permissionMode: 'plan' as const,
+  maxExecutionTimeMs: 45_000,
 }
 
 function key(
@@ -120,7 +121,11 @@ describe('AgentControlService', () => {
       ok: true,
       value: {
         appliesTo: 'new_subagents',
-        agent: { source: 'projectSettings', agentType: definition.agentType },
+        agent: {
+          source: 'projectSettings',
+          agentType: definition.agentType,
+          maxExecutionTimeMs: 45_000,
+        },
       },
     })
     expect(harness.cacheRefreshes()).toBe(1)

@@ -239,14 +239,15 @@ const reducer: Reducer<State, Action> = (state, action) => {
     }
 
     case 'select-focused-option': {
-      if (!state.focusedValue || !state.optionMap.get(state.focusedValue)) {
-        return state
-      }
+      const focusedEntry = state.focusedValue
+        ? state.optionMap.get(state.focusedValue)
+        : undefined
+      if (!focusedEntry || !('value' in focusedEntry)) return state
 
       return {
         ...state,
         previousValue: state.value,
-        value: state.focusedValue,
+        value: focusedEntry.value,
       }
     }
 

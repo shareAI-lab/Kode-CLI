@@ -178,6 +178,27 @@ describe('Responses API Tests', () => {
       expect(request.text.verbosity).toBe('high')
     })
 
+    test('does not request reasoning summaries when the session disables them', () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      const request = adapter.createRequest({
+        messages: [{ role: 'user', content: 'Answer directly' }],
+        systemPrompt: ['You are a helpful assistant'],
+        tools: [] as any[],
+        maxTokens: 100,
+        stream: true,
+        reasoningEffort: 'high' as const,
+        reasoning: {
+          enable: false,
+          effort: 'high' as const,
+          summary: 'auto' as const,
+        },
+      })
+
+      expect(request.reasoning).toBeUndefined()
+      expect(request.include).toBeUndefined()
+    })
+
     test('converts tool results to function_call_output format', () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
 
@@ -521,6 +542,7 @@ describe('Responses API Tests', () => {
       expect(request).toHaveProperty('reasoning')
       expect(request.reasoning).toBeDefined()
       expect(request.reasoning.effort).toBe('high')
+      expect(request.reasoning.summary).toBe('auto')
 
       // Verify reasoning content inclusion
       expect(request).toHaveProperty('include')
@@ -559,6 +581,7 @@ describe('Responses API Tests', () => {
       ])
       expect(updates).toEqual([
         { type: 'start' },
+        { type: 'thinking_delta', delta: 'Plan the answer' },
         { type: 'text_delta', delta: 'Final answer' },
       ])
     })

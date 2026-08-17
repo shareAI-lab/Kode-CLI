@@ -4,7 +4,10 @@ import { normalizePermissionMode } from '#core/types/PermissionMode'
 import { isPlanModeEnabled } from '#core/utils/planMode'
 
 const DEFAULT_CONVERSATION_KEY = 'default'
-const ACTUAL_DEFAULT_MODE: PermissionMode = 'yolo'
+// Keep the non-UI fallback aligned with createDefaultToolPermissionContext.
+// This path is used by headless, ACP, and provider-backed conversations too,
+// so a fresh session must not silently become read-only.
+const ACTUAL_DEFAULT_MODE: PermissionMode = 'acceptEdits'
 
 const permissionModeByConversationKey = new Map<string, PermissionMode>()
 
@@ -21,18 +24,7 @@ export function getPermissionModeForConversationKey(options: {
 }): PermissionMode {
   const existing = permissionModeByConversationKey.get(options.conversationKey)
   if (existing) {
-    const normalized = normalizePermissionMode(existing)
-    if (
-      normalized === 'bypassPermissions' &&
-      !options.isBypassPermissionsModeAvailable
-    ) {
-      permissionModeByConversationKey.set(
-        options.conversationKey,
-        ACTUAL_DEFAULT_MODE,
-      )
-      return ACTUAL_DEFAULT_MODE
-    }
-    return normalized
+    return normalizePermissionMode(existing)
   }
 
   permissionModeByConversationKey.set(
@@ -60,21 +52,13 @@ export function getPermissionMode(context?: ToolUseContext): PermissionMode {
 
   const override = context?.options?.permissionMode
   if (override) {
-    const normalized = normalizePermissionMode(override)
-    if (normalized === 'bypassPermissions' && safeMode) {
-      return ACTUAL_DEFAULT_MODE
-    }
-    return normalized
+    return normalizePermissionMode(override)
   }
 
   const fromToolPermissionContext =
     context?.options?.toolPermissionContext?.mode
   if (fromToolPermissionContext) {
-    const normalized = normalizePermissionMode(fromToolPermissionContext)
-    if (normalized === 'bypassPermissions' && safeMode) {
-      return ACTUAL_DEFAULT_MODE
-    }
-    return normalized
+    return normalizePermissionMode(fromToolPermissionContext)
   }
 
   return getPermissionModeForConversationKey({

@@ -6,6 +6,7 @@ export const ASSISTANT_STREAM_MAX_TAIL_CHARS = 32 * 1024
 export type AssistantStreamUpdateEvent = Readonly<AssistantStreamUpdate>
 
 export type AssistantStreamSnapshot = Readonly<{
+  thinking: string
   text: string
 }>
 
@@ -33,7 +34,10 @@ type CreateAssistantStreamStoreOptions = {
   scheduler?: AssistantStreamScheduler
 }
 
-const EMPTY_SNAPSHOT: AssistantStreamSnapshot = Object.freeze({ text: '' })
+const EMPTY_SNAPSHOT: AssistantStreamSnapshot = Object.freeze({
+  thinking: '',
+  text: '',
+})
 
 const defaultScheduler: AssistantStreamScheduler = {
   now: () => Date.now(),
@@ -94,17 +98,21 @@ export function createAssistantStreamStore(
   let activeTurn: AbortController | null = null
   // undefined: no stream selected; null: selected legacy stream without an id.
   let activeRequestId: string | null | undefined
+  let retainedThinking = ''
   let retainedText = ''
-  let hasPublishedFirstToken = false
+  let hasPublishedFirstContent = false
   let lastPublishAt = 0
   let generation = 0
   let cancelScheduledPublish: (() => void) | null = null
   let destroyed = false
 
-  const publishSnapshot = (text: string) => {
-    if (snapshot.text === text) return
+  const publishSnapshot = (thinking: string, text: string) => {
+    if (snapshot.thinking === thinking && snapshot.text === text) return
 
-    snapshot = text.length ? Object.freeze({ text }) : EMPTY_SNAPSHOT
+    snapshot =
+      thinking.length || text.length
+        ? Object.freeze({ thinking, text })
+        : EMPTY_SNAPSHOT
     for (const listener of listeners) listener()
   }
 
@@ -116,16 +124,17 @@ export function createAssistantStreamStore(
   const resetPreview = (resetRequest = false) => {
     generation += 1
     cancelPendingPublish()
+    retainedThinking = ''
     retainedText = ''
-    hasPublishedFirstToken = false
+    hasPublishedFirstContent = false
     lastPublishAt = 0
     if (resetRequest) activeRequestId = undefined
-    publishSnapshot('')
+    publishSnapshot('', '')
   }
 
-  const publishRetainedText = () => {
+  const publishRetainedContent = () => {
     lastPublishAt = scheduler.now()
-    publishSnapshot(retainedText)
+    publishSnapshot(retainedThinking, retainedText)
   }
 
   const schedulePublish = (turn: AbortController) => {
@@ -134,7 +143,7 @@ export function createAssistantStreamStore(
     const elapsed = Math.max(0, scheduler.now() - lastPublishAt)
     const delayMs = Math.max(0, frameIntervalMs - elapsed)
     if (delayMs === 0) {
-      publishRetainedText()
+      publishRetainedContent()
       return
     }
 
@@ -148,7 +157,7 @@ export function createAssistantStreamStore(
       ) {
         return
       }
-      publishRetainedText()
+      publishRetainedContent()
     }, delayMs)
   }
 
@@ -188,12 +197,28 @@ export function createAssistantStreamStore(
       activeRequestId = requestId
 
       if (event.delta.length === 0) return
-      retainedText = appendBoundedTail(retainedText, event.delta, maxTailChars)
+      if (event.type === 'thinking_delta') {
+        retainedThinking = appendBoundedTail(
+          retainedThinking,
+          event.delta,
+          maxTailChars,
+        )
+      } else {
+        retainedText = appendBoundedTail(
+          retainedText,
+          event.delta,
+          maxTailChars,
+        )
+      }
 
-      if (!hasPublishedFirstToken) {
-        if (retainedText.trim().length === 0) return
-        hasPublishedFirstToken = true
-        publishRetainedText()
+      if (!hasPublishedFirstContent) {
+        if (
+          retainedThinking.trim().length === 0 &&
+          retainedText.trim().length === 0
+        )
+          return
+        hasPublishedFirstContent = true
+        publishRetainedContent()
         return
       }
 
@@ -218,6 +243,7 @@ export function createAssistantStreamStore(
       activeRequestId = undefined
       generation += 1
       cancelPendingPublish()
+      retainedThinking = ''
       retainedText = ''
       snapshot = EMPTY_SNAPSHOT
       listeners.clear()

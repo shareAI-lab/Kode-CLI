@@ -34,13 +34,38 @@ export type LocalCommand = {
 export type LocalJSXCommand = {
   type: 'local-jsx'
   call(
-    onDone: (result?: string) => void,
+    onDone: LocalJSXDoneCallback,
     context: ToolUseContext & {
       setForkConvoWithMessagesOnTheNextRender: SetForkConvoWithMessagesOnTheNextRender
     },
     args?: string,
   ): Promise<ReactNode>
 }
+
+/** A local JSX command can either render output or submit a normal REPL prompt. */
+export type LocalJSXCommandResult =
+  | string
+  | {
+      type: 'submit-prompt'
+      prompt: string
+      /** Marks the input as reviewed speech for turn-level clarification policy. */
+      voiceInput?: boolean
+      /** Request best-effort TTS after the corresponding assistant turn. */
+      voiceResponse?: boolean
+    }
+  | {
+      /** Route an aggregate command to an existing slash command without adding an extra transcript entry. */
+      type: 'delegate-command'
+      commandName: string
+      args: string
+    }
+
+// The callback is intentionally bivariant for backwards-compatible commands
+// whose completion handler only accepts text. New interactive commands can
+// submit a prompt object without forcing every existing command to change.
+export type LocalJSXDoneCallback = {
+  bivarianceHack(result?: LocalJSXCommandResult): void
+}['bivarianceHack']
 
 export type Command = {
   description: string

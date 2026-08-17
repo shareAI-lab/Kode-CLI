@@ -7,7 +7,7 @@ const modelstatus: Command = {
   description: 'Display current model configuration and status',
   aliases: ['ms', 'model-status'],
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   userFacingName() {
     return 'modelstatus'

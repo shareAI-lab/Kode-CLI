@@ -1,69 +1,41 @@
 import { Box, Text, useIsScreenReaderEnabled } from 'ink'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { ToolKeypressHandler } from '@kode/tool-interface/Tool'
 import { getTheme } from '#core/utils/theme'
 import {
+  formatRequestStatusDuration,
   getRequestStatus,
+  getRequestStatusLabel,
+  getRequestStatusPhaseLabel,
+  getRequestStatusTiming,
+  getRequestStatusTokenDisplay,
+  REQUEST_STATUS_ESC_CANCEL_HINT,
   subscribeRequestStatus,
   type RequestStatus,
 } from '#core/utils/requestStatus'
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
-function getLabel(status: RequestStatus): string {
-  switch (status.kind) {
-    case 'thinking':
-      return 'Preparing response'
-    case 'streaming':
-      return 'Generating response'
-    default:
-      return ''
-  }
-}
-
-function formatTokens(tokens: number): string {
-  if (tokens >= 1000) {
-    return `${(tokens / 1000).toFixed(1)}k`
-  }
-  return tokens.toString()
-}
-
-function getTokenDisplay(status: RequestStatus): string {
-  if (status.kind === 'thinking' && status.inputTokens) {
-    return ` · ↑ ${formatTokens(status.inputTokens)}`
-  }
-  if (status.kind === 'streaming' && status.outputTokens !== undefined) {
-    return ` · ↓ ${formatTokens(status.outputTokens)}`
-  }
-  return ''
-}
-
+// NOTE: This component mirrors the main REPL RequestStatusIndicator shell so
+// the Bash background overlay stays inside packages/tools (no dependency on
+// the CLI app's UI layer). All wording/formatting comes from the shared
+// #core/utils/requestStatus helpers, so the two views cannot drift apart.
 function RequestStatusIndicator(): React.ReactNode {
   const theme = getTheme()
   const isScreenReaderEnabled = useIsScreenReaderEnabled()
 
   const [frame, setFrame] = useState(0)
-  const [elapsedTime, setElapsedTime] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   const [status, setStatus] = useState<RequestStatus>(() => getRequestStatus())
 
-  const requestStartTime = useRef<number | null>(
-    status.kind === 'thinking' || status.kind === 'streaming'
-      ? Date.now()
-      : null,
-  )
-  const isVisible = status.kind !== 'tool' && status.kind !== 'idle'
+  const isVisible = status.kind !== 'idle'
   const shouldAnimate = isVisible && !isScreenReaderEnabled
+  const timing = getRequestStatusTiming(status, now)
 
   useEffect(() => {
     return subscribeRequestStatus(next => {
       setStatus(next)
-      if (next.kind !== 'idle' && requestStartTime.current === null) {
-        requestStartTime.current = Date.now()
-      }
-      if (next.kind === 'idle') {
-        requestStartTime.current = null
-        setElapsedTime(0)
-      }
+      setNow(Date.now())
     })
   }, [])
 
@@ -76,29 +48,34 @@ function RequestStatusIndicator(): React.ReactNode {
   }, [shouldAnimate])
 
   useEffect(() => {
-    if (!shouldAnimate || requestStartTime.current === null) return undefined
+    if (!shouldAnimate) return undefined
     const timer = setInterval(() => {
-      const startTime = requestStartTime.current
-      if (startTime !== null) {
-        setElapsedTime(Math.floor((Date.now() - startTime) / 1000))
-      }
+      setNow(Date.now())
     }, 1000)
     return () => clearInterval(timer)
   }, [shouldAnimate])
 
-  if (status.kind === 'tool' || status.kind === 'idle') {
+  if (!isVisible) {
     return null
   }
 
   return (
     <Box flexDirection="row" marginTop={1}>
       <Text color={theme.kode} bold>
-        {SPINNER_FRAMES[frame]} {getLabel(status)}
+        {SPINNER_FRAMES[frame]}{' '}
+        {getRequestStatusLabel(
+          status,
+          Math.floor(timing.requestDurationMs / 1000),
+        )}
       </Text>
       <Text color={theme.secondaryText}>
         {' '}
-        :: {elapsedTime}s (Esc cancel)
-        {getTokenDisplay(status)}
+        · {getRequestStatusPhaseLabel(status, now)} · total{' '}
+        {formatRequestStatusDuration(
+          Math.floor(timing.requestDurationMs / 1000),
+        )}{' '}
+        {REQUEST_STATUS_ESC_CANCEL_HINT}
+        {getRequestStatusTokenDisplay(status)}
       </Text>
     </Box>
   )

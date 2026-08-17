@@ -9,7 +9,7 @@ const terminalSetup = {
   name: 'terminal-setup',
   description: 'Set up Shift+Enter / Option+Enter for multi-line input',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   disableNonInteractive: true,
   async call(onDone) {

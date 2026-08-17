@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { gzipSync } from 'node:zlib'
+import { deflateRawSync, gzipSync } from 'node:zlib'
 import { strToU8, zipSync } from 'fflate'
 import {
   extractTarBuffer,
@@ -179,6 +179,29 @@ describe('archive extraction (zip + tar.gz)', () => {
     }
   })
 
+  test('detects case-only collisions on case-folding file systems', async () => {
+    const zip = zipSync({
+      'root/A.txt': strToU8('upper'),
+      'root/a.txt': strToU8('lower'),
+    })
+    const outDir = makeTempDir('kode-zip-case-')
+    try {
+      const caseFolding =
+        process.platform === 'darwin' || process.platform === 'win32'
+      if (caseFolding) {
+        await expect(
+          extractZipBuffer(zip, outDir, { stripComponents: 1 }),
+        ).rejects.toThrow('Duplicate archive output path')
+      } else {
+        await extractZipBuffer(zip, outDir, { stripComponents: 1 })
+        expect(readFileSync(join(outDir, 'A.txt'), 'utf8')).toBe('upper')
+        expect(readFileSync(join(outDir, 'a.txt'), 'utf8')).toBe('lower')
+      }
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
   test('rejects ZIP file/directory hierarchy conflicts before writing', async () => {
     const zip = zipSync({
       'root/a/child.txt': strToU8('child'),
@@ -292,6 +315,41 @@ describe('archive extraction (zip + tar.gz)', () => {
         extractZipBuffer(zip, outDir, { limits: { maxEntries: 0 } }),
       ).rejects.toThrow('maxEntries must be a positive integer')
       expect(existsSync(join(outDir, 'file.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('rejects ZIP entries whose decompressed output exceeds the declared size', async () => {
+    // Hand-built local-header-only zip: compression deflate, declared
+    // uncompressed size of 8 bytes while the payload actually inflates to
+    // 4096 bytes. fflate's fixed-buffer inflate would silently truncate this;
+    // the bounded decoder must abort instead.
+    const payload = Buffer.from('x'.repeat(4096))
+    const deflated = deflateRawSync(payload)
+    const name = 'bomb.txt'
+
+    const header = Buffer.alloc(30)
+    header.writeUInt32LE(0x04034b50, 0) // local file header signature
+    header.writeUInt16LE(20, 4) // version needed to extract
+    header.writeUInt16LE(0, 6) // general purpose flags
+    header.writeUInt16LE(8, 8) // compression method: deflate
+    header.writeUInt16LE(0, 10) // last mod time
+    header.writeUInt16LE(0, 12) // last mod date
+    header.writeUInt32LE(0, 14) // crc-32 (unchecked by the stream parser)
+    header.writeUInt32LE(deflated.byteLength, 18) // compressed size
+    header.writeUInt32LE(8, 22) // declared uncompressed size (lying)
+    header.writeUInt16LE(name.length, 26) // file name length
+    header.writeUInt16LE(0, 28) // extra field length
+
+    const zip = Buffer.concat([header, Buffer.from(name), deflated])
+
+    const outDir = makeTempDir('kode-zip-bomb-')
+    try {
+      await expect(extractZipBuffer(zip, outDir)).rejects.toThrow(
+        'exceeds decompressed size budget',
+      )
+      expect(existsSync(join(outDir, name))).toBe(false)
     } finally {
       rmSync(outDir, { recursive: true, force: true })
     }

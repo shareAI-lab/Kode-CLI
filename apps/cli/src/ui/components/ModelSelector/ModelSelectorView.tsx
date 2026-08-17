@@ -368,6 +368,7 @@ export function ModelSelectorView(
           apiKeyEnv={props.apiKeyEnv}
           hasStoredApiKey={props.hasStoredApiKey}
           validationError={props.validationError}
+          activateAsMain={props.activateAsMain}
           getProviderLabel={props.getProviderLabel}
         />
       )

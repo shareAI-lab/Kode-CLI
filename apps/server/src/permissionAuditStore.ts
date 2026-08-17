@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { getKodeRoot } from '@kode/config/dataRoots'
-import type { ToolPermissionContextUpdate } from '@kode/core/types/toolPermissionContext'
+import type { ToolPermissionContextUpdate } from '@kode/types/toolPermissionContext'
 
 export type PermissionAuditRecord = {
   version: 1

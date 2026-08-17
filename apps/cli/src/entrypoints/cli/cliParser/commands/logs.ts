@@ -5,8 +5,7 @@ import type { Command } from '@commander-js/extra-typings'
 import type { RenderOptions } from 'ink'
 
 import { getCurrentProjectConfig } from '#config'
-import { assertMinVersion } from '#core/utils/autoUpdater'
-import { isDefaultSlowAndCapableModel } from '#core/utils/model'
+import type { Message } from '#core/query'
 import {
   dateToFilename,
   getNextAvailableLogForkNumber,
@@ -15,15 +14,8 @@ import {
   logError,
   CACHE_PATHS,
 } from '#core/utils/log'
-import { loadMessagesFromLog } from '#core/utils/conversationRecovery'
 
-import { getClients } from '#core/mcp/client'
 import { setup } from '../../setup'
-import {
-  renderLogListScreen,
-  renderRepl,
-  renderResumeConversationSelector,
-} from '../../interactive/renderers'
 
 type CwdOption = { cwd: string }
 
@@ -47,6 +39,8 @@ export function registerLogCommands(
     )
     .action(async (number: number | undefined, options: CwdOption) => {
       await setup(options.cwd, false)
+      const { renderLogListScreen } =
+        await import('../../interactive/renderers')
       await renderLogListScreen(
         { type: 'messages', logNumber: number },
         renderContextWithExitOnCtrlC,
@@ -98,12 +92,15 @@ export function registerLogCommands(
         const disableSlashCommands = options.disableSlashCommands
 
         await setup(cwd, safe)
+        const { assertMinVersion } = await import('#core/utils/autoUpdater')
         assertMinVersion()
 
-        const [{ getTools }, { getCommands }] = await Promise.all([
-          import('#tools'),
-          import('#cli-commands'),
-        ])
+        const [{ getTools }, { getCommands }, { getClients }] =
+          await Promise.all([
+            import('#tools'),
+            import('#cli-commands'),
+            import('#core/mcp/client'),
+          ])
         const [allTools, commands, mcpClients] = await Promise.all([
           getTools(
             enableArchitect ?? getCurrentProjectConfig().enableArchitectTool,
@@ -129,12 +126,14 @@ export function registerLogCommands(
           const isLegacyNumber = /^-?\\d+$/.test(rawIdentifier)
           const isLegacyPath = !isLegacyNumber && existsSync(rawIdentifier)
 
-          let messages: unknown[] | undefined
+          let messages: Message[] | undefined
           let messageLogName: string = dateToFilename(new Date())
           let initialForkNumber: number | undefined = undefined
 
           try {
             if (isLegacyNumber || isLegacyPath) {
+              const { loadMessagesFromLog } =
+                await import('#core/utils/conversationRecovery')
               const logs = await loadLogList(CACHE_PATHS.messages())
               if (isLegacyNumber) {
                 const number = Math.abs(parseInt(rawIdentifier, 10))
@@ -197,7 +196,11 @@ export function registerLogCommands(
               }
             }
 
-            const isDefaultModel = await isDefaultSlowAndCapableModel()
+            const isDefaultModel = await import('#core/utils/model').then(
+              ({ isDefaultSlowAndCapableModel }) =>
+                isDefaultSlowAndCapableModel(),
+            )
+            const { renderRepl } = await import('../../interactive/renderers')
             await renderRepl(
               {
                 initialPrompt: '',
@@ -227,6 +230,8 @@ export function registerLogCommands(
             console.error('No conversation found to resume')
             process.exit(1)
           }
+          const { renderResumeConversationSelector } =
+            await import('../../interactive/renderers')
           renderResumeConversationSelector(
             {
               cwd,
@@ -263,6 +268,8 @@ export function registerLogCommands(
     )
     .action(async (number: number | undefined, options: CwdOption) => {
       await setup(options.cwd, false)
+      const { renderLogListScreen } =
+        await import('../../interactive/renderers')
       await renderLogListScreen(
         { type: 'errors', logNumber: number },
         renderContextWithExitOnCtrlC,

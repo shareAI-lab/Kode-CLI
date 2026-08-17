@@ -7,7 +7,7 @@ const notifications = {
   name: 'notifications',
   description: 'View in-app notification history',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone) {
     return <NotificationsScreen onDone={onDone} />

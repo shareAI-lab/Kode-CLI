@@ -99,6 +99,7 @@ export type ModelSelectorViewProps = {
   requestStrategy: RequestStrategyOption
   requestStrategyOptions: Array<{ label: string; value: RequestStrategyOption }>
   setRequestStrategy: (value: RequestStrategyOption) => void
+  activateAsMain: boolean
 
   contextLength: number
   contextLengthOptions: ContextLengthOption[]

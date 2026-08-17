@@ -17,6 +17,7 @@ type UUID = `${string}-${string}-${string}-${string}-${string}`
 type FullToolUseResult = {
   data: unknown
   resultForAssistant: ToolResultBlockParam['content']
+  metadata?: Record<string, unknown>
 }
 
 export type Message =
@@ -43,6 +44,7 @@ type JsonlUserEntry = {
   message?: MessageParam
   isApiErrorMessage?: boolean
   toolUseResult?: unknown
+  toolUseMetadata?: unknown
 }
 
 type JsonlAssistantEntry = {
@@ -229,13 +231,21 @@ function extractToolResultContent(
 
 function normalizeToolUseResultFromLogEntry(args: {
   toolUseResult: unknown
+  toolUseMetadata?: unknown
   message: MessageParam
 }): FullToolUseResult | undefined {
   const { toolUseResult, message } = args
   if (toolUseResult === undefined) return undefined
 
   const wrapped = normalizeToolUseResult(toolUseResult)
-  if (wrapped) return wrapped
+  if (wrapped) {
+    return args.toolUseMetadata === undefined
+      ? wrapped
+      : {
+          ...wrapped,
+          metadata: args.toolUseMetadata as Record<string, unknown>,
+        }
+  }
 
   const resultForAssistant =
     extractToolResultContent(message) ??
@@ -244,6 +254,9 @@ function normalizeToolUseResultFromLogEntry(args: {
   return {
     data: toolUseResult,
     resultForAssistant,
+    ...(args.toolUseMetadata === undefined
+      ? {}
+      : { metadata: args.toolUseMetadata as Record<string, unknown> }),
   }
 }
 
@@ -252,6 +265,7 @@ function normalizeLoadedUser(entry: JsonlUserEntry): Message | null {
   if (!uuid || !entry.message) return null
   const toolUseResult = normalizeToolUseResultFromLogEntry({
     toolUseResult: entry.toolUseResult,
+    toolUseMetadata: entry.toolUseMetadata,
     message: entry.message,
   })
   return {

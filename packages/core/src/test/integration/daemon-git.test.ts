@@ -152,7 +152,9 @@ describe('daemon git endpoints (WS)', () => {
                   }),
                 )
               }
-            } catch { /* no-op */ }
+            } catch {
+              /* no-op */
+            }
           })
 
           await new Promise<void>((resolve, reject) => {
@@ -205,7 +207,9 @@ describe('daemon git endpoints (WS)', () => {
 
           try {
             ws.close()
-          } catch { /* no-op */ }
+          } catch {
+            /* no-op */
+          }
         } finally {
           daemon.stop()
         }
@@ -250,9 +254,7 @@ describe('daemon git endpoints (WS)', () => {
 
         try {
           const ws = new WsClient(
-            `ws://${daemon.host}:${daemon.port}/ws?token=${encodeURIComponent(
-              daemon.token,
-            )}`,
+            `ws://${daemon.host}:${daemon.port}/ws?token=${encodeURIComponent(daemon.token)}&fresh_session=1`,
           )
 
           const events: AnyEvent[] = []
@@ -272,7 +274,9 @@ describe('daemon git endpoints (WS)', () => {
                   }),
                 )
               }
-            } catch { /* no-op */ }
+            } catch {
+              /* no-op */
+            }
           })
 
           await new Promise<void>((resolve, reject) => {
@@ -286,11 +290,29 @@ describe('daemon git endpoints (WS)', () => {
             )
           })
 
-          await waitForEvent(
+          const init = await waitForEvent(
             events,
             e => e && e.type === 'system' && e.subtype === 'init',
             5_000,
           )
+          expect(typeof init.session_id).toBe('string')
+
+          const permissionResponse = await fetch(
+            `http://${daemon.host}:${daemon.port}/api/permissions?token=${encodeURIComponent(daemon.token)}&workspace=${encodeURIComponent(init.cwd)}`,
+            {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: init.session_id,
+                update: {
+                  type: 'setMode',
+                  mode: 'acceptEdits',
+                  destination: 'session',
+                },
+              }),
+            },
+          )
+          expect(permissionResponse.status).toBe(200)
 
           ws.send(JSON.stringify({ type: 'git_branches' }))
           const branches = await waitForEvent(
@@ -388,7 +410,9 @@ describe('daemon git endpoints (WS)', () => {
 
           try {
             ws.close()
-          } catch { /* no-op */ }
+          } catch {
+            /* no-op */
+          }
         } finally {
           daemon.stop()
         }

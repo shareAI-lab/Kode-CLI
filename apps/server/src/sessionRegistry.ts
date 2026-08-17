@@ -188,7 +188,9 @@ export class SessionRegistry {
     for (const session of this.sessions.values()) {
       try {
         session.activeAbortController?.abort()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       denyAllPermissionRequests(session, message)
     }
   }

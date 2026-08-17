@@ -28,6 +28,8 @@ import {
 
 export type TranscriptItem = { jsx: ReactNode; key: string }
 
+const EMPTY_TOOL_USE_IDS = new Set<string>()
+
 export function useTranscriptItems(args: {
   messages: MessageType[]
   tools: Tool[]
@@ -41,6 +43,7 @@ export function useTranscriptItems(args: {
   toolUseConfirm: unknown | null
   isMessageSelectorVisible: boolean
   forkNumber: number
+  keepRecentInFrame?: boolean
 }): {
   normalizedMessages: NormalizedMessage[]
   orderedMessages: NormalizedMessage[]
@@ -69,8 +72,8 @@ export function useTranscriptItems(args: {
   )
 
   const inProgressToolUseIDs = useMemo(
-    () => getInProgressToolUseIDs(normalizedMessages),
-    [normalizedMessages],
+    () => getInProgressToolUseIDs(normalizedMessages, unresolvedToolUseIDs),
+    [normalizedMessages, unresolvedToolUseIDs],
   )
 
   const erroredToolUseIDs = useMemo(
@@ -94,8 +97,14 @@ export function useTranscriptItems(args: {
         orderedMessages,
         normalizedMessages,
         unresolvedToolUseIDs,
+        args.keepRecentInFrame,
       ),
-    [orderedMessages, normalizedMessages, unresolvedToolUseIDs],
+    [
+      orderedMessages,
+      normalizedMessages,
+      unresolvedToolUseIDs,
+      args.keepRecentInFrame,
+    ],
   )
 
   const chunked = useMemo(
@@ -127,9 +136,9 @@ export function useTranscriptItems(args: {
                 tools={message.tools}
                 verbose={args.verbose}
                 debug={args.debug}
-                erroredToolUseIDs={new Set()}
-                inProgressToolUseIDs={new Set()}
-                unresolvedToolUseIDs={new Set()}
+                erroredToolUseIDs={EMPTY_TOOL_USE_IDS}
+                inProgressToolUseIDs={EMPTY_TOOL_USE_IDS}
+                unresolvedToolUseIDs={EMPTY_TOOL_USE_IDS}
                 shouldAnimate={false}
                 shouldShowDot={false}
                 isTransient={isTransient}
@@ -144,8 +153,8 @@ export function useTranscriptItems(args: {
                     tools={message.tools}
                     verbose={args.verbose}
                     debug={args.debug}
-                    erroredToolUseIDs={new Set()}
-                    inProgressToolUseIDs={new Set()}
+                    erroredToolUseIDs={EMPTY_TOOL_USE_IDS}
+                    inProgressToolUseIDs={EMPTY_TOOL_USE_IDS}
                     unresolvedToolUseIDs={
                       new Set([
                         (

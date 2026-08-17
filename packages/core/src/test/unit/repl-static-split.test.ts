@@ -45,11 +45,23 @@ describe('REPL Static prefix split', () => {
 
     expect(unresolved).toEqual(new Set(['t1']))
 
-    const prefixLen = getReplStaticPrefixLength(ordered, normalized, unresolved)
+    const prefixLen = getReplStaticPrefixLength(
+      ordered,
+      normalized,
+      unresolved,
+      false,
+    )
+    const prefixedLenWithRecent = getReplStaticPrefixLength(
+      ordered,
+      normalized,
+      unresolved,
+    )
 
     // Even though `post` is individually static-eligible (no tool_use),
     // once we hit a transient tool_use, everything after must stay transient.
     expect(prefixLen).toBe(1)
+    // The bottom-anchored frame keeps the last few completed messages transient.
+    expect(prefixedLenWithRecent).toBe(0)
   })
 
   test('static prefix length is monotonic as tools resolve', () => {
@@ -132,7 +144,9 @@ describe('REPL Static prefix split', () => {
   test('keeps an orphaned tool result static when its tool use is missing', () => {
     const normalized = normalizeMessages([makeToolResult('missing-tool-use')])
 
-    expect(getReplStaticPrefixLength(normalized, normalized, new Set())).toBe(1)
+    expect(
+      getReplStaticPrefixLength(normalized, normalized, new Set(), false),
+    ).toBe(1)
   })
 
   test('indexes a long tool transcript once while preserving order and boundary', () => {
@@ -192,10 +206,12 @@ describe('REPL Static prefix split', () => {
       ordered
         .slice(0, prefixLen)
         .map(message => `${message.type}:${getToolUseID(message)}`),
-    ).toEqual(expectedOrder)
-    expect(prefixLen).toBe(toolPairCount * 3)
-    expect(getToolUseID(ordered[prefixLen]!)).toBe(pendingToolUseID)
-    expect(getToolUseID(ordered[prefixLen + 1]!)).toBeNull()
+    ).toEqual(expectedOrder.slice(0, prefixLen))
+    // The bottom-anchored frame keeps the six most recent messages transient.
+    expect(prefixLen).toBe(toolPairCount * 3 - 6)
+    expect(getToolUseID(ordered[prefixLen]!)).toBe('tool-998')
+    expect(getToolUseID(ordered[toolPairCount * 3]!)).toBe(pendingToolUseID)
+    expect(getToolUseID(ordered[toolPairCount * 3 + 1]!)).toBeNull()
     expect(observedTypeReads).toBe(normalized.length)
   })
 })

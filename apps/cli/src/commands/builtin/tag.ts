@@ -8,7 +8,7 @@ const tag = {
   name: 'tag',
   description: 'Set a tag for the current session',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   userFacingName() {
     return 'tag'
   },

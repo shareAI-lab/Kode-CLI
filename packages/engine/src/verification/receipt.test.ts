@@ -102,6 +102,40 @@ describe('verification receipts', () => {
     expect(makeReceipt({ trusted: false })).toBeNull()
   })
 
+  test.each([
+    ['completed', 0, 'passed'],
+    ['failed', 1, 'failed'],
+    ['killed', null, 'interrupted'],
+    ['running', null, 'started'],
+  ] as const)(
+    'records a terminal background verification result: %s -> %s',
+    (status, exitCode, expected) => {
+      const receipt = createVerificationReceipt({
+        toolName: 'TaskOutput',
+        isTrustedExecutionTool: true,
+        toolUseId: 'task-output-1',
+        input: { task_id: 'bash-1' },
+        output: {
+          retrieval_status: status === 'running' ? 'not_ready' : 'success',
+          task: {
+            task_type: 'local_bash',
+            status,
+            command: 'bun test ./packages/engine',
+            output: status === 'completed' ? '12 pass' : '',
+            exitCode,
+          },
+        },
+        now: fixedNow,
+      })
+
+      expect(receipt).toMatchObject({
+        kind: 'test',
+        status: expected,
+        toolUseId: 'task-output-1',
+      })
+    },
+  )
+
   test('attaches a receipt only to object-shaped tool results', () => {
     const receipt = makeReceipt()
     if (!receipt) throw new Error('Expected a verification receipt')

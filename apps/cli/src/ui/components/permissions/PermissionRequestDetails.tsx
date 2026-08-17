@@ -9,13 +9,7 @@ function formatAgentLabel(agentId: string): string {
 }
 
 function formatModeLabel(mode: unknown): string | null {
-  if (
-    mode !== 'default' &&
-    mode !== 'plan' &&
-    mode !== 'acceptEdits' &&
-    mode !== 'dontAsk' &&
-    mode !== 'bypassPermissions'
-  ) {
+  if (mode !== 'plan' && mode !== 'acceptEdits' && mode !== 'cautious') {
     return null
   }
   return `Mode: ${mode}`

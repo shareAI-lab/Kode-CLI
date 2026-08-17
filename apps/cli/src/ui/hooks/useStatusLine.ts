@@ -26,6 +26,34 @@ export function normalizeStatusLineOutput(raw: string): string | null {
   return firstLine ?? null
 }
 
+export const STATUS_LINE_BASE_INTERVAL_MS = 1_000
+export const STATUS_LINE_GROW_STREAK = 2
+export const STATUS_LINE_MAX_INTERVAL_MS = 10_000
+
+/**
+ * Poll-rate backoff for the status line command: as long as neither the input
+ * nor the command output changed, the interval grows (1s to 3s to 9s, capped at
+ * 10s) instead of spawning the command at 1 Hz forever. Any input or output
+ * change resets the rate to the base interval.
+ */
+export function nextStatusLineIntervalMs(args: {
+  inputChanged: boolean
+  outputChanged: boolean
+  unchangedStreak: number
+  currentMs: number
+}): number {
+  if (args.inputChanged || args.outputChanged) {
+    return STATUS_LINE_BASE_INTERVAL_MS
+  }
+  if (args.unchangedStreak < STATUS_LINE_GROW_STREAK) {
+    return Math.max(STATUS_LINE_BASE_INTERVAL_MS, args.currentMs)
+  }
+  return Math.min(
+    STATUS_LINE_MAX_INTERVAL_MS,
+    Math.max(STATUS_LINE_BASE_INTERVAL_MS, args.currentMs * 3),
+  )
+}
+
 function buildDynamicStatusLineInput(
   baseInput: unknown,
 ): Record<string, unknown> {
@@ -88,6 +116,10 @@ export function useStatusLine(input?: unknown): {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const runningRef = useRef(false)
   const rerunAfterCurrentRef = useRef(false)
+  const lastOutputTextRef = useRef<string | null>(null)
+  const unchangedStreakRef = useRef(0)
+  const nextDelayRef = useRef(STATUS_LINE_BASE_INTERVAL_MS)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const nextSignature = serializeStatusLineInput(input)
@@ -137,6 +169,8 @@ export function useStatusLine(input?: unknown): {
               : { text: null, padding: 0, isConfigured: false },
           )
         }
+        // Keep polling so a later config change is picked up.
+        scheduleNextInterval(STATUS_LINE_BASE_INTERVAL_MS)
         return
       }
 
@@ -159,6 +193,7 @@ export function useStatusLine(input?: unknown): {
         })
       }
 
+      let outputChanged = false
       try {
         const result = await shell.exec(command, ac.signal, 5000, {
           stdin: serializeStatusLineInput(
@@ -175,8 +210,10 @@ export function useStatusLine(input?: unknown): {
 
         const raw = result.code === 0 ? result.stdout : ''
         const next = normalizeStatusLineOutput(raw)
+        const text = next || null
+        outputChanged = text !== lastOutputTextRef.current
+        lastOutputTextRef.current = text
         if (alive) {
-          const text = next || null
           setState(prev =>
             prev.text === text && prev.padding === padding && prev.isConfigured
               ? prev
@@ -187,14 +224,47 @@ export function useStatusLine(input?: unknown): {
         if (abortRef.current === ac) abortRef.current = null
         runningRef.current = false
 
-        if (alive && rerunAfterCurrentRef.current) {
-          rerunAfterCurrentRef.current = false
-          setTimeout(() => {
-            if (!alive) return
-            tick('input').catch(() => {})
-          }, 0)
+        // Schedule the next poll unless the component unmounted.
+        if (alive) {
+          if (rerunAfterCurrentRef.current) {
+            rerunAfterCurrentRef.current = false
+            setTimeout(() => {
+              if (!alive) return
+              tick('input').catch(() => {})
+            }, 0)
+          } else if (source !== 'interval') {
+            // Input-driven ticks reset the poll rate so changes surface quickly.
+            unchangedStreakRef.current = 0
+            nextDelayRef.current = STATUS_LINE_BASE_INTERVAL_MS
+            scheduleNextInterval(STATUS_LINE_BASE_INTERVAL_MS)
+          } else {
+            // Interval ticks back off while input and output stay unchanged.
+            const inputChanged = runInputSignature !== inputSignatureRef.current
+            if (inputChanged || outputChanged) {
+              unchangedStreakRef.current = 0
+            } else {
+              unchangedStreakRef.current += 1
+            }
+            const delay = nextStatusLineIntervalMs({
+              inputChanged,
+              outputChanged,
+              unchangedStreak: unchangedStreakRef.current,
+              currentMs: nextDelayRef.current,
+            })
+            nextDelayRef.current = delay
+            scheduleNextInterval(delay)
+          }
         }
       }
+    }
+
+    const scheduleNextInterval = (delayMs: number) => {
+      if (!alive) return
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null
+        tickRef.current?.('interval')
+      }, delayMs)
     }
 
     tickRef.current = source => {
@@ -203,17 +273,16 @@ export function useStatusLine(input?: unknown): {
 
     tick().catch(() => {})
 
-    const intervalId = setInterval(() => {
-      tickRef.current?.('interval')
-    }, 1000)
-
     return () => {
       alive = false
       abortRef.current?.abort()
       tickRef.current = null
       runningRef.current = false
       rerunAfterCurrentRef.current = false
-      clearInterval(intervalId)
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
     }
   }, [])
 

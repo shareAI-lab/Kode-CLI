@@ -20,7 +20,7 @@ type Props = {
 export function AssistantThinkingMessage({
   param: { thinking },
   addMargin = false,
-  shouldAnimate = true,
+  shouldAnimate = false,
 }: Props): React.ReactNode {
   const [progressFrame, setProgressFrame] = useState(0)
   const isScreenReaderEnabled = useIsScreenReaderEnabled()
@@ -47,15 +47,20 @@ export function AssistantThinkingMessage({
       marginTop={addMargin ? 1 : 0}
       width="100%"
     >
-      <Text>
-        <Text color={theme.kode}>{BULLET}</Text>
-        <Text color={theme.text}>
-          {' '}
-          [Thinking {PROGRESS_FRAMES[progressFrame]}]
+      {/* The live indicator only shows while thinking is in progress; once
+          the thought is complete the label disappears and only the dimmed
+          content remains. */}
+      {shouldAnimate && (
+        <Text>
+          <Text color={theme.secondaryText}>{BULLET}</Text>
+          <Text color={theme.secondaryText}>
+            {' '}
+            [Thinking {PROGRESS_FRAMES[progressFrame]}]
+          </Text>
         </Text>
-      </Text>
+      )}
       <Box paddingLeft={2}>
-        <Text color={theme.secondaryText} italic>
+        <Text color={theme.secondaryText} italic dimColor>
           {formattedThinking}
         </Text>
       </Box>

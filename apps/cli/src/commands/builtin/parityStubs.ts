@@ -46,6 +46,7 @@ export const PARITY_STUB_COMMANDS: Command[] = [
   makeStubCommand({
     name: 'color',
     description: 'Change the color theme',
+    isHidden: true,
     message: `Use /theme to change the color theme.`,
   }),
   makeStubCommand({

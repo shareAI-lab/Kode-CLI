@@ -59,6 +59,14 @@ export function useArrowKeyHistory<Extra>(args: {
   const loadHistoryRef = useRef(loadHistory)
   loadHistoryRef.current = loadHistory
 
+  const loadHistorySnapshot = useCallback(() => {
+    try {
+      return loadHistoryRef.current()
+    } catch {
+      return []
+    }
+  }, [])
+
   const clearPreloadTimer = useCallback(() => {
     if (!preloadTimerRef.current) return
     clearTimeout(preloadTimerRef.current)
@@ -70,9 +78,9 @@ export function useArrowKeyHistory<Extra>(args: {
     preloadTimerRef.current = setTimeout(() => {
       preloadTimerRef.current = null
       if (historySnapshotRef.current) return
-      historySnapshotRef.current = loadHistoryRef.current()
+      historySnapshotRef.current = loadHistorySnapshot()
     }, HISTORY_PRELOAD_DELAY_MS)
-  }, [clearPreloadTimer])
+  }, [clearPreloadTimer, loadHistorySnapshot])
 
   useEffect(() => {
     historyIndexRef.current = 0
@@ -86,7 +94,7 @@ export function useArrowKeyHistory<Extra>(args: {
 
   const getHistorySnapshot = () => {
     if (!historySnapshotRef.current) {
-      historySnapshotRef.current = loadHistoryRef.current()
+      historySnapshotRef.current = loadHistorySnapshot()
     }
     return historySnapshotRef.current
   }

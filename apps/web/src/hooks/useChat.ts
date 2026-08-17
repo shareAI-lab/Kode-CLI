@@ -264,11 +264,31 @@ function appendUniqueEvent(
   events: AgentEvent[],
   event: AgentEvent,
 ): AgentEvent[] {
-  const identity = getEventIdentity(event)
-  if (!identity) return [...events, event]
-  return events.some(candidate => getEventIdentity(candidate) === identity)
-    ? events
-    : [...events, event]
+  return appendUniqueEvents(events, [event])
+}
+
+function appendUniqueEvents(
+  events: AgentEvent[],
+  additions: readonly AgentEvent[],
+): AgentEvent[] {
+  if (additions.length === 0) return events
+
+  const identities = new Set<string>()
+  for (const event of events) {
+    const identity = getEventIdentity(event)
+    if (identity) identities.add(identity)
+  }
+
+  let nextEvents: AgentEvent[] | null = null
+  for (const event of additions) {
+    const identity = getEventIdentity(event)
+    if (identity && identities.has(identity)) continue
+    if (identity) identities.add(identity)
+    if (!nextEvents) nextEvents = [...events]
+    nextEvents.push(event)
+  }
+
+  return nextEvents ?? events
 }
 
 const EVENT_FLUSH_DELAY_MS = 50
@@ -327,9 +347,7 @@ export function useChat(args: {
     const buffered = eventBufferRef.current
     if (buffered.length === 0) return
     eventBufferRef.current = []
-    setEvents(prev =>
-      buffered.reduce((next, event) => appendUniqueEvent(next, event), prev),
-    )
+    setEvents(prev => appendUniqueEvents(prev, buffered))
   }, [])
 
   const clearEventFlushTimer = React.useCallback(() => {
@@ -435,22 +453,14 @@ export function useChat(args: {
         const history = historyBufferRef.current ?? []
         historyBufferRef.current = null
         eventBufferRef.current = []
-        setEvents(
-          history.reduce(
-            (next, historyEvent) => appendUniqueEvent(next, historyEvent),
-            [] as AgentEvent[],
-          ),
-        )
+        setEvents(appendUniqueEvents([], history))
         return
       }
 
       if (handlingMode === 'history') {
         // Do not bind turns or update sending/permission from replay. This
         // also protects legacy raw history events, which lack `replayed`.
-        historyBufferRef.current = appendUniqueEvent(
-          historyBufferRef.current ?? [],
-          event,
-        )
+        historyBufferRef.current?.push(event)
         return
       }
 
@@ -735,6 +745,7 @@ export function useChat(args: {
 
 export const __useChatForTests = {
   appendUniqueEvent,
+  appendUniqueEvents,
   createErrorLogEvent,
   eventBelongsToActiveRequest,
   getEventHandlingMode,

@@ -48,6 +48,8 @@ export async function getReasoningEffort(
   options?: {
     thinkingTokens?: number
     thinkingMode?: 'auto' | 'enabled' | 'disabled'
+    /** Voice turns answer quickly; deep reasoning is unnecessary. */
+    isVoice?: boolean
   },
 ): Promise<
   'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
@@ -58,11 +60,19 @@ export async function getReasoningEffort(
   // the ModelSelector value misleading and prevented the newest effort levels.
   void messages
   void options
+
+  // Voice turns skip deep reasoning for a snappy reply.
+  if (options?.isVoice) {
+    return 'none'
+  }
+
   const configured =
     modelProfile?.reasoningEffort ??
     getModelManager().getModel('main')?.reasoningEffort
   if (configured === undefined || configured === null || configured === '') {
-    return null
+    // Automatic allocation: reasoning models default to a balanced effort so
+    // thinking is enabled by default instead of being silently disabled.
+    return 'medium'
   }
   if (
     configured === 'none' ||

@@ -14,7 +14,7 @@ export default {
   name: 'import',
   description: 'Import legacy sessions into Kode',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   argumentHint: '[session-id|slug|title|all]',
   userFacingName() {

@@ -21,6 +21,8 @@ type Params = {
   contextLength: number
   reasoningEffort: any
   requestStrategy?: RequestStrategy
+  /** Save the profile without replacing Kode's current main-model pointer. */
+  activateAsMain?: boolean
   getModelManagerFn?: typeof getModelManager
 }
 
@@ -35,6 +37,7 @@ export async function saveModelConfiguration({
   contextLength,
   reasoningEffort,
   requestStrategy,
+  activateAsMain,
   getModelManagerFn,
 }: Params): Promise<string> {
   const providerCatalog = providers as Record<
@@ -85,13 +88,14 @@ export async function saveModelConfiguration({
     ...(requestStrategy ? { requestStrategy } : {}),
   }
 
-  return await modelManager.upsertModel(modelConfig)
+  return await modelManager.upsertModel(modelConfig, { activateAsMain })
 }
 
 type ApplyPointersParams = {
   modelId: string
   isOnboarding: boolean
   targetPointer?: ModelPointerType
+  activateAsMain?: boolean
   setModelPointerFn?: typeof setModelPointer
   setAllPointersToModelFn?: typeof setAllPointersToModel
 }
@@ -102,7 +106,9 @@ export function applyPointersForNewModel({
   targetPointer,
   setModelPointerFn,
   setAllPointersToModelFn,
+  activateAsMain = true,
 }: ApplyPointersParams) {
+  if (!activateAsMain) return
   const setModelPointerImpl = setModelPointerFn ?? setModelPointer
   const setAllPointersImpl = setAllPointersToModelFn ?? setAllPointersToModel
 

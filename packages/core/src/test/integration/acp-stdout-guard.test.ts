@@ -104,10 +104,14 @@ function createAcpProcess(options: { configDir: string }) {
   const stop = async () => {
     try {
       proc.stdin?.end()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     try {
       proc.kill('SIGTERM')
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   return { proc, send, waitFor, stop, nonJsonLines }

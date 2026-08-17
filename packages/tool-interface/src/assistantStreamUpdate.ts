@@ -9,7 +9,9 @@ export type AssistantStreamUpdateOptions = {
 }
 
 type AssistantStreamUpdatePayload =
-  { type: 'start' } | { type: 'text_delta'; delta: string }
+  | { type: 'start' }
+  | { type: 'thinking_delta'; delta: string }
+  | { type: 'text_delta'; delta: string }
 
 export function emitAssistantStreamUpdate(
   options: AssistantStreamUpdateOptions | undefined,
@@ -27,10 +29,12 @@ export function emitAssistantStreamUpdate(
   const event: AssistantStreamUpdate =
     payload.type === 'start'
       ? { type: 'start', ...metadata }
-      : { type: 'text_delta', delta: payload.delta, ...metadata }
+      : { type: payload.type, delta: payload.delta, ...metadata }
 
   try {
     const result = callback(event)
     if (result) void result.catch(() => {})
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }

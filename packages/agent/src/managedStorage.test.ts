@@ -36,6 +36,7 @@ const baseInput: ManagedAgentInput = {
   whenToUse: 'Review changes for correctness and regressions.',
   systemPrompt: 'Review the requested change and report actionable findings.',
   tools: ['Read', 'Grep'],
+  maxExecutionTimeMs: 45_000,
 }
 
 describe('managed agent storage', () => {
@@ -50,6 +51,7 @@ describe('managed agent storage', () => {
         input: baseInput,
       })
       expect(created.revision).toMatch(/^[a-f0-9]{64}$/)
+      expect(created.maxExecutionTimeMs).toBe(45_000)
       expect(
         listManagedAgents({ source: 'userSettings', cwd: workspace }),
       ).toEqual([created])
@@ -67,6 +69,28 @@ describe('managed agent storage', () => {
           agentType: 'forked-agent',
         }),
       ).toMatchObject({ state: 'found', agent: { forkContext: true } })
+
+      writeFileSync(
+        join(workspace, '.kode', 'agents', 'invalid-timeout-agent.md'),
+        [
+          '---',
+          'name: "invalid-timeout-agent"',
+          'description: "Reject invalid execution deadlines."',
+          'tools: ["Read"]',
+          'maxExecutionTimeMs: 999',
+          '---',
+          '',
+          'Do not silently fall back to a longer deadline.',
+        ].join('\n'),
+        'utf8',
+      )
+      expect(
+        readManagedAgent({
+          source: 'projectSettings',
+          cwd: workspace,
+          agentType: 'invalid-timeout-agent',
+        }),
+      ).toEqual({ state: 'invalid' })
 
       writeFileSync(
         join(workspace, '.kode', 'agents', 'boolean-fork-agent.md'),
@@ -136,6 +160,18 @@ describe('managed agent storage', () => {
       expect(readdirSync(configDir).some(name => name.includes('.tmp.'))).toBe(
         false,
       )
+
+      await expect(
+        createManagedAgent({
+          source: 'userSettings',
+          cwd: workspace,
+          input: {
+            ...baseInput,
+            agentType: 'invalid-deadline',
+            maxExecutionTimeMs: 999,
+          },
+        }),
+      ).rejects.toMatchObject({ reason: 'invalid' })
 
       await deleteManagedAgent({
         source: 'userSettings',

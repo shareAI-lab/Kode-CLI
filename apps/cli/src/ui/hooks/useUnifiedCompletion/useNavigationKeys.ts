@@ -31,7 +31,7 @@ export function useUnifiedCompletionNavigationKeys(args: {
   completeWith: (
     suggestion: UnifiedSuggestion,
     context: CompletionContext,
-  ) => void
+  ) => string | null
   activateCompletion: (
     suggestions: UnifiedSuggestion[],
     context: CompletionContext,
@@ -48,6 +48,8 @@ export function useUnifiedCompletionNavigationKeys(args: {
     typeof setTimeout
   > | null>(null)
   const updateState = args.updateState
+  const inputRef = useRef(args.input)
+  inputRef.current = args.input
 
   const clearDirectoryFollowupTimeout = useCallback(() => {
     if (directoryFollowupTimeoutRef.current === null) return
@@ -208,14 +210,15 @@ export function useUnifiedCompletionNavigationKeys(args: {
 
         clearCompletionTimers()
 
-        args.completeWith(selectedSuggestion, context)
+        const completedInput = args.completeWith(selectedSuggestion, context)
 
         args.resetCompletion()
 
-        if (isDirectory) {
+        if (isDirectory && completedInput !== null) {
           directoryFollowupTimeoutRef.current = setTimeout(() => {
             directoryFollowupTimeoutRef.current = null
             if (!mountedRef.current) return
+            if (inputRef.current !== completedInput) return
 
             const inserted = getPreviewText(selectedSuggestion, context)
             const nextEndPos = context.startPos + inserted.length

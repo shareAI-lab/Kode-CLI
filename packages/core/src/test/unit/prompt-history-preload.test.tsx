@@ -75,4 +75,53 @@ describe('prompt history preload', () => {
     expect(historyReads).toBe(2)
     expect(h.getOutput()).toContain('SCOPE:project-b')
   })
+
+  test('keeps the prompt usable when background history preload fails', async () => {
+    let historyReads = 0
+    const loadHistory = () => {
+      historyReads += 1
+      throw new Error('history unavailable')
+    }
+
+    function HistoryHarness() {
+      const [text, setText] = useState('draft')
+      const { historyIndex, onHistoryUp } = useArrowKeyHistory({
+        current: {
+          text,
+          mode: 'prompt',
+          cursorOffset: text.length,
+          extra: null,
+        },
+        emptyExtra: null,
+        loadHistory,
+        onRestore: snapshot => setText(snapshot.text),
+      })
+      const onHistoryUpRef = useRef(onHistoryUp)
+      onHistoryUpRef.current = onHistoryUp
+
+      useEffect(() => {
+        const historyUpTimer = setTimeout(() => {
+          onHistoryUpRef.current()
+        }, 140)
+
+        return () => clearTimeout(historyUpTimer)
+      }, [])
+
+      return (
+        <Box flexDirection="column">
+          <Text>TEXT:{text}</Text>
+          <Text>INDEX:{historyIndex}</Text>
+        </Box>
+      )
+    }
+
+    const h = createInkTestHarness(<HistoryHarness />)
+    harnessManager.track(h)
+
+    await h.wait(180)
+
+    expect(historyReads).toBe(1)
+    expect(h.getOutput()).toContain('TEXT:draft')
+    expect(h.getOutput()).toContain('INDEX:0')
+  })
 })

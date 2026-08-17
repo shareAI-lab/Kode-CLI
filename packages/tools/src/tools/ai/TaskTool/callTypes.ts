@@ -7,6 +7,7 @@ import type {
 } from '#core/query'
 import type { PermissionMode } from '#core/types/PermissionMode'
 import type { Tool } from '@kode/tool-interface/Tool'
+import type { getKodeAgentSessionForkInfo } from '#protocol/utils/kodeAgentSessionForkInfo'
 
 export type QueryFn = (
   messages: ConversationMessage[],
@@ -39,4 +40,8 @@ export type PreparedTaskToolRun = {
   abortController: AbortController
   readFileTimestamps: Record<string, number>
   startTime: number
+  cwd: string
+  originalCwd: string
+  sessionId: string
+  sessionForkInfo: ReturnType<typeof getKodeAgentSessionForkInfo>
 }

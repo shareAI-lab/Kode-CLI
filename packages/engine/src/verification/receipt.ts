@@ -24,6 +24,18 @@ type BashOutput = {
   returnCodeInterpretation?: unknown
 }
 
+type TaskOutputResult = {
+  retrieval_status?: unknown
+  task?: {
+    task_type?: unknown
+    status?: unknown
+    command?: unknown
+    output?: unknown
+    error?: unknown
+    exitCode?: unknown
+  } | null
+}
+
 const CONTROL_OPERATOR_RE = /[;&|`$()<>\r\n]/
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=[^\s]+$/
 const INFORMATION_ONLY_FLAGS = new Set(['--help', '-h', '--version', '-v'])
@@ -239,6 +251,20 @@ function classifyVerificationStatus(output: BashOutput): VerificationStatus {
   return 'passed'
 }
 
+function classifyBackgroundVerificationStatus(
+  task: NonNullable<TaskOutputResult['task']>,
+): VerificationStatus {
+  if (task.status === 'running' || task.status === 'pending') return 'started'
+  if (task.status === 'killed') return 'interrupted'
+  if (
+    task.status === 'failed' ||
+    (typeof task.exitCode === 'number' && task.exitCode !== 0)
+  ) {
+    return 'failed'
+  }
+  return task.status === 'completed' ? 'passed' : 'blocked'
+}
+
 export function createVerificationReceipt(args: {
   toolName: string
   isTrustedExecutionTool: boolean
@@ -247,7 +273,38 @@ export function createVerificationReceipt(args: {
   output: unknown
   now?: Date
 }): VerificationReceipt | null {
-  if (args.toolName !== 'Bash' || !args.isTrustedExecutionTool) return null
+  if (!args.isTrustedExecutionTool) return null
+
+  if (args.toolName === 'TaskOutput') {
+    if (!args.output || typeof args.output !== 'object') return null
+    const task = (args.output as TaskOutputResult).task
+    if (
+      !task ||
+      task.task_type !== 'local_bash' ||
+      typeof task.command !== 'string'
+    ) {
+      return null
+    }
+    const normalized = normalizeCommand(task.command)
+    const kind = normalized ? classifyVerificationCommand(normalized) : null
+    if (!normalized || !kind) return null
+    const outputMaterial = [
+      readString(task.output),
+      readString(task.error),
+      typeof task.exitCode === 'number' ? String(task.exitCode) : '',
+    ].join('\u0000')
+    return {
+      version: 1,
+      kind,
+      status: classifyBackgroundVerificationStatus(task),
+      toolUseId: args.toolUseId,
+      commandDigest: digest(normalized),
+      outputDigest: digest(outputMaterial),
+      recordedAt: (args.now ?? new Date()).toISOString(),
+    }
+  }
+
+  if (args.toolName !== 'Bash') return null
   const command = args.input.command
   if (typeof command !== 'string') return null
   const normalized = normalizeCommand(command)

@@ -6,10 +6,15 @@
   "dependencies": {
     "@kode/config": "workspace:*",
     "@kode/core": "workspace:*",
+    "@kode/goals": "workspace:*",
     "@kode/hooks": "workspace:*",
+    "@kode/memory": "workspace:*",
+    "@kode/message-utils": "workspace:*",
     "@kode/permissions": "workspace:*",
     "@kode/protocol": "workspace:*",
     "@kode/runtime": "workspace:*",
+    "@kode/runs": "workspace:*",
+    "@kode/tasks": "workspace:*",
     "@kode/tool-interface": "workspace:*"
   }
 }

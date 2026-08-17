@@ -108,6 +108,17 @@ export function __computeCompletionRefreshForTests(args: {
   }
 }
 
+export function __shouldGenerateCompletionRefreshSuggestionsForTests(args: {
+  isEnabled: boolean
+  isActive: boolean
+  context: CompletionContext | null
+  isPreviewActive: boolean
+}): boolean {
+  return Boolean(
+    args.isEnabled && args.isActive && args.context && !args.isPreviewActive,
+  )
+}
+
 export function __computeCompletionActivationForTests(args: {
   state: CompletionState
   suggestions: UnifiedSuggestion[]
@@ -304,9 +315,18 @@ export function useUnifiedCompletion({
 
   const isCompletionPreviewActive = state.preview?.isActive ?? false
   useEffect(() => {
-    if (!state.context) return
+    if (
+      !__shouldGenerateCompletionRefreshSuggestionsForTests({
+        isEnabled,
+        isActive: state.isActive,
+        context: state.context,
+        isPreviewActive: isCompletionPreviewActive,
+      })
+    ) {
+      return
+    }
 
-    const nextSuggestions = generateSuggestions(state.context)
+    const nextSuggestions = generateSuggestions(state.context!)
     const result = __computeCompletionRefreshForTests({
       isEnabled,
       state: {
@@ -392,6 +412,7 @@ export function useUnifiedCompletion({
     selectedIndex: state.selectedIndex,
     isActive: state.isActive && isEnabled,
     emptyDirMessage: state.emptyDirMessage,
+    activeContext: state.context,
     resetCompletion,
   }
 }

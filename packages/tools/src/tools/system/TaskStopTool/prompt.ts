@@ -7,4 +7,5 @@ export const PROMPT = `
 - Returns a success or failure status
 - Use this tool when you need to terminate a long-running task
 - Task IDs can be found using the /tasks command
+- Stopping is immediate cancellation; use TaskGuide when a running Agent should continue with refined instructions
 `

@@ -68,7 +68,9 @@ export function updateHookTranscriptForMessages(
   const dir = join(tmpdir(), 'kode-hooks-transcripts')
   try {
     mkdirSync(dir, { recursive: true })
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 
   if (!state.transcriptPath) {
     state.transcriptPath = join(dir, `${sessionId}.transcript.txt`)
@@ -138,7 +140,9 @@ export function updateHookTranscriptForMessages(
 
   try {
     writeFileSync(state.transcriptPath, lines.join('\n') + '\n', 'utf8')
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }
 export function drainHookSystemPromptAdditions(
   toolUseContext: unknown,

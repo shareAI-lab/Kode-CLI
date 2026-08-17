@@ -14,9 +14,13 @@ import type { ModelProfile } from '../../schema'
 import {
   clearSessionApiKey,
   getCredentialStorePath,
+  getOAuthCredentialBinding,
+  getOAuthCredentialId,
   getModelCredentialStatus,
+  hasOAuthCredentialBinding,
   readApiKey,
   readApiKeyFromEnvironment,
+  storeOAuthCredentialBinding,
   storeApiKey,
 } from '../../models/credentials'
 
@@ -107,6 +111,70 @@ describe('model credentials', () => {
       'Kode credential store',
     )
     expect(readFileSync(credentialPath, 'utf8')).toBe('{not valid json}')
+  })
+
+  test('persists an OAuth binding without storing a token and resolves it after restart', () => {
+    const root = useTemporaryCredentialDirectory()
+    const credentialId = storeOAuthCredentialBinding('grok-build', {
+      accountLabel: 'grok-user',
+      verifiedAt: 123,
+    })
+    const credentialPath = getCredentialStorePath()
+    const persisted = readFileSync(credentialPath, 'utf8')
+
+    expect(credentialId).toBe(getOAuthCredentialId('grok-build'))
+    expect(persisted).toContain('oauth:grok-build')
+    expect(persisted).toContain('official-runtime')
+    expect(persisted).not.toContain('access_token')
+    expect(persisted).not.toContain('refresh_token')
+    expect(getOAuthCredentialBinding(credentialId)).toEqual({
+      provider: 'grok-build',
+      credentialStore: 'official-runtime',
+      createdAt: 123,
+      lastVerifiedAt: 123,
+      accountLabel: 'grok-user',
+    })
+
+    // Simulate a new Kode process: the disk-backed binding remains readable.
+    expect(hasOAuthCredentialBinding(credentialId, 'grok-build')).toBe(true)
+    const profile: ModelProfile = {
+      name: 'Grok OAuth',
+      provider: 'grok-build',
+      modelName: 'grok-build:grok-4.6',
+      externalModelId: 'grok-4.6',
+      oauthCredentialId: credentialId,
+      apiKey: '',
+      maxTokens: 1024,
+      contextLength: 500_000,
+      isActive: true,
+      createdAt: 1,
+    }
+    expect(getModelCredentialStatus(profile)).toEqual({
+      success: true,
+      apiKey: '',
+    })
+    expect(root).toBeDefined()
+  })
+
+  test('fails closed when an OAuth profile has no matching binding', () => {
+    useTemporaryCredentialDirectory()
+    const profile: ModelProfile = {
+      name: 'Missing Grok OAuth',
+      provider: 'grok-build',
+      modelName: 'grok-build:grok-4.6',
+      externalModelId: 'grok-4.6',
+      oauthCredentialId: 'oauth:grok-build',
+      apiKey: '',
+      maxTokens: 1024,
+      contextLength: 500_000,
+      isActive: true,
+      createdAt: 1,
+    }
+
+    expect(getModelCredentialStatus(profile)).toMatchObject({
+      success: false,
+      error: expect.stringContaining('OAuth credential binding is missing'),
+    })
   })
 
   test('refuses a symlinked credential store', () => {

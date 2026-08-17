@@ -3,6 +3,9 @@ import { launchExternalEditor } from '#cli-utils/externalEditor'
 
 type InlineMessageState = { show: boolean; text?: string }
 
+const EXTERNAL_EDITOR_FAILED_MESSAGE =
+  'Unable to open the external editor. Check $EDITOR and try again.'
+
 export function useExternalEdit(args: {
   input: string
   isLoading: boolean
@@ -20,6 +23,7 @@ export function useExternalEdit(args: {
     setMessage,
   } = args
   const [isEditingExternally, setIsEditingExternally] = useState(false)
+  const isEditingExternallyRef = useRef(false)
   const mountedRef = useRef(true)
   const messageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -49,7 +53,15 @@ export function useExternalEdit(args: {
   }, [clearMessageTimeout])
 
   const handleExternalEdit = useCallback(async () => {
-    if (isEditingExternally || isLoading || isDisabled) return
+    if (
+      isEditingExternallyRef.current ||
+      isEditingExternally ||
+      isLoading ||
+      isDisabled
+    )
+      return
+
+    isEditingExternallyRef.current = true
     setIsEditingExternally(true)
     clearMessageTimeout()
     setMessage({ show: true, text: 'Opening external editor...' })
@@ -75,7 +87,15 @@ export function useExternalEdit(args: {
         })
         scheduleMessageDismiss(4000)
       }
+    } catch {
+      if (!mountedRef.current) return
+      setMessage({
+        show: true,
+        text: EXTERNAL_EDITOR_FAILED_MESSAGE,
+      })
+      scheduleMessageDismiss(4000)
     } finally {
+      isEditingExternallyRef.current = false
       if (mountedRef.current) setIsEditingExternally(false)
     }
   }, [

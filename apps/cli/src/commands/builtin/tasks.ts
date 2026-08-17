@@ -9,7 +9,7 @@ const tasks = {
   name: 'tasks',
   description: 'Inspect local background tasks (agents and shells)',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   disableNonInteractive: true,
   aliases: ['task', 'bashes'],

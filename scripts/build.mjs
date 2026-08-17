@@ -18,7 +18,7 @@ async function buildNodeRuntime() {
     entryPoints: {
       index: 'apps/cli/src/dispatch.ts',
       'entrypoints/cli': 'apps/cli/src/entrypoints/cli.ts',
-      'entrypoints/mcp': 'packages/core/src/mcp/index.ts',
+      'entrypoints/mcp': 'packages/mcp/src/index.ts',
       'entrypoints/daemon': 'apps/cli/src/entrypoints/daemon.ts',
     },
     outdir: OUT_DIR,

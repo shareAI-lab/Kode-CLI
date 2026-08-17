@@ -211,8 +211,7 @@ describe('PromptInputView status line layout', () => {
   })
 
   test('lets priority messages use the full status line', async () => {
-    const pasteGuardMessage =
-      'Paste detected. Added as a placeholder; press Enter to send.'
+    const pasteGuardMessage = 'Paste detected. Press Enter again to send.'
     const harness = createHarness(
       renderPromptInputView({
         customStatusLineActive: false,
@@ -245,7 +244,7 @@ describe('PromptInputView status line layout', () => {
 
   test('keeps long default status and model info on one bounded row after resize', async () => {
     const longDefaultStatusLine =
-      'Chat \u00b7 / commands \u00b7 & bg \u00b7 Tools Safe auto (shift+tab)'
+      'Chat \u00b7 / commands \u00b7 & bg \u00b7 Tools Edit (shift+tab)'
     const harness = createHarness(
       renderPromptInputView({
         customStatusLineActive: false,

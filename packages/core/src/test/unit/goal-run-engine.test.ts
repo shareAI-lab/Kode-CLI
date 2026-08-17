@@ -163,6 +163,44 @@ describe('GoalRun engine loop', () => {
     expect(new GoalService().listGoals()[0]?.status).toBe('running')
   })
 
+  test('does not reuse pre-goal evidence when the objective itself requires tests', async () => {
+    const sessionId = '7e9b6c51-f441-4bb7-8ccc-92adfe45c3fd'
+    startGoal({
+      cwd: projectDir,
+      sessionId,
+      objective: 'Implement the change and run the focused tests',
+      maxIterations: 2,
+    })
+    __setLlmLazyQueryQuickLoaderForTests(
+      async () =>
+        (async () =>
+          createAssistantMessage(
+            JSON.stringify({ action: 'complete', reason: 'Looks done.' }),
+          )) as never,
+    )
+
+    const result = await evaluateActiveGoalAfterTurn({
+      cwd: projectDir,
+      sessionId,
+      assistantText: 'An older test run passed.',
+      verificationEvidence: [
+        {
+          version: 1,
+          kind: 'test',
+          status: 'passed',
+          toolUseId: 'old-test',
+          commandDigest: 'a'.repeat(16),
+          outputDigest: 'b'.repeat(16),
+          recordedAt: '2000-01-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    expect(result.action).toBe('continue')
+    expect(result.reason).toContain('test')
+    expect(new GoalService().listGoals()[0]?.status).toBe('running')
+  })
+
   test('passes fresh engine verification evidence to the independent goal evaluator', async () => {
     const sessionId = '7e9b6c51-f441-4bb7-8ccc-92adfe45c3fd'
     startGoal({

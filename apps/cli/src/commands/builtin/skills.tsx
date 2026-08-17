@@ -21,7 +21,7 @@ const skills = {
   name: 'skills',
   description: 'List available skills',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call() {
     const commands = await loadCustomCommands()
     const skillCommands = commands.filter(isSkill)

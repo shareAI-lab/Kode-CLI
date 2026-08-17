@@ -102,7 +102,13 @@ export function renderTaskToolResultMessage(
       )}
       <Box flexDirection="row">
         <Text>&nbsp;&nbsp;⎿ &nbsp;</Text>
-        <Text dimColor>Done ({summary.join(' · ')})</Text>
+        <Text
+          color={output.status === 'failed' ? theme.error : undefined}
+          dimColor={output.status !== 'failed'}
+        >
+          {output.status === 'failed' ? 'Failed' : 'Done'} (
+          {summary.join(' · ')})
+        </Text>
       </Box>
     </Box>
   )
@@ -111,7 +117,10 @@ export function renderTaskToolResultMessage(
 export function renderTaskToolResultForAssistant(output: Output): string {
   if (output.status === 'async_launched')
     return asyncLaunchMessage(output.agentId)
-  return output.content.map(b => b.text).join('\n')
+  const text = output.content.map(b => b.text).join('\n')
+  return output.status === 'failed'
+    ? `Subagent failed: ${output.error}${text ? `\n\n${text}` : ''}`
+    : text
 }
 
 export function buildAgentIdBlock(agentId: string): TextBlock {

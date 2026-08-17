@@ -15,8 +15,10 @@ function assistantWithUsage(args: {
   output: number
   cacheCreate?: number
   cacheRead?: number
+  costUSD?: number
 }) {
   const message = createAssistantMessage('ok')
+  message.costUSD = args.costUSD ?? 0
   ;(message.message as unknown as { usage: Record<string, number> }).usage = {
     input_tokens: args.input,
     output_tokens: args.output,
@@ -28,13 +30,22 @@ function assistantWithUsage(args: {
 
 describe('PromptInput status line model', () => {
   test('summarizes assistant usage in one pass with latest usage as current', () => {
+    const assistantWithoutUsage = createAssistantMessage('no usage metadata')
+    assistantWithoutUsage.costUSD = 0.5
     const usage = getPromptStatusLineUsage([
-      assistantWithUsage({ input: 10, output: 5 }),
-      assistantWithUsage({ input: 20, output: 7, cacheRead: 3 }),
+      assistantWithoutUsage,
+      assistantWithUsage({ input: 10, output: 5, costUSD: 1.25 }),
+      assistantWithUsage({
+        input: 20,
+        output: 7,
+        cacheRead: 3,
+        costUSD: 2.5,
+      }),
     ])
 
     expect(usage.totalInputTokens).toBe(30)
     expect(usage.totalOutputTokens).toBe(12)
+    expect(usage.totalCostUSD).toBe(4.25)
     expect(usage.currentUsage).toMatchObject({
       input_tokens: 20,
       output_tokens: 7,
@@ -70,7 +81,7 @@ describe('PromptInput status line model', () => {
       messageLogName: 'log',
       forkNumber: 2,
       mode: 'prompt',
-      permissionMode: 'default',
+      permissionMode: 'cautious',
       editorMode: 'vim',
       vimMode: 'NORMAL',
     }) as any

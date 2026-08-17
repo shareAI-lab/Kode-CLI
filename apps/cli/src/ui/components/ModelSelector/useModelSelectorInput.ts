@@ -51,6 +51,8 @@ export function useModelSelectorInput(args: {
   handleProviderBaseUrlSubmit: (url: string) => void
   handleCustomModelSubmit: (model: string) => void
   handleConfirmation: () => Promise<void>
+  activateAsMain?: boolean
+  setActivateAsMain?: (value: boolean | ((prev: boolean) => boolean)) => void
   setValidationError: (value: string | null) => void
   handleConnectionTest: () => void
   handleContextLengthSubmit: () => void
@@ -224,6 +226,10 @@ export function useModelSelectorInput(args: {
     }
 
     if (args.currentScreen === 'confirmation') {
+      if (isUp || isDown) {
+        args.setActivateAsMain?.(current => !current)
+        return true
+      }
       if (inputChar.toLowerCase() === 'a') {
         args.setActiveFieldIndex(0)
         args.navigateTo('modelParams')

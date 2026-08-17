@@ -13,6 +13,7 @@ export type AssistantTokenUsage = {
 export type PromptStatusLineUsage = {
   totalInputTokens: number
   totalOutputTokens: number
+  totalCostUSD: number
   currentUsage: AssistantTokenUsage | null
 }
 
@@ -57,9 +58,12 @@ export function getPromptStatusLineUsage(
 ): PromptStatusLineUsage {
   let totalInputTokens = 0
   let totalOutputTokens = 0
+  let totalCostUSD = 0
   let currentUsage: AssistantTokenUsage | null = null
 
   for (const message of messages) {
+    if (message.type === 'assistant') totalCostUSD += message.costUSD
+
     const usage = getAssistantTokenUsage(message)
     if (!usage) continue
     totalInputTokens += usage.input_tokens
@@ -67,7 +71,7 @@ export function getPromptStatusLineUsage(
     currentUsage = usage
   }
 
-  return { totalInputTokens, totalOutputTokens, currentUsage }
+  return { totalInputTokens, totalOutputTokens, totalCostUSD, currentUsage }
 }
 
 export function buildPromptStatusLineInput(args: {

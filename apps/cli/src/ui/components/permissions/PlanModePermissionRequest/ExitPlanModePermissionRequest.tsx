@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import figures from 'figures'
 import type { ToolUseConfirm } from '#ui-ink/components/permissions/PermissionRequest'
 import { getTheme } from '#core/utils/theme'
@@ -131,6 +131,10 @@ export function ExitPlanModePermissionRequest({
   })
   const [planSaved, setPlanSaved] = useState(false)
   const [editorLabel, setEditorLabel] = useState(() => getExternalEditorLabel())
+  const [editorStatus, setEditorStatus] = useState<{
+    kind: 'opening' | 'error'
+    message: string
+  } | null>(null)
   const [rejectDraft, setRejectDraft] = useState('')
   const [selectedAllowedPromptIndices, setSelectedAllowedPromptIndices] =
     useState<number[]>(() =>
@@ -143,6 +147,16 @@ export function ExitPlanModePermissionRequest({
   const [remoteExitMessage, setRemoteExitMessage] = useState<string | null>(
     null,
   )
+  const isOpeningEditorRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningEditorRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!planSaved) return undefined
@@ -159,8 +173,6 @@ export function ExitPlanModePermissionRequest({
     [planText, planViewportWidth],
   )
   const showExitWithoutPlan = !planExists || planText.trim().length === 0
-  const bypassAvailable =
-    toolUseConfirm.toolUseContext.options?.safeMode !== true
   const pushToRemoteAvailable = useMemo(
     () => isPlanExitPushToRemoteEnabled(),
     [],
@@ -168,13 +180,13 @@ export function ExitPlanModePermissionRequest({
   const swarmAvailable = useMemo(() => isPlanExitSwarmEnabled(), [])
   const options = useMemo(() => {
     return getExitPlanModeOptions({
-      bypassAvailable,
       pushToRemoteAvailable,
       swarmAvailable,
       teammateCount: swarmTeammateCount,
+      quickSelectLabel: modeCycleShortcut.displayText,
     })
   }, [
-    bypassAvailable,
+    modeCycleShortcut.displayText,
     pushToRemoteAvailable,
     swarmAvailable,
     swarmTeammateCount,
@@ -316,17 +328,13 @@ export function ExitPlanModePermissionRequest({
 
   const handleApprove = (value: ExitPlanModeOptionValue) => {
     let updatedInput: { [key: string]: unknown } | undefined
-    const clearContext =
-      value === 'yes-bypass-permissions' || value === 'yes-accept-edits'
+    const clearContext = value === 'yes-accept-edits'
 
-    let nextMode: PermissionMode = 'default'
+    let nextMode: PermissionMode = 'cautious'
     switch (value) {
       case 'yes-push-to-remote':
         startPushToRemoteFlow()
         return
-      case 'yes-bypass-permissions':
-        nextMode = 'bypassPermissions'
-        break
       case 'yes-accept-edits':
         nextMode = 'acceptEdits'
         break
@@ -338,19 +346,11 @@ export function ExitPlanModePermissionRequest({
           teammateCount: swarmTeammateCount,
         }
         break
-      case 'yes-launch-swarm-bypass':
-        nextMode = 'bypassPermissions'
-        updatedInput = {
-          ...toolUseConfirm.input,
-          launchSwarm: true,
-          teammateCount: swarmTeammateCount,
-        }
-        break
       case 'yes-accept-edits-keep-context':
-        nextMode = bypassAvailable ? 'bypassPermissions' : 'acceptEdits'
+        nextMode = 'acceptEdits'
         break
-      case 'yes-default-keep-context':
-        nextMode = 'default'
+      case 'yes-cautious-keep-context':
+        nextMode = 'cautious'
         break
       case 'no':
         return
@@ -374,6 +374,73 @@ export function ExitPlanModePermissionRequest({
     }
     onDone()
   }
+
+  const openPlanInEditor = useCallback(async () => {
+    if (isOpeningEditorRef.current) return
+
+    isOpeningEditorRef.current = true
+    setEditorStatus({ kind: 'opening', message: 'Opening external editor…' })
+
+    try {
+      if (!planExists) {
+        const initial = planText === planPlaceholder() ? '# Plan\n' : planText
+        try {
+          writeFileSync(planFilePath, initial, 'utf-8')
+        } catch {
+          const edited = await launchExternalEditor(initial)
+          if (!mountedRef.current) return
+
+          if ('editorLabel' in edited && edited.editorLabel) {
+            setEditorLabel(edited.editorLabel)
+          }
+          if (edited.text !== null) {
+            setPlanText(edited.text)
+            setPlanSaved(true)
+            setEditorStatus(null)
+          } else {
+            setEditorStatus({
+              kind: 'error',
+              message:
+                ('error' in edited ? edited.error?.message : undefined) ??
+                'Unable to open the external editor. Check $EDITOR and try again.',
+            })
+          }
+          return
+        }
+      }
+
+      const opened = await launchExternalEditorForFilePath(planFilePath)
+      if (!mountedRef.current) return
+
+      if ('editorLabel' in opened && opened.editorLabel) {
+        setEditorLabel(opened.editorLabel)
+      }
+      if (opened.ok) {
+        const next = readPlanFile(undefined, conversationKey)
+        setPlanExists(next.exists)
+        setPlanText(next.exists ? next.content : planPlaceholder())
+        setPlanSaved(true)
+        setEditorStatus(null)
+      } else {
+        setEditorStatus({
+          kind: 'error',
+          message:
+            opened.error.message ||
+            'Unable to open the external editor. Check $EDITOR and try again.',
+        })
+      }
+    } catch {
+      if (mountedRef.current) {
+        setEditorStatus({
+          kind: 'error',
+          message:
+            'Unable to open the external editor. Check $EDITOR and try again.',
+        })
+      }
+    } finally {
+      isOpeningEditorRef.current = false
+    }
+  }, [conversationKey, planExists, planFilePath, planText])
 
   useKeypress((input, key) => {
     if (remoteExitState !== 'default') {
@@ -404,7 +471,7 @@ export function ExitPlanModePermissionRequest({
 
       if (key.return) {
         if (focusedOptionIndex === 0) {
-          applyPermissionMode('default')
+          applyPermissionMode('acceptEdits')
           toolUseConfirm.onAllow('temporary')
           onDone()
           return true
@@ -419,9 +486,22 @@ export function ExitPlanModePermissionRequest({
     }
 
     if (focusSection === 'options' && modeCycleShortcut.check(input, key)) {
-      const quickValue: ExitPlanModeOptionValue = 'yes-accept-edits'
-      handleApprove(quickValue)
-      return true
+      // Quick-select only fires while an approval option is focused. When the
+      // user moved focus to the "No, keep planning" input, shift+tab must not
+      // silently approve and switch permission modes behind their back.
+      const focusedOption = options[focusedOptionIndex]
+      // Non-input options are approval options by construction: the only
+      // "no" option is the typed input row.
+      const isApprovalOption =
+        focusedOption !== undefined &&
+        'value' in focusedOption &&
+        focusedOption.type !== 'input'
+      if (isApprovalOption) {
+        const quickValue: ExitPlanModeOptionValue = 'yes-accept-edits'
+        handleApprove(quickValue)
+        return true
+      }
+      return undefined
     }
 
     if (key.pageUp && !showExitWithoutPlan) {
@@ -493,7 +573,6 @@ export function ExitPlanModePermissionRequest({
     if (key.tab && !key.shift && focusSection === 'options') {
       const swarmValues: ExitPlanModeOptionValue[] = [
         'yes-launch-swarm-accept-edits',
-        'yes-launch-swarm-bypass',
       ]
       if (
         focusedOption &&
@@ -557,36 +636,8 @@ export function ExitPlanModePermissionRequest({
 
     if (!(key.ctrl && input.toLowerCase() === 'g')) return undefined
 
-    void (async () => {
-      if (!planExists) {
-        const initial = planText === planPlaceholder() ? '# Plan\n' : planText
-        try {
-          writeFileSync(planFilePath, initial, 'utf-8')
-        } catch {
-          const edited = await launchExternalEditor(initial)
-          if ('editorLabel' in edited && edited.editorLabel) {
-            setEditorLabel(edited.editorLabel)
-          }
-          if (edited.text !== null) {
-            setPlanText(edited.text)
-            setPlanSaved(true)
-          }
-          return
-        }
-      }
-
-      const opened = await launchExternalEditorForFilePath(planFilePath)
-      if ('editorLabel' in opened && opened.editorLabel) {
-        setEditorLabel(opened.editorLabel)
-      }
-      if (opened.ok) {
-        const next = readPlanFile(undefined, conversationKey)
-        setPlanExists(next.exists)
-        setPlanText(next.exists ? next.content : planPlaceholder())
-        setPlanSaved(true)
-      }
-    })()
-    return undefined
+    void openPlanInEditor()
+    return true
   })
 
   if (remoteExitState === 'checking') {
@@ -738,6 +789,19 @@ export function ExitPlanModePermissionRequest({
                 </Box>
               ) : null}
             </Box>
+          ) : null}
+
+          {editorStatus ? (
+            <Text
+              color={
+                editorStatus.kind === 'error'
+                  ? theme.error
+                  : theme.secondaryText
+              }
+              wrap="truncate-end"
+            >
+              {editorStatus.message}
+            </Text>
           ) : null}
 
           {allowedPrompts ? (

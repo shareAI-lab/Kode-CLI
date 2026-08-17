@@ -1,5 +1,5 @@
 import type { RawData } from 'ws'
-import { isUuid } from '@kode/core/utils/uuid'
+import { isUuid } from '@kode/runtime'
 
 export type ClientWsMessage =
   | {

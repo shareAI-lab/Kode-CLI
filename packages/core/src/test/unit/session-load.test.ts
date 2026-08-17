@@ -252,6 +252,14 @@ describe('session loader (projects/*.jsonl)', () => {
             exitCode: 0,
             interrupted: false,
           },
+          toolUseMetadata: {
+            workspaceMutation: {
+              version: 1,
+              toolUseId: 'toolu_bash1',
+              scope: 'none',
+              basis: 'declared',
+            },
+          },
         }),
       ].join('\n') + '\n'
     writeFileSync(path, lines, 'utf8')
@@ -272,6 +280,14 @@ describe('session loader (projects/*.jsonl)', () => {
       stderr: '',
       exitCode: 0,
       interrupted: false,
+    })
+    expect(toolResultMsg.toolUseResult.metadata).toEqual({
+      workspaceMutation: {
+        version: 1,
+        toolUseId: 'toolu_bash1',
+        scope: 'none',
+        basis: 'declared',
+      },
     })
   })
 

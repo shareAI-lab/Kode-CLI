@@ -1,10 +1,12 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from 'fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'path'
 import { homedir } from 'os'
 
@@ -68,7 +70,12 @@ export function getAgentFilePath(agent: AgentConfig): string {
 export function ensureDirectoryExists(location: AgentLocation): string {
   const dir = getAgentDirectory(location)
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+  }
+  try {
+    chmodSync(dir, 0o700)
+  } catch {
+    // Best-effort on filesystems without POSIX mode support.
   }
   return dir
 }
@@ -108,16 +115,27 @@ export async function saveAgent(
   )
 
   try {
-    writeFileSync(tempFile, content, { encoding: 'utf-8', flag: 'wx' })
+    writeFileSync(tempFile, content, {
+      encoding: 'utf-8',
+      flag: 'wx',
+      mode: 0o600,
+    })
 
     if (throwIfExists && (existsSync(filePath) || existsSync(legacyPath))) {
       try {
         unlinkSync(tempFile)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       throw new Error(`Agent file already exists: ${filePath}`)
     }
 
     renameSync(tempFile, filePath)
+    try {
+      chmodSync(filePath, 0o600)
+    } catch {
+      // Best-effort on filesystems without POSIX mode support.
+    }
   } catch (error) {
     try {
       if (existsSync(tempFile)) {
@@ -156,13 +174,40 @@ export async function updateAgent(
     systemPrompt,
     model,
     color,
+    {
+      disallowedTools: agent.disallowedTools,
+      skills: agent.skills,
+      permissionMode: agent.permissionMode,
+      forkContext: agent.forkContext,
+      maxExecutionTimeMs: agent.maxExecutionTimeMs,
+    },
   )
 
   const location = agent.location as AgentLocation
   const primaryPath = getPrimaryAgentFilePath(location, agent.agentType)
 
   ensureDirectoryExists(location)
-  writeFileSync(primaryPath, content, { encoding: 'utf-8', flag: 'w' })
+  const temporaryPath = `${primaryPath}.tmp.${process.pid}.${randomUUID()}`
+  try {
+    writeFileSync(temporaryPath, content, {
+      encoding: 'utf-8',
+      flag: 'wx',
+      mode: 0o600,
+    })
+    renameSync(temporaryPath, primaryPath)
+    try {
+      chmodSync(primaryPath, 0o600)
+    } catch {
+      // Best-effort on filesystems without POSIX mode support.
+    }
+  } catch (error) {
+    try {
+      unlinkSync(temporaryPath)
+    } catch {
+      // Best-effort cleanup.
+    }
+    throw error
+  }
 }
 
 export async function deleteAgent(agent: AgentConfig): Promise<void> {

@@ -20,6 +20,7 @@ export type SessionJsonlEntry =
       type: 'user'
       message: any
       toolUseResult?: any
+      toolUseMetadata?: any
     })
   | (JsonlEnvelopeBase & {
       type: 'assistant'

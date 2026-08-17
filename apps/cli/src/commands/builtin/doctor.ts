@@ -7,7 +7,7 @@ const doctor: Command = {
   name: 'doctor',
   description: `Checks the health of your ${PRODUCT_NAME} installation`,
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   userFacingName() {
     return 'doctor'

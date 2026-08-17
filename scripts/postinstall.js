@@ -18,13 +18,17 @@ const {
 function safeLog(line) {
   try {
     console.log(line)
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }
 
 function safeWarn(line) {
   try {
     console.warn(line)
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }
 
 function readPackageJson() {
@@ -82,7 +86,9 @@ function downloadFile(url, destPath, redirectCount = 0) {
         file.on('error', err => {
           try {
             fs.unlinkSync(tmpPath)
-          } catch { /* no-op */ }
+          } catch {
+            /* no-op */
+          }
           reject(err)
         })
       },
@@ -121,7 +127,9 @@ async function maybeInstallBinary() {
     if (process.platform !== 'win32') {
       try {
         chmodSync(dest, 0o755)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
     safeLog(`✅ Kode: native binary ready at ${dest}`)
   } catch (err) {

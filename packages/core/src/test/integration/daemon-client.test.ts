@@ -46,7 +46,9 @@ describe('daemon client SDK', () => {
     } finally {
       try {
         client.close()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       daemon.stop()
     }
   }, 20_000)

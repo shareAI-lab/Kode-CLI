@@ -17,7 +17,7 @@ const browser = {
   description: 'Show browser automation safety status',
   argumentHint: '[status]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args: string) {
     const action = args.trim().toLowerCase()

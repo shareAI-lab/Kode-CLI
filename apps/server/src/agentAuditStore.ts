@@ -61,5 +61,7 @@ export function appendAgentAuditRecord(
         mode: 0o600,
       },
     )
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }

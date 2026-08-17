@@ -178,8 +178,8 @@ describe('serveNode request limits', () => {
         ].join('\r\n'),
       )
 
-      expect(response).toContain('413 Payload Too Large')
-      expect(response).toContain('Payload Too Large')
+      expect(response).toContain('413')
+      expect(response).toContain('Request body exceeds the size limit')
       expect(routeCalls).toBe(0)
     } finally {
       server.stop(true)
@@ -216,7 +216,8 @@ describe('serveNode request limits', () => {
         ].join('\r\n'),
       )
 
-      expect(response).toContain('413 Payload Too Large')
+      expect(response).toContain('413')
+      expect(response).toContain('Request body exceeds the size limit')
       expect(routeCalls).toBe(0)
     } finally {
       server.stop(true)

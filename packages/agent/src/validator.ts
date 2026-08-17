@@ -121,13 +121,33 @@ function qP(value: unknown): string[] {
 }
 
 const VALID_PERMISSION_MODES = [
-  'default',
   'acceptEdits',
+  'cautious',
   'plan',
+  'yolo',
+  'default',
   'bypassPermissions',
   'dontAsk',
   'delegate',
 ] as const
+
+function normalizeAgentPermissionMode(
+  mode: (typeof VALID_PERMISSION_MODES)[number],
+): AgentPermissionMode {
+  switch (mode) {
+    case 'acceptEdits':
+    case 'cautious':
+    case 'plan':
+      return mode
+    case 'yolo':
+    case 'bypassPermissions':
+      return 'acceptEdits'
+    case 'default':
+    case 'dontAsk':
+    case 'delegate':
+      return 'cautious'
+  }
+}
 
 function sourceToLocation(source: AgentSource): AgentLocation {
   switch (source) {
@@ -194,6 +214,25 @@ function parseAgentFromLoadedMarkdown(
     }
     const forkContext = forkContextValue === true || forkContextValue === 'true'
 
+    const maxExecutionTimeRaw =
+      fm.maxExecutionTimeMs ??
+      fm['max-execution-time-ms'] ??
+      fm['max_execution_time_ms']
+    const maxExecutionTimeMs =
+      typeof maxExecutionTimeRaw === 'number' &&
+      Number.isSafeInteger(maxExecutionTimeRaw) &&
+      maxExecutionTimeRaw >= 1_000 &&
+      maxExecutionTimeRaw <= 3_600_000
+        ? maxExecutionTimeRaw
+        : undefined
+    if (maxExecutionTimeRaw !== undefined && maxExecutionTimeMs === undefined) {
+      debugLogger.warn('AGENT_LOADER_INVALID_EXECUTION_TIMEOUT', {
+        filePath: options.filePath,
+        maxExecutionTimeMs: String(maxExecutionTimeRaw),
+      })
+      return null
+    }
+
     if (forkContext && model && model !== 'inherit') {
       debugLogger.warn('AGENT_LOADER_FORK_CONTEXT_MODEL_OVERRIDE', {
         filePath: options.filePath,
@@ -246,9 +285,14 @@ function parseAgentFromLoadedMarkdown(
       ...(color ? { color } : {}),
       ...(model ? { model: model as AgentModel } : {}),
       ...(permissionModeIsValid
-        ? { permissionMode: permissionModeValue as AgentPermissionMode }
+        ? {
+            permissionMode: normalizeAgentPermissionMode(
+              permissionModeValue as (typeof VALID_PERMISSION_MODES)[number],
+            ),
+          }
         : {}),
       ...(forkContext ? { forkContext: true } : {}),
+      ...(maxExecutionTimeMs ? { maxExecutionTimeMs } : {}),
     }
 
     return agent
@@ -285,6 +329,7 @@ const agentJsonSchema = z.object({
   prompt: z.string().min(1, 'Prompt cannot be empty'),
   model: z.string().optional(),
   permissionMode: z.enum(VALID_PERMISSION_MODES).optional(),
+  maxExecutionTimeMs: z.number().int().min(1_000).max(3_600_000).optional(),
 })
 
 const agentsJsonSchema = z.record(z.string(), agentJsonSchema)
@@ -316,7 +361,14 @@ function parseAgentFromJson(
     location: 'built-in',
     ...(model ? { model: model as AgentModel } : {}),
     ...(parsed.data.permissionMode
-      ? { permissionMode: parsed.data.permissionMode }
+      ? {
+          permissionMode: normalizeAgentPermissionMode(
+            parsed.data.permissionMode,
+          ),
+        }
+      : {}),
+    ...(parsed.data.maxExecutionTimeMs
+      ? { maxExecutionTimeMs: parsed.data.maxExecutionTimeMs }
       : {}),
   }
 }

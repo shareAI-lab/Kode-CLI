@@ -6,7 +6,7 @@ import {
 } from '#core/types/modelCapabilities'
 import { randomUUID } from 'crypto'
 import { Tool, getToolDescription } from '#core/tooling/Tool'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import { setRequestStatus } from '#core/utils/requestStatus'
 import {
   extractTextAndImageUrls,
@@ -14,7 +14,7 @@ import {
 } from '#core/utils/visionContent'
 
 export class ChatCompletionsAdapter extends OpenAIAdapter {
-  private mergeStreamMetadata(previous: string, next: string): string {
+  private mergeStreamFragment(previous: string, next: string): string {
     if (!next || previous === next || previous.endsWith(next)) return previous
     if (!previous || next.startsWith(previous)) return next
     return previous + next
@@ -65,7 +65,7 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       const state = calls.get(key) ?? { arguments: '' }
 
       if (typeof delta.id === 'string') {
-        state.id = this.mergeStreamMetadata(state.id ?? '', delta.id)
+        state.id = this.mergeStreamFragment(state.id ?? '', delta.id)
       }
 
       const fn = delta.function
@@ -77,22 +77,16 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
         }
         const functionDelta = fn as Record<string, unknown>
         if (typeof functionDelta.name === 'string') {
-          state.name = this.mergeStreamMetadata(
+          state.name = this.mergeStreamFragment(
             state.name ?? '',
             functionDelta.name,
           )
         }
         if (typeof functionDelta.arguments === 'string') {
-          const deltaArguments = functionDelta.arguments
-          if (
-            deltaArguments &&
-            state.arguments !== deltaArguments &&
-            !state.arguments.endsWith(deltaArguments)
-          ) {
-            state.arguments += deltaArguments
-          } else if (!state.arguments && deltaArguments) {
-            state.arguments = deltaArguments
-          }
+          state.arguments = this.mergeStreamFragment(
+            state.arguments,
+            functionDelta.arguments,
+          )
         }
       }
 
@@ -192,7 +186,7 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       function: {
         name: tool.name,
         description: getToolDescription(tool),
-        parameters: tool.inputJSONSchema || zodToJsonSchema(tool.inputSchema),
+        parameters: tool.inputJSONSchema || toInputJsonSchema(tool.inputSchema),
       },
     }))
   }
@@ -373,9 +367,13 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
           : ''
       const fullDelta = delta + reasoningDelta
 
-      if (fullDelta) {
+      const newTextDelta = this.mergeStreamFragment(
+        accumulatedContent,
+        fullDelta,
+      ).slice(accumulatedContent.length)
+      if (newTextDelta) {
         const textEvents = this.handleTextDelta(
-          fullDelta,
+          newTextDelta,
           responseId,
           hasStarted,
         )
@@ -435,7 +433,7 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       const fullDelta = delta + reasoningDelta
 
       if (fullDelta) {
-        state.content = accumulatedContent + fullDelta
+        state.content = this.mergeStreamFragment(accumulatedContent, fullDelta)
         state.hasStarted = true
       }
     }

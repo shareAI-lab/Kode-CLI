@@ -11,27 +11,28 @@ let snapshotSignature = ''
 const listeners = new Set<() => void>()
 let interval: ReturnType<typeof setInterval> | null = null
 
+function isVisibleBackgroundTask(task: BackgroundTaskSnapshot): boolean {
+  return task.status === 'running' || task.status === 'pending'
+}
+
 function buildSnapshotSignature(
   tasks: BackgroundTaskSnapshot[],
   now = Date.now(),
 ): string {
   const runningTick = Math.floor(now / TASK_SNAPSHOT_REFRESH_MS)
   return tasks
+    .filter(isVisibleBackgroundTask)
     .map(task =>
       [
         task.taskId,
         task.taskType,
         task.status,
         task.startedAt,
-        task.completedAt ?? '',
         task.description,
-        task.taskType === 'local_bash' ? task.stdoutLineCount : '',
-        task.taskType === 'local_bash' ? task.stderrLineCount : '',
-        task.taskType === 'local_agent' ? (task.error ?? '') : '',
-        task.taskType === 'local_agent' ? (task.resultText?.length ?? '') : '',
-        task.status === 'running' || task.status === 'pending'
-          ? runningTick
-          : '',
+        task.taskType === 'local_bash'
+          ? task.command
+          : (task.subagentType ?? ''),
+        runningTick,
       ].join(':'),
     )
     .join('|')

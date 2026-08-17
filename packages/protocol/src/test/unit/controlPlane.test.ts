@@ -6,6 +6,7 @@ import {
   DaemonAgentDetailResponseSchema,
   DaemonAgentUpdateRequestSchema,
   DaemonGoalScheduleListResponseSchema,
+  DaemonGoalScheduleEventsResponseSchema,
   DaemonGoalScheduleMutationResponseSchema,
   DaemonGoalScheduleSummarySchema,
 } from '../../controlPlane'
@@ -18,6 +19,7 @@ const agent = {
   model: 'inherit',
   permissionMode: 'plan',
   forkContext: true,
+  maxExecutionTimeMs: 300_000,
 }
 
 describe('daemon Agent control-plane schemas', () => {
@@ -33,6 +35,12 @@ describe('daemon Agent control-plane schemas', () => {
       DaemonAgentCreateRequestSchema.safeParse({
         source: 'projectSettings',
         agent: { ...agent, skills: ['not-runtime-backed'] },
+      }).success,
+    ).toBe(false)
+    expect(
+      DaemonAgentCreateRequestSchema.safeParse({
+        source: 'projectSettings',
+        agent: { ...agent, maxExecutionTimeMs: 999 },
       }).success,
     ).toBe(false)
     expect(
@@ -99,6 +107,7 @@ describe('daemon goal schedule control-plane schemas', () => {
     createdAt: 1,
     updatedAt: 2,
     objective: 'Watch CI',
+    acceptanceCriteria: ['Report CI status'],
     everyMs: 60_000,
     anchorAt: 1_000,
   }
@@ -116,6 +125,37 @@ describe('daemon goal schedule control-plane schemas', () => {
       DaemonGoalScheduleMutationResponseSchema.safeParse({
         ok: true,
         schedule,
+      }).success,
+    ).toBe(true)
+    expect(
+      DaemonGoalScheduleSummarySchema.parse({
+        ...schedule,
+        acceptanceCriteria: undefined,
+      }).acceptanceCriteria,
+    ).toEqual([])
+    expect(DaemonGoalScheduleSummarySchema.parse(schedule)).toMatchObject({
+      maxIterations: 8,
+      turnCount: null,
+      pausedReason: null,
+      lastError: null,
+      lastClaimedAt: null,
+      retryAt: null,
+    })
+    expect(
+      DaemonGoalScheduleEventsResponseSchema.safeParse({
+        scheduleId: schedule.id,
+        events: [
+          {
+            id: 'event-1',
+            goalId: schedule.goalId,
+            type: 'updated',
+            at: 2,
+            revision: 2,
+            from: 'paused',
+            to: 'paused',
+            message: 'Updated objective.',
+          },
+        ],
       }).success,
     ).toBe(true)
   })
@@ -137,6 +177,26 @@ describe('daemon goal schedule control-plane schemas', () => {
       DaemonGoalScheduleMutationResponseSchema.safeParse({
         ok: false,
         schedule,
+      }).success,
+    ).toBe(false)
+    expect(
+      DaemonGoalScheduleSummarySchema.safeParse({
+        ...schedule,
+        status: 'unknown',
+      }).success,
+    ).toBe(false)
+    expect(
+      DaemonGoalScheduleEventsResponseSchema.safeParse({
+        scheduleId: schedule.id,
+        events: [
+          {
+            id: 'event-1',
+            goalId: schedule.goalId,
+            type: 'invented',
+            at: 2,
+            revision: 2,
+          },
+        ],
       }).success,
     ).toBe(false)
   })

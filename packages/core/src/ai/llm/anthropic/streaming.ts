@@ -54,7 +54,9 @@ export async function createAnthropicStreamingMessage(
   for await (const event of stream) {
     try {
       options?.onStreamEvent?.(event)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     if (signal.aborted) {
       debugLogger.flow('STREAM_ABORTED', {
@@ -105,15 +107,33 @@ export async function createAnthropicStreamingMessage(
         // Ensure content block exists
         if (!contentBlocks[blockIndex]) {
           contentBlocks[blockIndex] = {
-            type: event.delta.type === 'text_delta' ? 'text' : 'tool_use',
+            type:
+              event.delta.type === 'text_delta'
+                ? 'text'
+                : event.delta.type === 'thinking_delta'
+                  ? 'thinking'
+                  : 'tool_use',
             text: event.delta.type === 'text_delta' ? '' : undefined,
+            thinking: event.delta.type === 'thinking_delta' ? '' : undefined,
           }
           if (event.delta.type === 'input_json_delta') {
             inputJSONBuffers.set(blockIndex, '')
           }
         }
 
-        if (event.delta.type === 'text_delta') {
+        if (event.delta.type === 'thinking_delta') {
+          if (event.delta.thinking) {
+            emitAssistantStreamUpdate(options, {
+              type: 'thinking_delta',
+              delta: event.delta.thinking,
+            })
+          }
+          contentBlocks[blockIndex].thinking =
+            (contentBlocks[blockIndex].thinking ?? '') + event.delta.thinking
+        } else if (event.delta.type === 'signature_delta') {
+          contentBlocks[blockIndex].signature =
+            (contentBlocks[blockIndex].signature ?? '') + event.delta.signature
+        } else if (event.delta.type === 'text_delta') {
           if (event.delta.text) {
             emitAssistantStreamUpdate(options, {
               type: 'text_delta',

@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { queryLLM } from '#core/ai/llm'
+import {
+  EXTERNAL_RUNTIME_TOOL_BRIDGE_UNAVAILABLE_MESSAGE,
+  queryLLM,
+} from '#core/ai/llm'
 import { createAssistantMessage, createUserMessage } from '#core/utils/messages'
 
 describe('queryLLM model pointer fallback (compatibility)', () => {
@@ -64,5 +67,57 @@ describe('queryLLM model pointer fallback (compatibility)', () => {
 
     expect(resolvedModelParam).toBe(fallbackModelName)
     expect(message.message.model).toBe(fallbackModelName)
+  })
+
+  test('does not send explicit tool-required work to an OAuth runtime without a Kode tool bridge', async () => {
+    let providerCalls = 0
+    const fakeModelManager = {
+      resolveModelWithInfo() {
+        return {
+          success: true,
+          profile: {
+            modelName: 'github-copilot:gpt-runtime-default',
+            provider: 'github-copilot',
+            name: 'GitHub Copilot OAuth',
+            apiKey: '',
+            maxTokens: 1,
+            contextLength: 1,
+            createdAt: 0,
+            isActive: true,
+          },
+        }
+      },
+      resolveModel() {
+        return null
+      },
+    }
+
+    const message = await queryLLM(
+      [createUserMessage('审查未提交改动')],
+      ['<tool_use_requirement>'],
+      0,
+      [{ name: 'Read' } as any],
+      new AbortController().signal,
+      {
+        safeMode: false,
+        model: 'main',
+        prependCLISysprompt: false,
+        __testModelManager: fakeModelManager,
+        __testQueryLLMWithPromptCaching: async () => {
+          providerCalls += 1
+          return createAssistantMessage('must not be returned')
+        },
+      },
+    )
+
+    expect(providerCalls).toBe(0)
+    expect(message.isApiErrorMessage).toBe(true)
+    expect(message.message.content).toEqual([
+      {
+        type: 'text',
+        text: EXTERNAL_RUNTIME_TOOL_BRIDGE_UNAVAILABLE_MESSAGE,
+        citations: [],
+      },
+    ])
   })
 })

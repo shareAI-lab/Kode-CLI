@@ -7,7 +7,7 @@ import {
   type Tool,
 } from '#core/tooling/Tool'
 
-function makeBaseTool<TInput extends z.ZodTypeAny>(
+function makeBaseTool<TInput extends z.ZodType<any, any>>(
   partial: Pick<Tool<TInput>, 'name' | 'description' | 'inputSchema'>,
 ): Tool<TInput, { ok: boolean }> {
   return {

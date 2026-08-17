@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Tool } from '#core/tooling/Tool'
 import { AssistantMessage } from '#core/query'
 import type { ToolUseContext } from '#core/tooling/Tool'
@@ -29,6 +30,8 @@ import { AskUserQuestionTool } from '#tools/tools/interaction/AskUserQuestionToo
 import { AskUserQuestionPermissionRequest } from './AskUserQuestionPermissionRequest/AskUserQuestionPermissionRequest'
 import type { ToolPermissionContextUpdate } from '#core/types/toolPermissionContext'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
+import { Box, Text } from 'ink'
+import { getTheme } from '#core/utils/theme'
 
 function permissionComponentForTool(tool: Tool) {
   switch (tool) {
@@ -62,6 +65,13 @@ export type PermissionRequestProps = {
   toolUseConfirm: ToolUseConfirm
   onDone(): void
   verbose: boolean
+  /**
+   * Number of additional permission requests waiting behind the current one.
+   * When > 0 a batch action bar is shown.
+   */
+  pendingCount?: number
+  onAllowAllPending?(): void
+  onRejectAllPending?(): void
 }
 
 export function toolUseConfirmGetPrefix(
@@ -95,11 +105,51 @@ export type ToolUseConfirm = {
 }
 
 // NOTE: Permission rendering is centralized to keep UX consistent across tools/hosts.
+// First batch keypress only arms the action; the second one executes it.
+// Queued requests were never reviewed by the user, so a single stray Ctrl+A
+// (or Ctrl+D) must not act on all of them.
+const BATCH_ARM_TIMEOUT_MS = 5_000
+
 export function PermissionRequest({
   toolUseConfirm,
   onDone,
   verbose,
+  pendingCount = 0,
+  onAllowAllPending,
+  onRejectAllPending,
 }: PermissionRequestProps): React.ReactNode {
+  const [batchArmed, setBatchArmed] = useState<'allow' | 'deny' | null>(null)
+  const batchArmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (batchArmTimeoutRef.current) {
+        clearTimeout(batchArmTimeoutRef.current)
+        batchArmTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  const armBatch = (kind: 'allow' | 'deny'): boolean => {
+    if (batchArmed !== kind) {
+      setBatchArmed(kind)
+      if (batchArmTimeoutRef.current) {
+        clearTimeout(batchArmTimeoutRef.current)
+      }
+      batchArmTimeoutRef.current = setTimeout(() => {
+        batchArmTimeoutRef.current = null
+        setBatchArmed(null)
+      }, BATCH_ARM_TIMEOUT_MS)
+      return false
+    }
+    if (batchArmTimeoutRef.current) {
+      clearTimeout(batchArmTimeoutRef.current)
+      batchArmTimeoutRef.current = null
+    }
+    setBatchArmed(null)
+    return true
+  }
+
   // Handle Ctrl+C and Esc (reject).
   useKeypress(
     (input, key) => {
@@ -112,6 +162,21 @@ export function PermissionRequest({
       if (key.escape) {
         onDone()
         toolUseConfirm.onReject()
+        return true
+      }
+
+      // Batch actions only make sense while requests are queued behind the
+      // currently shown dialog. Ctrl+A resolves every pending request with a
+      // one-time allow; Ctrl+D rejects them all. Both need a second press to
+      // actually run (armed state), so a stray key cannot approve requests the
+      // user never reviewed.
+      if (pendingCount > 1 && key.ctrl && input === 'a') {
+        if (armBatch('allow')) onAllowAllPending?.()
+        return true
+      }
+
+      if (pendingCount > 1 && key.ctrl && input === 'd') {
+        if (armBatch('deny')) onRejectAllPending?.()
         return true
       }
       return undefined
@@ -129,10 +194,32 @@ export function PermissionRequest({
   const PermissionComponent = permissionComponentForTool(toolUseConfirm.tool)
 
   return (
-    <PermissionComponent
-      toolUseConfirm={toolUseConfirm}
-      onDone={onDone}
-      verbose={verbose}
-    />
+    <>
+      {pendingCount > 1 ? (
+        <Box flexDirection="row" gap={1} paddingX={2} marginTop={1}>
+          {batchArmed === null ? (
+            <>
+              <Text
+                dimColor
+              >{`${pendingCount - 1} more request${pendingCount - 1 > 1 ? 's' : ''} waiting`}</Text>
+              <Text color={getTheme().success}>Ctrl+A allow all</Text>
+              <Text dimColor>·</Text>
+              <Text color={getTheme().error}>Ctrl+D deny all</Text>
+            </>
+          ) : (
+            <Text dimColor>
+              {batchArmed === 'allow'
+                ? `Press Ctrl+A again to allow all ${pendingCount} requests`
+                : `Press Ctrl+D again to deny all ${pendingCount} requests`}
+            </Text>
+          )}
+        </Box>
+      ) : null}
+      <PermissionComponent
+        toolUseConfirm={toolUseConfirm}
+        onDone={onDone}
+        verbose={verbose}
+      />
+    </>
   )
 }

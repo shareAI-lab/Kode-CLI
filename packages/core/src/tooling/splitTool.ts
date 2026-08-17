@@ -1,19 +1,18 @@
-import type { z } from 'zod'
-
 import type {
   Tool,
+  AnyZodSchema,
   ToolMetadata,
   ToolPresenter as CoreToolPresenter,
   ToolRunner as CoreToolRunner,
 } from './Tool'
 
 export type ToolSpec<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
   TOutput = any,
 > = ToolMetadata<TInput, TOutput>
 
 export type SplitTool<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
   TOutput = any,
 > = {
   spec: ToolSpec<TInput, TOutput>
@@ -22,7 +21,7 @@ export type SplitTool<
 }
 
 export function splitLegacyTool<
-  TInput extends z.ZodTypeAny = z.ZodTypeAny,
+  TInput extends AnyZodSchema = AnyZodSchema,
   TOutput = any,
 >(tool: Tool<TInput, TOutput>): SplitTool<TInput, TOutput> {
   const spec: ToolSpec<TInput, TOutput> = {
@@ -34,6 +33,8 @@ export function splitLegacyTool<
       (typeof tool.description === 'string' ? tool.description : undefined),
     inputSchema: tool.inputSchema,
     inputJSONSchema: tool.inputJSONSchema,
+    readModeAccess: tool.readModeAccess,
+    readModeInputSchema: tool.readModeInputSchema,
     prompt: tool.prompt,
     userFacingName: tool.userFacingName,
     cachedDescription: tool.cachedDescription,

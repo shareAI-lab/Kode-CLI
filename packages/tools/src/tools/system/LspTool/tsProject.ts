@@ -5,13 +5,25 @@ import { pathToFileURL } from 'url'
 
 type TypeScriptModule = typeof import('typescript')
 
-const cachedTypeScript = new Map<string, TypeScriptModule | null>()
+const cachedTypeScript = new Map<string, TypeScriptModule>()
+// Null results are cached briefly so a mid-session `bun install` becomes
+// visible without hammering the filesystem on every query.
+const failedTypeScriptProbes = new Map<string, number>()
+const TYPE_SCRIPT_PROBE_TTL_MS = 60_000
 
 export function tryLoadTypeScriptModule(
   projectCwd: string,
 ): TypeScriptModule | null {
   const cwd = resolve(projectCwd)
-  if (cachedTypeScript.has(cwd)) return cachedTypeScript.get(cwd) ?? null
+  const cached = cachedTypeScript.get(cwd)
+  if (cached) return cached
+  const lastFailed = failedTypeScriptProbes.get(cwd)
+  if (
+    lastFailed !== undefined &&
+    Date.now() - lastFailed < TYPE_SCRIPT_PROBE_TTL_MS
+  ) {
+    return null
+  }
 
   try {
     const requireFromCwd = createRequire(
@@ -19,9 +31,10 @@ export function tryLoadTypeScriptModule(
     )
     const mod = requireFromCwd('typescript') as TypeScriptModule
     cachedTypeScript.set(cwd, mod)
+    failedTypeScriptProbes.delete(cwd)
     return mod
   } catch {
-    cachedTypeScript.set(cwd, null)
+    failedTypeScriptProbes.set(cwd, Date.now())
     return null
   }
 }
@@ -36,6 +49,7 @@ type TsProjectState = {
 }
 
 const MAX_CACHED_PROJECTS = 16
+const MAX_PROJECT_ROOT_FILES = 500
 const projectCache = new Map<string, TsProjectState>()
 
 function cacheProject(key: string, project: TsProjectState): void {
@@ -54,10 +68,19 @@ export function getOrCreateTsProject(
   projectCwd: string,
   entryFile?: string,
 ): TsProjectState | null {
-  const ts = tryLoadTypeScriptModule(projectCwd)
+  const resolvedEntryFile = entryFile ? resolve(entryFile) : null
+  let ts = tryLoadTypeScriptModule(projectCwd)
+  // In a monorepo the process cwd may not have `typescript` installed while
+  // the entry file's package does; node module resolution walks up from the
+  // entry file's directory, so probe there before giving up.
+  if (!ts && resolvedEntryFile) {
+    const entryDir = resolve(dirname(resolvedEntryFile))
+    if (entryDir !== resolve(projectCwd)) {
+      ts = tryLoadTypeScriptModule(entryDir)
+    }
+  }
   if (!ts) return null
 
-  const resolvedEntryFile = entryFile ? resolve(entryFile) : null
   const configPath = ts.findConfigFile(
     resolvedEntryFile ? dirname(resolvedEntryFile) : projectCwd,
     ts.sys.fileExists,
@@ -74,7 +97,16 @@ export function getOrCreateTsProject(
 
   const existing = projectCache.get(cacheKey)
   if (existing) {
-    if (resolvedEntryFile) existing.rootFiles.add(resolvedEntryFile)
+    if (resolvedEntryFile) {
+      existing.rootFiles.add(resolvedEntryFile)
+      // Bound per-project growth: long sessions querying many files must not
+      // balloon the language-service program without limit.
+      while (existing.rootFiles.size > MAX_PROJECT_ROOT_FILES) {
+        const oldest = existing.rootFiles.keys().next().value
+        if (oldest === undefined) break
+        existing.rootFiles.delete(oldest)
+      }
+    }
     projectCache.delete(cacheKey)
     projectCache.set(cacheKey, existing)
     return existing

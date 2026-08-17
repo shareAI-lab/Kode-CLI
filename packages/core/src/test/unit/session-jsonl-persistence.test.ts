@@ -119,6 +119,14 @@ describe('JSONL session persistence (projects/*.jsonl)', () => {
       {
         data: { filenames: ['a.ts'], numFiles: 1 },
         resultForAssistant: [{ type: 'text', text: 'ok' }],
+        metadata: {
+          workspaceMutation: {
+            version: 1,
+            toolUseId: 'toolu_test',
+            scope: 'none',
+            basis: 'observed',
+          },
+        },
       },
     )
 
@@ -142,6 +150,14 @@ describe('JSONL session persistence (projects/*.jsonl)', () => {
     )
     expect(userLine).toBeTruthy()
     expect(userLine.toolUseResult).toEqual({ filenames: ['a.ts'], numFiles: 1 })
+    expect(userLine.toolUseMetadata).toEqual({
+      workspaceMutation: {
+        version: 1,
+        toolUseId: 'toolu_test',
+        scope: 'none',
+        basis: 'observed',
+      },
+    })
   })
 
   test('writes sidechain transcripts under <sessionId>/subagents (official layout)', () => {

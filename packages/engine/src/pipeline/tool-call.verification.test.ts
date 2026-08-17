@@ -97,6 +97,14 @@ function resultData(messages: Awaited<ReturnType<typeof runTool>>['messages']) {
   return message.toolUseResult.data as Record<string, unknown>
 }
 
+function resultMetadata(
+  messages: Awaited<ReturnType<typeof runTool>>['messages'],
+) {
+  const message = messages.find(item => item.type === 'user')
+  if (!message?.toolUseResult) throw new Error('Expected a tool result')
+  return message.toolUseResult.metadata
+}
+
 describe('verification receipt pipeline', () => {
   test('records a real built-in Bash verification command', async () => {
     const { context, messages } = await runTool(
@@ -108,6 +116,11 @@ describe('verification receipt pipeline', () => {
       kind: 'test',
       status: 'passed',
       toolUseId: 'verify-1',
+    })
+    expect(resultMetadata(messages)?.workspaceMutation).toMatchObject({
+      toolUseId: 'verify-1',
+      scope: 'none',
+      basis: 'declared',
     })
     expect(drainHookSystemPromptAdditions(context).join('\n')).toContain(
       'exact test command completed with status passed',
@@ -178,5 +191,55 @@ describe('verification receipt pipeline', () => {
     expect(resultData(composite.messages).verification).toBeUndefined()
     expect(drainHookSystemPromptAdditions(untrusted.context)).toEqual([])
     expect(drainHookSystemPromptAdditions(composite.context)).toEqual([])
+  })
+
+  test('records an observed no-op instead of trusting a write-capable label', async () => {
+    const writeCapableNoOp = {
+      ...createBashLikeTool({
+        output: { stdout: 'inspected', stderr: '', interrupted: false },
+      }),
+      name: 'CustomWorkspaceTool',
+      isTrustedExecutionTool: false,
+      isReadOnly() {
+        return false
+      },
+    } satisfies Tool
+
+    const { messages } = await runTool(writeCapableNoOp, 'inspect')
+
+    expect(resultMetadata(messages)?.workspaceMutation).toMatchObject({
+      toolUseId: 'verify-1',
+      scope: 'none',
+      basis: 'observed',
+    })
+  })
+
+  test('hands failed delegated work back to the parent verification gate', async () => {
+    const failedTask = {
+      ...createBashLikeTool({
+        output: { stdout: '', stderr: '', interrupted: false },
+      }),
+      name: 'Task',
+      workspaceMutationScope(_input?: unknown, output?: { status?: string }) {
+        return output?.status === 'failed'
+          ? ('direct' as const)
+          : ('delegated' as const)
+      },
+      async *call() {
+        yield {
+          type: 'result' as const,
+          data: { status: 'failed' },
+          resultForAssistant: 'Subagent failed',
+        }
+      },
+    } satisfies Tool
+
+    const { messages } = await runTool(failedTask, 'inspect')
+
+    expect(resultMetadata(messages)?.workspaceMutation).toMatchObject({
+      toolUseId: 'verify-1',
+      scope: 'direct',
+      basis: 'declared',
+    })
   })
 })

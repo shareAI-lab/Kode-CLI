@@ -57,7 +57,9 @@ function createAcpHarness(options: { configDir: string }) {
       try {
         messages.push(JSON.parse(line))
         notify()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   })
 
@@ -102,10 +104,14 @@ function createAcpHarness(options: { configDir: string }) {
   const stop = async () => {
     try {
       proc.stdin?.end()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     try {
       proc.kill('SIGTERM')
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   return { proc, send, waitFor, stop }

@@ -4,6 +4,7 @@ import figures from 'figures'
 
 import { getGlobalHistoryWithPastes } from '#core/history'
 import { getTheme } from '#core/utils/theme'
+import { matchAdvanced } from '#cli-utils/completion/advancedFuzzyMatcher'
 import TextInput from '#ui-ink/components/TextInput'
 import type { Key } from '#ui-ink/hooks/useKeypress'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
@@ -17,9 +18,35 @@ function normalizeQuery(value: string): string {
   return value.trim().toLowerCase()
 }
 
-function matchesQuery(haystack: string, query: string): boolean {
-  if (!query) return true
-  return haystack.toLowerCase().includes(query)
+// Rank history entries so the best match is on top: exact/substring matches
+// keep priority, then fuzzy (abbreviation/subsequence) matches fill in.
+type HistoryEntry = {
+  display: string
+  pastedTexts: Array<{ placeholder: string; text: string }>
+}
+
+function rankHistoryEntries(
+  items: HistoryEntry[],
+  query: string,
+): HistoryEntry[] {
+  if (!query) return items
+
+  const ranked = items
+    .map(item => {
+      const haystack = item.display.toLowerCase()
+      if (haystack.includes(query)) {
+        const position = haystack.indexOf(query)
+        return { item, score: 10000 - position }
+      }
+      const result = matchAdvanced(item.display, query)
+      return result.matched ? { item, score: Math.max(1, result.score) } : null
+    })
+    .filter(
+      (entry): entry is { item: HistoryEntry; score: number } => entry !== null,
+    )
+    .sort((a, b) => b.score - a.score)
+
+  return ranked.map(entry => entry.item)
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -59,7 +86,7 @@ export function HistorySearchScreen({
   const normalizedQuery = useMemo(() => normalizeQuery(query), [query])
   const history = useMemo(() => getGlobalHistoryWithPastes(), [])
   const filtered = useMemo(
-    () => history.filter(item => matchesQuery(item.display, normalizedQuery)),
+    () => rankHistoryEntries(history, normalizedQuery),
     [history, normalizedQuery],
   )
   const [selectedIndex, setSelectedIndex] = useScopedIndexState({

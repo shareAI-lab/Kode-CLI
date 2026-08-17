@@ -101,7 +101,7 @@ const memory = {
   description: 'Manage project-scoped long-term memories',
   argumentHint: '<remember|list|search|forget> …',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args: string) {
     const action = parseMemoryCommandArgs(args)

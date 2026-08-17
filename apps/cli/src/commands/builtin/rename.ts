@@ -8,7 +8,7 @@ const rename = {
   name: 'rename',
   description: 'Set a custom title for the current session',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   userFacingName() {
     return 'rename'
   },

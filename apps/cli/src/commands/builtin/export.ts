@@ -33,7 +33,7 @@ const exportCommand = {
   description: 'Export the current conversation to a file or clipboard',
   argumentHint: '[filename]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(args: string) {
     const content = buildExportText()
     const filename = normalizeExportFilename(args || '')

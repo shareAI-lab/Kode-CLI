@@ -1,8 +1,8 @@
 import { basename, resolve } from 'node:path'
 
 import type { Tool } from '@kode/core/tooling/Tool'
-import type { WrappedClient } from '@kode/core/mcp/client'
-import { isUuid } from '@kode/core/utils/uuid'
+import type { WrappedClient } from '@kode/mcp/client'
+import { isUuid } from '@kode/runtime'
 import { SUBAGENT_DISALLOWED_TOOL_NAMES } from '@kode/agent'
 
 import { maybeServeWebui } from '../server/webui'
@@ -187,6 +187,10 @@ export function createRoutes(args: {
       const goalSchedulesResponse = await routeGoalSchedules(req, {
         cwd: args.cwd,
         listWorkspaces: args.listWorkspaces,
+        sessionExists: ({ cwd, sessionId }) =>
+          sessionService
+            .list({ cwd })
+            .some(session => session.sessionId === sessionId),
       })
       if (goalSchedulesResponse) return goalSchedulesResponse
 

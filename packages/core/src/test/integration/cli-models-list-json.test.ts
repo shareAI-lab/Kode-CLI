@@ -48,7 +48,9 @@ describe('CLI integration: models list', () => {
 
       try {
         rmSync(configDir, { recursive: true, force: true })
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   })
 })

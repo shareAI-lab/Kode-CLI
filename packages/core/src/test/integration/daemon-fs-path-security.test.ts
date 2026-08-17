@@ -74,7 +74,9 @@ describe('daemon fs path security', () => {
       ws.on('message', data => {
         try {
           events.push(JSON.parse(decodeWsMessage(data)))
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       })
 
       await new Promise<void>((resolve, reject) => {
@@ -131,7 +133,9 @@ describe('daemon fs path security', () => {
 
       try {
         ws.close()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     } finally {
       daemon.stop()
       rmSync(projectDir, { recursive: true, force: true })

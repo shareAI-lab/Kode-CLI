@@ -6,7 +6,11 @@ import type {
   BunShellPromotableExecStatus,
 } from './types'
 import type { BunShellState } from './state'
-import { appendTaskOutput, touchTaskOutputFile } from '../taskOutputStore'
+import {
+  appendTaskOutput,
+  flushTaskOutput,
+  touchTaskOutputFile,
+} from '../taskOutputStore'
 import { buildSandboxCommand } from './sandboxCommand'
 import { annotateStderrWithSandboxViolations } from './sandboxViolations'
 import { createCancellableTextCollector } from './streamReaders'
@@ -39,7 +43,7 @@ export function execPromotable(
   const sandbox = options?.sandbox
   const shouldAttemptSandbox = sandbox?.enabled === true
   const executionCwd =
-    shouldAttemptSandbox && sandbox?.chdir ? sandbox.chdir : state.cwd
+    (shouldAttemptSandbox && sandbox?.chdir) || options?.cwd || state.cwd
 
   if (abortSignal?.aborted) {
     return {
@@ -58,7 +62,7 @@ export function execPromotable(
   }
 
   const sandboxCmd = shouldAttemptSandbox
-    ? buildSandboxCommand({ command, sandbox: sandbox!, cwd: state.cwd })
+    ? buildSandboxCommand({ command, sandbox: sandbox!, cwd: executionCwd })
     : null
   if (shouldAttemptSandbox && sandbox?.require && !sandboxCmd) {
     return {
@@ -325,6 +329,7 @@ export function execPromotable(
           }
         }
       }
+      if (backgroundTaskId) flushTaskOutput(backgroundTaskId)
 
       return {
         stdout,

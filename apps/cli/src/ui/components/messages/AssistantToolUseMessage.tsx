@@ -86,6 +86,7 @@ export function AssistantToolUseMessage({
       <AssistantThinkingMessage
         param={{ thinking: thought, signature: '', type: 'thinking' }}
         addMargin={addMargin}
+        shouldAnimate={shouldAnimate && isInProgress}
       />
     )
   }

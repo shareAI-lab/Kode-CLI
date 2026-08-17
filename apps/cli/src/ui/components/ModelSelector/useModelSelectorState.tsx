@@ -120,6 +120,10 @@ export function useModelSelectorState(opts: {
   const [requestStrategy, setRequestStrategy] = useState<RequestStrategyOption>(
     (initialModelProfile?.requestStrategy as RequestStrategyOption) ?? 'auto',
   )
+  // Adding a profile should not silently replace the main model. The
+  // confirmation screen asks explicitly and the choice is persisted by the
+  // model manager.
+  const [activateAsMain, setActivateAsMain] = useState<boolean>(true)
 
   const [activeFieldIndex, setActiveFieldIndex] = useState(0)
   const [maxTokensCursorOffset, setMaxTokensCursorOffset] = useState<number>(
@@ -225,6 +229,8 @@ export function useModelSelectorState(opts: {
     setContextLength,
     requestStrategy,
     setRequestStrategy,
+    activateAsMain,
+    setActivateAsMain,
     activeFieldIndex,
     setActiveFieldIndex,
     maxTokensCursorOffset,

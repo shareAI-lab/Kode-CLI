@@ -20,6 +20,10 @@ import {
   chooseNextModelWithContextCheck,
   formatSwitchResult,
 } from './switching'
+import {
+  getSupportedReasoningEfforts,
+  type ReasoningEffort,
+} from './reasoningEffort'
 import type {
   ModelParam,
   SwitchResult,
@@ -198,6 +202,40 @@ export class ModelManager {
     return profile ? profile.modelName : null
   }
 
+  getSupportedReasoningEfforts(
+    pointer: ModelPointerType = 'main',
+  ): readonly ReasoningEffort[] {
+    const profile = this.getModel(pointer)
+    return profile ? getSupportedReasoningEfforts(profile) : []
+  }
+
+  setReasoningEffort(
+    pointer: ModelPointerType,
+    reasoningEffort: ReasoningEffort,
+  ): ModelProfile {
+    const profile = this.getModel(pointer)
+    if (!profile) {
+      throw new Error(`No model is configured for the ${pointer} pointer`)
+    }
+
+    const supported = getSupportedReasoningEfforts(profile)
+    if (!supported.includes(reasoningEffort)) {
+      const choices = supported.length > 0 ? supported.join(', ') : 'none'
+      throw new Error(
+        `Model '${profile.name}' does not support '${reasoningEffort}' reasoning effort. Available: ${choices}`,
+      )
+    }
+
+    const storedProfile = this.findByModelName(profile.modelName)
+    if (!storedProfile) {
+      throw new Error(`Model '${profile.modelName}' is not configured`)
+    }
+
+    storedProfile.reasoningEffort = reasoningEffort
+    this.saveConfig()
+    return redactModelProfileCredential(storedProfile)
+  }
+
   getCompactModel(): string | null {
     return this.getModelName('compact') || this.getModelName('main')
   }
@@ -212,6 +250,7 @@ export class ModelManager {
 
   async addModel(
     config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
+    options?: { activateAsMain?: boolean },
   ): Promise<string> {
     config = normalizeModelConfig(config)
     const existingByModelName = this.modelProfiles.find(
@@ -245,7 +284,7 @@ export class ModelManager {
         quick: config.modelName,
       }
       this.config.defaultModelName = config.modelName
-    } else {
+    } else if (options?.activateAsMain !== false) {
       if (!this.config.modelPointers) {
         this.config.modelPointers = {
           ...DEFAULT_MODEL_POINTERS,
@@ -262,6 +301,7 @@ export class ModelManager {
 
   async upsertModel(
     config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
+    options?: { activateAsMain?: boolean },
   ): Promise<string> {
     config = normalizeModelConfig(config)
     const existingIndex = this.modelProfiles.findIndex(
@@ -269,7 +309,7 @@ export class ModelManager {
     )
 
     if (existingIndex === -1) {
-      return this.addModel(config)
+      return this.addModel(config, options)
     }
 
     const existingByName = this.modelProfiles.find(
@@ -296,6 +336,12 @@ export class ModelManager {
     }
 
     this.modelProfiles[existingIndex] = updatedModel
+    if (options?.activateAsMain) {
+      if (!this.config.modelPointers) {
+        this.config.modelPointers = { ...DEFAULT_MODEL_POINTERS }
+      }
+      this.config.modelPointers.main = config.modelName
+    }
     this.saveConfig()
     return config.modelName
   }

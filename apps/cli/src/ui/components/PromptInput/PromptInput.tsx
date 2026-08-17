@@ -30,7 +30,10 @@ import {
   computeResponsiveRows,
   isCompactViewportHeight,
 } from '#ui-ink/primitives/layout/viewportRows'
-import { useUnifiedCompletion } from '#ui-ink/hooks/useUnifiedCompletion'
+import {
+  buildCompletionInsert,
+  useUnifiedCompletion,
+} from '#ui-ink/hooks/useUnifiedCompletion'
 import { useKeypress, type Key } from '#ui-ink/hooks/useKeypress'
 import { useUndoBuffer } from '#ui-ink/hooks/useUndoBuffer'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
@@ -56,10 +59,8 @@ import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { buildPromptInputStatusLine } from './inputModeDisplay'
 import { useThrottledTokenUsage } from './useThrottledTokenUsage'
 import { useCliExit } from '#ui-ink/hooks/useCliExit'
-import {
-  buildPromptStatusLineInput,
-  getPromptStatusLineUsage,
-} from './statusLineModel'
+import { buildPromptStatusLineInput } from './statusLineModel'
+import { useThrottledStatusLineUsage } from './useThrottledStatusLineUsage'
 import {
   getPromptModeForTypedPrefix,
   shouldEmptyPromptModeExitToPrompt,
@@ -247,13 +248,7 @@ export function PromptInput({
 
   const theme = getTheme()
   const tokenUsage = useThrottledTokenUsage(messages)
-  const totalCostUSD = useMemo(() => {
-    let total = 0
-    for (const message of messages) {
-      if (message.type === 'assistant') total += message.costUSD
-    }
-    return total
-  }, [messages])
+  const statusLineUsage = useThrottledStatusLineUsage(messages)
 
   const modelInfo = useMemo(() => {
     void submitCount
@@ -265,14 +260,14 @@ export function PromptInput({
           provider: current.provider,
           contextLength: current.contextLength,
           currentTokens: tokenUsage,
+          // Show the effective reasoning effort; reasoning models default to
+          // a balanced level when the profile does not pin one.
+          reasoningEffort: current.reasoningEffort?.trim() || 'medium',
         }
       : null
   }, [submitCount, tokenUsage, uiRefreshCounter])
 
-  const statusLineUsage = useMemo(
-    () => getPromptStatusLineUsage(messages),
-    [messages],
-  )
+  const totalCostUSD = statusLineUsage.totalCostUSD
 
   const statusLineInput = useMemo(() => {
     void submitCount
@@ -367,6 +362,7 @@ export function PromptInput({
     selectedIndex,
     isActive: completionActive,
     emptyDirMessage,
+    activeContext,
     resetCompletion,
   } = useUnifiedCompletion({
     input,
@@ -774,6 +770,42 @@ export function PromptInput({
     }
   }, [])
 
+  // One-time hint when the input first becomes multiline: many users do not
+  // know Shift+Enter inserts a newline while Enter submits.
+  const multilineHintShownRef = useRef(false)
+  const multilineHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
+  useEffect(() => {
+    if (multilineHintShownRef.current) return
+    if (!input.includes('\n')) return
+    multilineHintShownRef.current = true
+
+    handleInlineMessage(
+      true,
+      'Tip: Enter sends · Shift+Enter inserts a newline',
+    )
+    multilineHintTimeoutRef.current = setTimeout(() => {
+      setMessage(prev => {
+        if (!prev.show) return prev
+        if (prev.text !== 'Tip: Enter sends · Shift+Enter inserts a newline') {
+          return prev
+        }
+        return { show: false }
+      })
+      multilineHintTimeoutRef.current = null
+    }, 5000)
+  }, [handleInlineMessage, input])
+
+  useEffect(() => {
+    return () => {
+      if (multilineHintTimeoutRef.current) {
+        clearTimeout(multilineHintTimeoutRef.current)
+        multilineHintTimeoutRef.current = null
+      }
+    }
+  }, [])
+
   const handleHistoryUp = () => {
     if (completionActive) resetCompletion()
     onHistoryUp()
@@ -975,6 +1007,22 @@ export function PromptInput({
     if (isDisabled) return
     if (!value.trim()) return
 
+    // Enter with an active completion panel submits the completed word instead
+    // of the raw prefix: "/hel" + Enter must run /help, not silently become a
+    // chat message. Plain Enter still sends in a single keystroke.
+    if (
+      completionVisible &&
+      activeContext &&
+      suggestions[selectedIndex] !== undefined
+    ) {
+      const completed = buildCompletionInsert({
+        input: value,
+        suggestion: suggestions[selectedIndex]!,
+        context: activeContext,
+      })
+      if (completed) value = completed.input
+    }
+
     if (completionActive) resetCompletion()
 
     if (isLoading) {
@@ -1042,12 +1090,21 @@ export function PromptInput({
       pastedImages: imagesForSubmit,
       clearPastes,
       resetHistory,
+      onProcessingError: message => handleInlineMessage(true, message),
       setCurrentPwd,
       exit,
     })
   }
 
   const [isQueueDrainInFlight, setIsQueueDrainInFlight] = useState(false)
+  const pendingPromptInputs = useMemo(
+    () => pendingPrompts.map(prompt => prompt.input),
+    [pendingPrompts],
+  )
+  const queuedPromptInputs = useMemo(
+    () => queuedPrompts.map(prompt => prompt.input),
+    [queuedPrompts],
+  )
   const lastCancelRequestKeyRef = useRef(cancelRequestKey)
   useEffect(() => {
     if (lastCancelRequestKeyRef.current !== cancelRequestKey) {
@@ -1126,6 +1183,7 @@ export function PromptInput({
           pastedImages: imagesForSubmit,
           clearPastes: () => {},
           resetHistory: () => {},
+          onProcessingError: message => handleInlineMessage(true, message),
           setCurrentPwd,
           exit,
         })
@@ -1155,6 +1213,7 @@ export function PromptInput({
     queuedPrompts,
     readFileTimestamps,
     reportMissingImageData,
+    handleInlineMessage,
     isQueueDrainInFlight,
     setAbortController,
     setCurrentPwd,
@@ -1295,8 +1354,8 @@ export function PromptInput({
       isEditingExternally={isEditingExternally}
       isDisabled={isDisabled}
       isLoading={isLoading}
-      pendingPrompts={pendingPrompts.map(item => item.input)}
-      queuedPrompts={queuedPrompts.map(item => item.input)}
+      pendingPrompts={pendingPromptInputs}
+      queuedPrompts={queuedPromptInputs}
       completionActive={completionVisible}
       historyIndex={historyIndex}
       suggestions={visibleSuggestions}

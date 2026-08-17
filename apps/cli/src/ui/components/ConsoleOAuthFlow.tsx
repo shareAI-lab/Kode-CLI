@@ -49,13 +49,17 @@ export function ConsoleOAuthFlow({
   const [pastedCode, setPastedCode] = useState('')
   const [cursorOffset, setCursorOffset] = useState(0)
   const [oauthService] = useState(createOAuthService)
+  const mountedRef = React.useRef(true)
+  const activeAttemptIdRef = React.useRef(0)
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      activeAttemptIdRef.current += 1
       void oauthService.cancelOAuthFlow?.()
-    },
-    [oauthService],
-  )
+    }
+  }, [oauthService])
   // After a few seconds we suggest the user to copy/paste url if the
   // browser did not open automatically. In this flow we expect the user to
   // copy the code from the browser and paste it in the terminal
@@ -135,12 +139,19 @@ export function ConsoleOAuthFlow({
   }
 
   const startOAuth = useCallback(async () => {
+    const attemptId = activeAttemptIdRef.current + 1
+    activeAttemptIdRef.current = attemptId
+    const isCurrent = () =>
+      mountedRef.current && activeAttemptIdRef.current === attemptId
+
     try {
       const result = await oauthService
         .startOAuthFlow(async url => {
+          if (!isCurrent()) return
           setOAuthStatus({ state: 'waiting_for_login', url })
         })
         .catch(err => {
+          if (!isCurrent()) throw err
           // Handle token exchange errors specifically
           if (err.message.includes('Token exchange failed')) {
             setOAuthStatus({
@@ -160,9 +171,11 @@ export function ConsoleOAuthFlow({
           throw err
         })
 
+      if (!isCurrent()) return
       setOAuthStatus({ state: 'creating_api_key' })
 
       const apiKey = await createApiKey(result.accessToken).catch(err => {
+        if (!isCurrent()) throw err
         setOAuthStatus({
           state: 'error',
           message: 'Failed to create API key: ' + err.message,
@@ -172,6 +185,7 @@ export function ConsoleOAuthFlow({
         throw err
       })
 
+      if (!isCurrent()) return
       if (apiKey) {
         setOAuthStatus({ state: 'success', apiKey })
         notify({ message: 'Kode login successful' })

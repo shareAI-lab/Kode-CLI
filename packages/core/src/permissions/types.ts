@@ -8,7 +8,7 @@ export type PermissionResult =
       shouldPromptUser?: boolean
       /**
        * True when a denial is still promptable, but must not be auto-approved
-       * by permissive modes such as yolo.
+       * by permissive modes such as Edit.
        */
       requiresExplicitApproval?: boolean
       suggestions?: ToolPermissionContextUpdate[]

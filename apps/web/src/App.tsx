@@ -17,9 +17,16 @@ import {
   loadTokenFromStorage,
   persistToken,
 } from './lib/token'
-import { ChatPage } from './pages/Chat'
-import { ConnectPage } from './pages/Connect'
-
+const ChatPage = React.lazy(() =>
+  import('./pages/Chat').then(module => ({
+    default: module.ChatPage,
+  })),
+)
+const ConnectPage = React.lazy(() =>
+  import('./pages/Connect').then(module => ({
+    default: module.ConnectPage,
+  })),
+)
 const SchedulesPage = React.lazy(() =>
   import('./pages/Schedules').then(module => ({
     default: module.SchedulesPage,
@@ -30,6 +37,35 @@ const SettingsPage = React.lazy(() =>
     default: module.SettingsPage,
   })),
 )
+
+class LazyViewErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false }
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true }
+  }
+
+  render(): React.ReactNode {
+    if (this.state.failed) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
+          <p>This view failed to load (a bundle may be stale).</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.location.reload()}
+          >
+            Reload
+          </Button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 type View = 'chat' | 'schedules' | 'settings'
 
@@ -117,16 +153,18 @@ export default function App() {
 
   if (!token) {
     return (
-      <ConnectPage
-        token={token}
-        onTokenChange={setToken}
-        onSave={() => {
-          const next = token.trim()
-          if (!next) return
-          persistToken(next)
-          setToken(next)
-        }}
-      />
+      <React.Suspense fallback={<PageLoading />}>
+        <ConnectPage
+          token={token}
+          onTokenChange={setToken}
+          onSave={() => {
+            const next = token.trim()
+            if (!next) return
+            persistToken(next)
+            setToken(next)
+          }}
+        />
+      </React.Suspense>
     )
   }
 
@@ -230,52 +268,54 @@ export default function App() {
           </div>
 
           <div className="min-h-0 flex-1">
-            <React.Suspense fallback={<PageLoading />}>
-              {view === 'settings' ? (
-                <SettingsPage
-                  token={token}
-                  onTokenChange={t => {
-                    persistToken(t)
-                    setToken(t)
-                  }}
-                  onTokenClear={() => {
-                    clearToken()
-                    setToken('')
-                  }}
-                />
-              ) : view === 'schedules' ? (
-                <SchedulesPage
-                  client={client}
-                  sessionId={chat.selectedSessionId}
-                  sessions={chat.sessions}
-                  onSelectSession={id => {
-                    void chat.selectSession(id)
-                  }}
-                  onNewSession={() => {
-                    chat.startNewSession()
-                  }}
-                />
-              ) : (
-                <ChatPage
-                  events={chat.events}
-                  input={chat.input}
-                  onInputChange={chat.setInput}
-                  onPasteText={chat.insertPastedText}
-                  onSend={() => void chat.send()}
-                  onCancel={chat.cancel}
-                  failedPrompt={chat.failedPrompt}
-                  onRestoreFailedPrompt={chat.restoreFailedPrompt}
-                  disabled={!client}
-                  sending={chat.sending}
-                  permissionRequest={chat.permissionRequest}
-                  runtimeAttached={runtimeAttached}
-                  runtimeStatus={runtimeStatus}
-                  sessionKey={chat.selectedSessionId}
-                  sessionTitle={selectedSessionTitle}
-                  workspacePath={currentWorkspace?.path ?? null}
-                />
-              )}
-            </React.Suspense>
+            <LazyViewErrorBoundary>
+              <React.Suspense fallback={<PageLoading />}>
+                {view === 'settings' ? (
+                  <SettingsPage
+                    token={token}
+                    onTokenChange={t => {
+                      persistToken(t)
+                      setToken(t)
+                    }}
+                    onTokenClear={() => {
+                      clearToken()
+                      setToken('')
+                    }}
+                  />
+                ) : view === 'schedules' ? (
+                  <SchedulesPage
+                    client={client}
+                    sessionId={chat.selectedSessionId}
+                    sessions={chat.sessions}
+                    onSelectSession={id => {
+                      void chat.selectSession(id)
+                    }}
+                    onNewSession={() => {
+                      chat.startNewSession()
+                    }}
+                  />
+                ) : (
+                  <ChatPage
+                    events={chat.events}
+                    input={chat.input}
+                    onInputChange={chat.setInput}
+                    onPasteText={chat.insertPastedText}
+                    onSend={() => void chat.send()}
+                    onCancel={chat.cancel}
+                    failedPrompt={chat.failedPrompt}
+                    onRestoreFailedPrompt={chat.restoreFailedPrompt}
+                    disabled={!client}
+                    sending={chat.sending}
+                    permissionRequest={chat.permissionRequest}
+                    runtimeAttached={runtimeAttached}
+                    runtimeStatus={runtimeStatus}
+                    sessionKey={chat.selectedSessionId}
+                    sessionTitle={selectedSessionTitle}
+                    workspacePath={currentWorkspace?.path ?? null}
+                  />
+                )}
+              </React.Suspense>
+            </LazyViewErrorBoundary>
           </div>
         </div>
       </div>

@@ -1,4 +1,10 @@
-import { unzipSync } from 'fflate'
+import { Inflate, Unzip } from 'fflate'
+import type {
+  AsyncFlateStreamHandler,
+  FlateError,
+  UnzipFile,
+  UnzipDecoder,
+} from 'fflate'
 import {
   chmodSync,
   mkdirSync,
@@ -76,22 +82,33 @@ function validateOutputPathHierarchy(
   let parent = ''
   for (let index = 0; index < parts.length - 1; index += 1) {
     parent = parent ? `${parent}/${parts[index]}` : parts[index]!
-    if (fileOutputPaths.has(parent)) {
+    if (fileOutputPaths.has(pathCollisionKey(parent))) {
       throw new Error(
         `Archive output path conflicts with file ancestor: ${outputPath}`,
       )
     }
-    requiredDirectories.add(parent)
+    requiredDirectories.add(pathCollisionKey(parent))
   }
 
-  if (!isDirectory && requiredDirectories.has(outputPath)) {
+  if (!isDirectory && requiredDirectories.has(pathCollisionKey(outputPath))) {
     throw new Error(
       `Archive file conflicts with an existing directory path: ${outputPath}`,
     )
   }
 
-  if (isDirectory) requiredDirectories.add(outputPath)
-  else fileOutputPaths.add(outputPath)
+  if (isDirectory) requiredDirectories.add(pathCollisionKey(outputPath))
+  else fileOutputPaths.add(pathCollisionKey(outputPath))
+}
+
+/**
+ * Default APFS (macOS) and NTFS (Windows) file systems fold case, so entries
+ * that differ only by case collide on disk. Fold the comparison key on those
+ * platforms while keeping case-sensitive checks elsewhere.
+ */
+function pathCollisionKey(path: string): string {
+  return process.platform === 'win32' || process.platform === 'darwin'
+    ? path.toLowerCase()
+    : path
 }
 
 function assertArchiveSize(byteLength: number, maxArchiveBytes: number): void {
@@ -168,6 +185,62 @@ function safeDestinationPath(destDir: string, entryPath: string): string {
   return outPath
 }
 
+/**
+ * Streaming deflate decoder for ZIP entries that aborts as soon as the
+ * decompressed byte count exceeds the entry budget. fflate's fixed-buffer
+ * inflate silently truncates overflowing output, which would let an entry with
+ * a lying declared size pass through with partial content.
+ */
+function createBoundedInflateDecoder(maxEntryBytes: number): {
+  new (filename: string, size?: number, originalSize?: number): UnzipDecoder
+  compression: number
+} {
+  return class BoundedInflateDecoder implements UnzipDecoder {
+    static compression = 8
+    private readonly inflate = new Inflate()
+    private readonly budget: number
+    private outputBytes = 0
+    private failed = false
+    ondata: (
+      err: FlateError | null,
+      data: Uint8Array | null,
+      final: boolean,
+    ) => void = () => {}
+
+    constructor(_filename: string, _size?: number, originalSize?: number) {
+      this.budget =
+        Number.isSafeInteger(originalSize) && (originalSize as number) > 0
+          ? Math.min(originalSize as number, maxEntryBytes)
+          : maxEntryBytes
+    }
+
+    push(chunk: Uint8Array, final: boolean): void {
+      if (this.failed) return
+      this.inflate.ondata = (data, done) => {
+        if (this.failed) return
+        if (data) {
+          this.outputBytes += data.byteLength
+          if (this.outputBytes > this.budget) {
+            this.failed = true
+            // fflate's stream handler passes null data alongside an error;
+            // widen the payload type to model that at runtime.
+            this.ondata(
+              new Error(
+                `Archive entry exceeds decompressed size budget of ${this.budget} bytes`,
+              ) as FlateError,
+              null,
+              done,
+            )
+            return
+          }
+        }
+        this.ondata(null, data, done)
+      }
+      this.inflate.push(chunk, final)
+    }
+  }
+}
+
 export async function extractZipBuffer(
   zipData: Uint8Array,
   destDir: string,
@@ -184,73 +257,97 @@ export async function extractZipBuffer(
     string,
     { outputPath: string; isDirectory: boolean }
   >()
+  const entryData = new Map<string, Buffer>()
   const selectedOutputPaths = new Set<string>()
   const fileOutputPaths = new Set<string>()
   const requiredDirectories = new Set<string>()
 
-  const entries = unzipSync(zipData, {
-    filter: entry => {
-      entryCount += 1
-      if (entryCount > limits.maxEntries) {
+  const unzip = new Unzip((file: UnzipFile) => {
+    entryCount += 1
+    if (entryCount > limits.maxEntries) {
+      throw new Error(`Archive entry count exceeds limit ${limits.maxEntries}`)
+    }
+
+    const normalized = normalizeArchivePath(file.name)
+    const stripped = stripLeadingComponents(normalized, stripComponents)
+    if (!stripped || (filter && !filter(stripped))) return
+
+    const isDirectory = file.name.endsWith('/') || stripped.endsWith('/')
+
+    // The central-directory sizes can be missing for streamed archives;
+    // declared sizes are a pre-check only, actual bytes are enforced by the
+    // bounded decoder below.
+    const declaredBytes = file.originalSize
+    if (declaredBytes !== undefined) {
+      if (!Number.isSafeInteger(declaredBytes) || declaredBytes < 0) {
+        throw new Error(`Invalid archive entry size: ${file.name}`)
+      }
+      if (!isDirectory && declaredBytes > limits.maxEntryBytes) {
         throw new Error(
-          `Archive entry count exceeds limit ${limits.maxEntries}`,
+          `Archive entry ${file.name} exceeds limit ${limits.maxEntryBytes} bytes`,
         )
       }
+    }
 
-      const normalized = normalizeArchivePath(entry.name)
-      const stripped = stripLeadingComponents(normalized, stripComponents)
-      if (!stripped || (filter && !filter(stripped))) return false
+    if (selectedOutputPaths.has(pathCollisionKey(stripped))) {
+      throw new Error(`Duplicate archive output path: ${stripped}`)
+    }
+    validateOutputPathHierarchy(
+      stripped,
+      isDirectory,
+      fileOutputPaths,
+      requiredDirectories,
+    )
+    selectedOutputPaths.add(pathCollisionKey(stripped))
+    selectedEntries.set(file.name, {
+      outputPath: stripped,
+      isDirectory,
+    })
 
-      const isDirectory = entry.name.endsWith('/') || stripped.endsWith('/')
-      const entryBytes = entry.originalSize
-      if (!Number.isSafeInteger(entryBytes) || entryBytes < 0) {
-        throw new Error(`Invalid archive entry size: ${entry.name}`)
-      }
-      if (!isDirectory && entryBytes > limits.maxEntryBytes) {
+    let data: Buffer | null = null
+    file.ondata = (err, chunk, final) => {
+      if (err) {
         throw new Error(
-          `Archive entry ${entry.name} exceeds limit ${limits.maxEntryBytes} bytes`,
+          `Archive entry ${file.name} failed to decompress: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
         )
       }
-      if (!isDirectory) {
-        extractedBytes += entryBytes
-        if (extractedBytes > limits.maxExtractedBytes) {
-          throw new Error(
-            `Archive extracted data exceeds limit ${limits.maxExtractedBytes} bytes`,
-          )
+      if (chunk && chunk.byteLength > 0) {
+        if (!isDirectory) {
+          extractedBytes += chunk.byteLength
+          if (extractedBytes > limits.maxExtractedBytes) {
+            throw new Error(
+              `Archive extracted data exceeds limit ${limits.maxExtractedBytes} bytes`,
+            )
+          }
+          data = data ? Buffer.concat([data, chunk]) : Buffer.from(chunk)
         }
       }
-      if (selectedOutputPaths.has(stripped)) {
-        throw new Error(`Duplicate archive output path: ${stripped}`)
+      if (final && !isDirectory) {
+        entryData.set(file.name, data ?? Buffer.alloc(0))
       }
-      validateOutputPathHierarchy(
-        stripped,
-        isDirectory,
-        fileOutputPaths,
-        requiredDirectories,
-      )
-      selectedOutputPaths.add(stripped)
-      selectedEntries.set(entry.name, {
-        outputPath: stripped,
-        isDirectory,
-      })
-      return true
-    },
+    }
+    file.start()
   })
+
+  unzip.register(createBoundedInflateDecoder(limits.maxEntryBytes))
+  unzip.push(zipData, true)
 
   mkdirSync(destDir, { recursive: true })
 
-  for (const [rawName, contents] of Object.entries(entries)) {
+  for (const [rawName, contents] of entryData) {
     const selected = selectedEntries.get(rawName)
     if (!selected) continue
     const outputPath = safeDestinationPath(destDir, selected.outputPath)
-
-    if (selected.isDirectory) {
-      mkdirSync(outputPath, { recursive: true })
-      continue
-    }
-
     mkdirSync(dirname(outputPath), { recursive: true })
-    writeFileSync(outputPath, Buffer.from(contents))
+    writeFileSync(outputPath, contents)
+  }
+
+  for (const [, selected] of selectedEntries) {
+    if (!selected.isDirectory) continue
+    const outputPath = safeDestinationPath(destDir, selected.outputPath)
+    mkdirSync(outputPath, { recursive: true })
   }
 }
 
@@ -465,7 +562,7 @@ async function extractTarBufferData(
     const isFile = typeflag === '0' || typeflag === '\0'
     if (!isDirectory && !isFile) continue
 
-    if (outputPaths.has(stripped)) {
+    if (outputPaths.has(pathCollisionKey(stripped))) {
       throw new Error(`Duplicate archive output path: ${stripped}`)
     }
     validateOutputPathHierarchy(
@@ -474,7 +571,7 @@ async function extractTarBufferData(
       fileOutputPaths,
       requiredDirectories,
     )
-    outputPaths.add(stripped)
+    outputPaths.add(pathCollisionKey(stripped))
 
     if (isDirectory) {
       entries.push({

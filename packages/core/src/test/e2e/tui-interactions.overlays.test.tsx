@@ -376,7 +376,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
     const h = createInkTestHarness(
       <KeypressProvider>
         <ThinkingToggleScreen
-          currentValue={false}
+          currentMode="auto"
           isMidConversation={false}
           onSelect={() => {}}
           onDone={() => {
@@ -395,12 +395,12 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
   })
 
   test('ThinkingToggleScreen: SGR mouse click selects an option', async () => {
-    let selected: boolean | null = null
+    let selected: 'auto' | 'enabled' | 'disabled' | null = null
     let closed = false
     const h = createInkTestHarness(
       <KeypressProvider>
         <ThinkingToggleScreen
-          currentValue={false}
+          currentMode="auto"
           isMidConversation={false}
           onSelect={value => {
             selected = value
@@ -423,8 +423,34 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
     h.stdin.write(`\x1b[<0;4;${enabledLineIndex + 1}M`)
     await h.wait(25)
 
-    expect(selected as boolean | null).toBe(true)
+    expect(selected as string | null).toBe('enabled')
     expect(closed).toBe(true)
+  })
+
+  test('ThinkingToggleScreen: preserves and confirms the disabled mode', async () => {
+    let selected: 'auto' | 'enabled' | 'disabled' | null = null
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <ThinkingToggleScreen
+          currentMode="disabled"
+          isMidConversation={false}
+          onSelect={value => {
+            selected = value
+          }}
+          onDone={() => {}}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Disabled')
+    expect(h.getOutput()).toContain('Automatic')
+    expect(h.getOutput()).toContain('Enabled')
+
+    h.stdin.write('\r')
+    await h.wait(25)
+
+    expect(selected as string | null).toBe('disabled')
   })
 
   test('ConfigScreen: SGR mouse click toggles a setting row', async () => {

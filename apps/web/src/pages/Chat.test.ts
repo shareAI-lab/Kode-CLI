@@ -125,6 +125,13 @@ describe('ChatPage event normalization', () => {
     ).toBe(false)
   })
 
+  test('preserves manual scroll position while new output streams', () => {
+    expect(__chatPageForTests.getOutputFollowAction(true)).toBe('follow')
+    expect(__chatPageForTests.getOutputFollowAction(false)).toBe(
+      'mark-new-output',
+    )
+  })
+
   test('extracts prompt history from user events without duplicating repeats', () => {
     const events: AgentEvent[] = [
       {

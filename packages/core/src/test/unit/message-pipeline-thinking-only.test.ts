@@ -252,6 +252,38 @@ describe('messagePipeline thinking-only recovery', () => {
     )
   })
 
+  test('accepts a dynamic external-runtime tool call for an explicit inspection', async () => {
+    queryLLM.mockClear()
+    const toolUseContext = createToolUseContext(2, [{ name: 'Read' }])
+    queryLLMImplementation = async () => {
+      toolUseContext.options.externalToolCallCount = 1
+      return createAssistantMessage(
+        'Reviewed the workspace with the Read tool.',
+      )
+    }
+
+    const { messagePipeline } = await import('@kode/engine/message-pipeline')
+    const out: Message[] = []
+    for await (const message of messagePipeline(
+      [createUserMessage('查看项目代码')],
+      [],
+      {},
+      (async () => ({ result: true })) as any,
+      toolUseContext,
+    )) {
+      out.push(message)
+    }
+
+    const assistantMessages = out.filter(
+      (message): message is AssistantMessage => message.type === 'assistant',
+    )
+    expect(queryLLM).toHaveBeenCalledTimes(1)
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0]?.message.content[0]?.text).toContain(
+      'Reviewed the workspace',
+    )
+  })
+
   test('preserves a classified provider error without a no-tool retry', async () => {
     queryLLM.mockClear()
     const providerError = createAssistantAPIErrorMessage(

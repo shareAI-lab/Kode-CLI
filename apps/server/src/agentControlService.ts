@@ -19,6 +19,7 @@ import type {
   DaemonAgentSource,
   DaemonManagedAgent,
 } from '@kode/protocol'
+import { normalizePermissionMode } from '#core/types/PermissionMode'
 
 import { appendAgentAuditRecord } from './agentAuditStore'
 
@@ -99,9 +100,12 @@ function toProtocolAgent(agent: ManagedAgent): DaemonManagedAgent {
   }
   if (agent.model !== undefined) output.model = agent.model
   if (agent.permissionMode !== undefined) {
-    output.permissionMode = agent.permissionMode
+    output.permissionMode = normalizePermissionMode(agent.permissionMode)
   }
   if (agent.forkContext === true) output.forkContext = true
+  if (agent.maxExecutionTimeMs !== undefined) {
+    output.maxExecutionTimeMs = agent.maxExecutionTimeMs
+  }
   if (agent.color !== undefined) output.color = agent.color
   return output
 }
@@ -121,6 +125,9 @@ function toStorageInput(input: DaemonAgentDefinition): ManagedAgentInput {
     output.permissionMode = input.permissionMode
   }
   if (input.forkContext === true) output.forkContext = true
+  if (input.maxExecutionTimeMs !== undefined) {
+    output.maxExecutionTimeMs = input.maxExecutionTimeMs
+  }
   if (input.color !== undefined) output.color = input.color
   return output
 }
@@ -143,6 +150,7 @@ function changedFields(
       'model',
       'permissionMode',
       'forkContext',
+      'maxExecutionTimeMs',
       'color',
     ].filter(key => key in next)
   }
@@ -157,6 +165,7 @@ function changedFields(
     'model',
     'permissionMode',
     'forkContext',
+    'maxExecutionTimeMs',
     'color',
   ]
   return keys.filter(key => {
@@ -451,7 +460,9 @@ export class AgentControlService {
   private refreshCache(): void {
     try {
       this.deps.clearCache()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   private safeAudit(
@@ -459,6 +470,8 @@ export class AgentControlService {
   ): void {
     try {
       this.deps.audit(args)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 }

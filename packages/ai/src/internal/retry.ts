@@ -4,6 +4,7 @@ import { debug as debugLogger } from './debug'
 
 const MAX_RETRIES = process.env.USER_TYPE === 'SWE_BENCH' ? 100 : 10
 const BASE_DELAY_MS = 500
+const MAX_SERVER_RETRY_DELAY_MS = 60_000
 
 interface RetryOptions {
   maxRetries?: number
@@ -40,9 +41,9 @@ function getRetryDelay(
   retryAfterHeader?: string | null,
 ): number {
   if (retryAfterHeader) {
-    const seconds = Number.parseInt(retryAfterHeader, 10)
-    if (!Number.isNaN(seconds)) {
-      return seconds * 1000
+    const seconds = Number(retryAfterHeader)
+    if (Number.isSafeInteger(seconds) && seconds > 0) {
+      return Math.min(seconds * 1000, MAX_SERVER_RETRY_DELAY_MS)
     }
   }
   return Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), 32000)

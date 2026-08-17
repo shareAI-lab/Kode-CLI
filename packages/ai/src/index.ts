@@ -1,6 +1,7 @@
 export * from './openai'
 export * from './llm/openai'
 export * from './adapters'
+export * from './voice'
 export { bindAiDebug } from './internal/debug'
 export { bindAiRequestStatus } from './internal/requestStatus'
 export {

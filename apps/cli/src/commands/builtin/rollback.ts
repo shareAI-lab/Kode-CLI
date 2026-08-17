@@ -8,7 +8,7 @@ const rollback = {
   description: 'Restore a file-level Git checkpoint',
   argumentHint: '<id> [--force]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args) {
     const tokens = args.trim().split(/\s+/).filter(Boolean)

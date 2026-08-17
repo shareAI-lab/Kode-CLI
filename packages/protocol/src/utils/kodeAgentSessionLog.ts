@@ -31,7 +31,10 @@ type PersistableUserMessage = {
   type: 'user'
   uuid: string
   message: unknown
-  toolUseResult?: { data?: unknown } | null
+  toolUseResult?: {
+    data?: unknown
+    metadata?: Record<string, unknown>
+  } | null
 }
 
 type PersistableAssistantMessage = {
@@ -339,6 +342,12 @@ export function appendSessionJsonlFromMessage(args: {
           'data' in message.toolUseResult &&
           message.toolUseResult.data !== undefined
             ? { toolUseResult: message.toolUseResult.data }
+            : {}),
+          ...(message.toolUseResult &&
+          isRecord(message.toolUseResult) &&
+          'metadata' in message.toolUseResult &&
+          message.toolUseResult.metadata !== undefined
+            ? { toolUseMetadata: message.toolUseResult.metadata }
             : {}),
         }
       : {

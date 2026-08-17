@@ -5,6 +5,8 @@ import { AskExpertModelTool } from '#tools/tools/ai/AskExpertModelTool/AskExpert
 import { AskUserQuestionTool } from '#tools/tools/interaction/AskUserQuestionTool/AskUserQuestionTool'
 import { BashTool } from '#tools/tools/system/BashTool/BashTool'
 import { TaskOutputTool } from '#tools/tools/system/TaskOutputTool/TaskOutputTool'
+import { TaskGuideTool } from '#tools/tools/system/TaskGuideTool/TaskGuideTool'
+import { TaskMonitorTool } from '#tools/tools/system/TaskMonitorTool/TaskMonitorTool'
 import { EnterPlanModeTool } from '#tools/tools/interaction/PlanModeTool/EnterPlanModeTool'
 import { ExitPlanModeTool } from '#tools/tools/interaction/PlanModeTool/ExitPlanModeTool'
 import { TaskCreateTool } from '#tools/tools/interaction/TaskCreateTool/TaskCreateTool'
@@ -26,7 +28,9 @@ import { NotebookEditTool } from '#tools/tools/filesystem/NotebookEditTool/Noteb
 import { ReadMcpResourceTool } from '#tools/tools/mcp/ReadMcpResourceTool/ReadMcpResourceTool'
 import { SlashCommandTool } from '#tools/tools/interaction/SlashCommandTool/SlashCommandTool'
 import { SkillTool } from '#tools/tools/interaction/SkillTool/SkillTool'
+import { SessionMessageTool } from '#tools/tools/interaction/SessionMessageTool/SessionMessageTool'
 import { TaskTool } from '#tools/tools/ai/TaskTool/TaskTool'
+import { TaskBatchTool } from '#tools/tools/ai/TaskBatchTool/TaskBatchTool'
 import { TodoWriteTool } from '#tools/tools/interaction/TodoWriteTool/TodoWriteTool'
 import { WebFetchTool } from '#tools/tools/network/WebFetchTool/WebFetchTool'
 import { WebSearchTool } from '#tools/tools/search/WebSearchTool/WebSearchTool'
@@ -36,9 +40,12 @@ import { getMCPTools, getMcpListChangedVersion } from '#core/mcp/client'
 // Base tool list for the CLI toolset
 export const getAllTools = (): Tool[] => [
   TaskTool as unknown as Tool,
+  TaskBatchTool as unknown as Tool,
   AskExpertModelTool as unknown as Tool,
   BashTool as unknown as Tool,
   TaskOutputTool as unknown as Tool,
+  TaskMonitorTool as unknown as Tool,
+  TaskGuideTool as unknown as Tool,
   TaskStopTool as unknown as Tool,
   LSTool as unknown as Tool,
   GlobTool as unknown as Tool,
@@ -60,6 +67,7 @@ export const getAllTools = (): Tool[] => [
   ExitPlanModeTool as unknown as Tool,
   SlashCommandTool as unknown as Tool,
   SkillTool as unknown as Tool,
+  SessionMessageTool as unknown as Tool,
   ListMcpResourcesTool as unknown as Tool,
   ReadMcpResourceTool as unknown as Tool,
   MCPSearchTool as unknown as Tool,

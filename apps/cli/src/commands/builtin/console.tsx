@@ -7,7 +7,7 @@ const consoleCommand = {
   name: 'console',
   description: 'View captured stdout/stderr writes during TUI rendering',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone) {
     return <ConsoleScreen onDone={onDone} />

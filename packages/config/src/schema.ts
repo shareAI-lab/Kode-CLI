@@ -1,5 +1,7 @@
 import { homedir } from 'node:os'
 
+import type { VoiceConfig } from './voice'
+
 export type ThemeNames =
   // Light themes
   | 'light'
@@ -162,6 +164,12 @@ export type ProviderType =
   | 'azure'
   | 'custom'
   | 'custom-openai'
+  /** Uses the locally authenticated official Codex CLI runtime. */
+  | 'codex-oauth'
+  /** Uses the locally authenticated official GitHub Copilot runtime. */
+  | 'github-copilot'
+  /** Uses the locally authenticated official Grok Build runtime. */
+  | 'grok-build'
   | (string & {})
 
 export type RequestStrategy =
@@ -178,6 +186,16 @@ export type ModelProfile = {
   name: string
   provider: ProviderType
   modelName: string
+  /**
+   * Provider-native model identifier for runtimes whose Kode profile IDs are
+   * namespaced to avoid collisions with direct API profiles.
+   */
+  externalModelId?: string
+  /**
+   * Opaque reference to an OAuth credential binding in Kode's owner-only
+   * credential store. The OAuth token itself remains in the official runtime.
+   */
+  oauthCredentialId?: string
   baseURL?: string
   /**
    * @deprecated Legacy plaintext value. It is never used for requests; new
@@ -247,6 +265,8 @@ export type GlobalConfig = {
   defaultModelName?: string
   lastDismissedUpdateVersion?: string
   shiftEnterKeyBindingInstalled?: boolean
+  /** Voice provider settings; API key material stays in the named environment variable. */
+  voice?: Partial<VoiceConfig>
 }
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {

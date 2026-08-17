@@ -6,7 +6,7 @@ const note = {
   description: 'Save a note to AGENTS.md',
   argumentHint: '<text>',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   userFacingName() {
     return 'note'

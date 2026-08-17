@@ -3,12 +3,12 @@ import {
   normalizeMessage as normalizeCoreMessage,
   normalizeMessages as normalizeCoreMessages,
   normalizeMessagesIncremental as normalizeCoreMessagesIncremental,
-} from '#core/message-utils/normalize'
+} from '@kode/message-utils/normalize'
 import type {
   IncrementalNormalizeMessagesCache as CoreIncrementalNormalizeMessagesCache,
   NormalizedMessage as CoreNormalizedMessage,
-} from '#core/message-utils/normalize'
-import type { Message as CoreMessage } from '#core/query'
+} from '@kode/message-utils/normalize'
+import type { Message as CoreMessage } from '@kode/message-utils/types'
 
 import type { Message } from '../pipeline/types'
 

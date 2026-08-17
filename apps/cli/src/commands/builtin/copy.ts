@@ -34,7 +34,7 @@ const copy = {
   description: 'Copy assistant/user/transcript text to your clipboard',
   argumentHint: '[assistant|user|transcript [verbose]]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(args: string) {
     const messages = getMessagesGetter()()
     const tokens = (args ?? '')

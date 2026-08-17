@@ -6,14 +6,14 @@ import { resolve } from 'path'
 import type { ToolUseContext } from '#core/tooling/Tool'
 import { createAssistantMessage } from '#core/utils/messages'
 
-describe('bypassPermissions safety floor', () => {
-  test('denies sensitive writes in bypassPermissions mode', async () => {
+describe('Edit mode safety floor', () => {
+  test('denies sensitive writes in Edit mode', async () => {
     const filePath = resolve(homedir(), '.ssh', 'config')
     const ctx: ToolUseContext = {
       abortController: new AbortController(),
       messageId: undefined,
       readFileTimestamps: {},
-      options: { permissionMode: 'bypassPermissions', safeMode: false },
+      options: { permissionMode: 'acceptEdits', safeMode: false },
     }
     const result = await hasPermissionsToUseTool(
       FileWriteTool,
@@ -28,7 +28,7 @@ describe('bypassPermissions safety floor', () => {
     expect(result.message).toContain('sensitive')
   })
 
-  test('ignores KODE_BYPASS_SAFETY_FLOOR env (floor is always enforced)', async () => {
+  test('keeps sensitive paths protected regardless of legacy escape-hatch env', async () => {
     const prev = process.env.KODE_BYPASS_SAFETY_FLOOR
     process.env.KODE_BYPASS_SAFETY_FLOOR = '1'
     try {
@@ -37,7 +37,7 @@ describe('bypassPermissions safety floor', () => {
         abortController: new AbortController(),
         messageId: undefined,
         readFileTimestamps: {},
-        options: { permissionMode: 'bypassPermissions', safeMode: false },
+        options: { permissionMode: 'acceptEdits', safeMode: false },
       }
       const result = await hasPermissionsToUseTool(
         FileWriteTool,

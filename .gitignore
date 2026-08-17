@@ -206,6 +206,7 @@ source-maps/
 
 # Local scratch
 temp_code/
+config.json
 
 # Local generated repository wiki
 .qoder/

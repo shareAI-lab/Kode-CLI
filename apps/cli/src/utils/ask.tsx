@@ -6,6 +6,8 @@ import type { Message } from '#core/query'
 import { query } from '@kode/engine/orchestrator'
 import type { CanUseToolFn } from '#core/permissions/canUseTool'
 import type { Tool } from '#core/tooling/Tool'
+import type { ToolPermissionContext } from '#core/types/toolPermissionContext'
+import type { WrappedClient } from '#core/mcp/client'
 import { buildSystemPromptForSession } from '@kode/engine'
 import { setCwd } from '#core/utils/state'
 import { getMessagesPath, overwriteLog } from '#core/utils/log'
@@ -30,6 +32,10 @@ type Props = {
   maxBudgetUsd?: number
   initialMessages?: Message[]
   persistSession?: boolean
+  toolPermissionContext?: ToolPermissionContext
+  shouldAvoidPermissionPrompts?: boolean
+  model?: string
+  mcpClients?: WrappedClient[]
 }
 
 type AskDeps = Partial<{
@@ -82,6 +88,10 @@ export async function ask(
     maxBudgetUsd,
     initialMessages,
     persistSession = true,
+    toolPermissionContext,
+    shouldAvoidPermissionPrompts,
+    model,
+    mcpClients,
   }: Props,
   deps?: AskDeps,
 ): Promise<{
@@ -159,6 +169,10 @@ export async function ask(
         messageLogName: 'unused',
         maxThinkingTokens: computedMaxThinkingTokens,
         persistSession,
+        toolPermissionContext,
+        shouldAvoidPermissionPrompts,
+        model,
+        mcpClients,
       },
       abortController: new AbortController(),
       messageId: undefined,

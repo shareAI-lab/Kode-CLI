@@ -359,7 +359,7 @@ export function runLspOperation({
       )
       const grouped = groupLocationsByFile(wrappedItems)
       for (const [file, itemsInFile] of grouped) {
-        lines.push(`\\n${file}:`)
+        lines.push(`\n${file}:`)
         for (const wrapper of itemsInFile) {
           const it = wrapper.item
           const sf = program.getSourceFile(it.fileName)

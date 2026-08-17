@@ -61,11 +61,20 @@ function isPlanModeRequired(): boolean {
 function getToolPermissionContextWithPlanModeRequired(args: {
   conversationKey: string
   isBypassPermissionsModeAvailable: boolean
+  safeMode: boolean
 }): IToolPermissionContext {
-  const toolCtx = getToolPermissionContextForConversationKey({
+  let toolCtx = getToolPermissionContextForConversationKey({
     conversationKey: args.conversationKey,
     isBypassPermissionsModeAvailable: args.isBypassPermissionsModeAvailable,
   })
+
+  if (args.safeMode && toolCtx.mode === 'acceptEdits') {
+    toolCtx = applyToolPermissionContextUpdateForConversationKey({
+      conversationKey: args.conversationKey,
+      isBypassPermissionsModeAvailable: args.isBypassPermissionsModeAvailable,
+      update: { type: 'setMode', mode: 'cautious', destination: 'session' },
+    })
+  }
 
   if (!isPlanModeRequired()) return toolCtx
   if (planModeRequiredAppliedByConversationKey.has(args.conversationKey))
@@ -99,6 +108,8 @@ const PermissionContext = createContext<PermissionContextValue | undefined>(
 interface PermissionProviderProps {
   children?: ReactNode
   conversationKey: string
+  safeMode?: boolean
+  /** @deprecated Bypass is no longer a mode; use safeMode instead. */
   isBypassPermissionsModeAvailable?: boolean
 }
 
@@ -107,6 +118,7 @@ export { __applyPermissionModeSideEffectsForTests }
 export function PermissionProvider({
   children,
   conversationKey,
+  safeMode = false,
   isBypassPermissionsModeAvailable = false,
 }: PermissionProviderProps) {
   const [toolPermissionContext, setToolPermissionContext] =
@@ -114,6 +126,7 @@ export function PermissionProvider({
       getToolPermissionContextWithPlanModeRequired({
         conversationKey,
         isBypassPermissionsModeAvailable,
+        safeMode,
       }),
     )
   const [permissionContext, setPermissionContext] =
@@ -121,6 +134,7 @@ export function PermissionProvider({
       const initialMode = getToolPermissionContextWithPlanModeRequired({
         conversationKey,
         isBypassPermissionsModeAvailable,
+        safeMode,
       }).mode
       const initialConfig = MODE_CONFIGS[initialMode]
       return {
@@ -148,6 +162,7 @@ export function PermissionProvider({
     const toolCtx = getToolPermissionContextWithPlanModeRequired({
       conversationKey,
       isBypassPermissionsModeAvailable,
+      safeMode,
     })
     setToolPermissionContext(toolCtx)
     const config = MODE_CONFIGS[toolCtx.mode]
@@ -160,7 +175,7 @@ export function PermissionProvider({
         transitionCount: 0,
       },
     })
-  }, [conversationKey, isBypassPermissionsModeAvailable])
+  }, [conversationKey, isBypassPermissionsModeAvailable, safeMode])
 
   useEffect(() => {
     return subscribeToolPermissionContextUpdates(event => {
@@ -228,10 +243,10 @@ export function PermissionProvider({
 
   const cycleMode = useCallback(() => {
     const prev = permissionContextRef.current
-    const nextMode = getNextPermissionMode(
-      prev.mode,
-      isBypassPermissionsModeAvailable,
-    )
+    const requestedMode = getNextPermissionMode(prev.mode)
+    const nextMode =
+      safeMode && requestedMode === 'acceptEdits' ? 'cautious' : requestedMode
+    if (nextMode === prev.mode) return
     const modeConfig = MODE_CONFIGS[nextMode]
 
     __applyPermissionModeSideEffectsForTests({
@@ -264,19 +279,20 @@ export function PermissionProvider({
     }
     permissionContextRef.current = nextPermissionContext
     setPermissionContext(nextPermissionContext)
-  }, [conversationKey, isBypassPermissionsModeAvailable])
+  }, [conversationKey, isBypassPermissionsModeAvailable, safeMode])
 
   const setMode = useCallback(
     (mode: PermissionMode) => {
       const prev = permissionContextRef.current
-      if (prev.mode === mode) return
+      const nextMode = safeMode && mode === 'acceptEdits' ? 'cautious' : mode
+      if (prev.mode === nextMode) return
 
-      const modeConfig = MODE_CONFIGS[mode]
+      const modeConfig = MODE_CONFIGS[nextMode]
 
       __applyPermissionModeSideEffectsForTests({
         conversationKey,
         previousMode: prev.mode,
-        nextMode: mode,
+        nextMode,
         recordPlanModeUse: false,
       })
 
@@ -284,14 +300,14 @@ export function PermissionProvider({
         applyToolPermissionContextUpdateForConversationKey({
           conversationKey,
           isBypassPermissionsModeAvailable,
-          update: { type: 'setMode', mode, destination: 'session' },
+          update: { type: 'setMode', mode: nextMode, destination: 'session' },
         })
       toolPermissionContextRef.current = updatedToolPermissionContext
       setToolPermissionContext(updatedToolPermissionContext)
 
       const nextPermissionContext: IPermissionContext = {
         ...prev,
-        mode,
+        mode: nextMode,
         allowedTools: modeConfig.allowedTools,
         restrictions: modeConfig.restrictions,
         metadata: {
@@ -304,7 +320,7 @@ export function PermissionProvider({
       permissionContextRef.current = nextPermissionContext
       setPermissionContext(nextPermissionContext)
     },
-    [conversationKey, isBypassPermissionsModeAvailable],
+    [conversationKey, isBypassPermissionsModeAvailable, safeMode],
   )
 
   const applyToolPermissionUpdate = useCallback(

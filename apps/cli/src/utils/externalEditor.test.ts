@@ -8,7 +8,7 @@ import {
 } from 'bun:test'
 import { EventEmitter } from 'node:events'
 import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -22,6 +22,7 @@ import {
 const lifecycle: string[] = []
 
 let exitCode: number | null = 0
+let spawnError: Error | null = null
 let fakeStdin: FakeTTYInput
 let lastSpawn:
   | { command: string; args: string[]; shell: boolean; fileMode: number | null }
@@ -104,7 +105,13 @@ function createFakeDependencies(): ExternalEditorDependencies {
       lifecycle.push(`spawn.file:${args.at(-1) ?? ''}`)
 
       const child = new EventEmitter()
-      queueMicrotask(() => child.emit('exit', exitCode, null))
+      if (spawnError) {
+        const errorToEmit = spawnError
+        spawnError = null
+        queueMicrotask(() => child.emit('error', errorToEmit))
+      } else {
+        queueMicrotask(() => child.emit('exit', exitCode, null))
+      }
       return child
     },
     writeToStdout: (chunk: Uint8Array | string, callback?: () => void) => {
@@ -142,6 +149,7 @@ function createFakeDependencies(): ExternalEditorDependencies {
 beforeEach(() => {
   lifecycle.length = 0
   exitCode = 0
+  spawnError = null
   lastSpawn = undefined
   installFakeTty({ isRaw: true })
   process.env.EDITOR = 'test-editor'
@@ -153,6 +161,7 @@ beforeEach(() => {
 
 afterEach(() => {
   exitCode = 0
+  spawnError = null
   __setExternalEditorDependencyLoaderForTests(null)
 })
 
@@ -209,13 +218,67 @@ describe('external editor terminal suspension', () => {
     expect(lastSpawn?.args.slice(0, -1)).toEqual(['--wait', '--reuse-window'])
   })
 
-  test('rejects shell operators in an editor command', async () => {
+  test('rejects shell operators without executing them and falls back to a safe editor', async () => {
     process.env.EDITOR = 'test-editor; unexpected-command'
 
     const result = await launchExternalEditor('draft')
 
+    // The unsafe command line is never spawned; the built-in candidate is used.
+    expect(result.text).toBe('draft')
+    expect(lifecycle.some(entry => entry.startsWith('spawn:test-editor'))).toBe(
+      false,
+    )
+    expect(lastSpawn?.command).toBe('code')
+  })
+
+  test('expands ~ and $HOME in a configured editor command', async () => {
+    process.env.EDITOR = '~/bin/editor --wait'
+
+    const result = await launchExternalEditor('draft')
+
+    expect(result.text).toBe('draft')
+    expect(lastSpawn).toMatchObject({
+      command: join(homedir(), 'bin', 'editor'),
+      shell: false,
+    })
+    expect(lastSpawn?.args.slice(0, -1)).toEqual(['--wait'])
+
+    const originalHome = process.env.HOME
+    delete process.env.HOME
+    try {
+      process.env.EDITOR = '$HOME/bin/editor'
+      await launchExternalEditor('draft')
+      expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+
+      process.env.EDITOR = '${HOME}/bin/editor'
+      await launchExternalEditor('draft')
+      expect(lastSpawn?.command).toBe(join(homedir(), 'bin', 'editor'))
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME
+      else process.env.HOME = originalHome
+    }
+  })
+
+  test('falls back to built-in editors when the configured command cannot spawn', async () => {
+    process.env.EDITOR = 'missing-editor'
+    spawnError = Object.assign(new Error('spawn missing-editor ENOENT'), {
+      code: 'ENOENT',
+    })
+
+    const result = await launchExternalEditor('draft')
+
+    expect(result.text).toBe('draft')
+    expect(lastSpawn?.command).toBe('code')
+  })
+
+  test('does not retry other editors when the spawned editor fails', async () => {
+    process.env.EDITOR = 'test-editor'
+    exitCode = 1
+
+    const result = await launchExternalEditor('draft')
+
     expect(result.text).toBeNull()
-    expect(lastSpawn).toBeUndefined()
+    expect(lastSpawn?.command).toBe('test-editor')
   })
 
   test('parses quoted Unix and Windows editor paths', () => {

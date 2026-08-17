@@ -16,23 +16,51 @@ export function isMiMoModel(modelName: string): boolean {
   return modelName.toLowerCase().startsWith('mimo-')
 }
 
+export type OpenAIStreamDecision = {
+  stream: boolean
+  reason: 'configured_off' | 'configured_on'
+}
+
+/**
+ * MiMo tool calls can contain an entire generated file in one JSON argument
+ * and its compatible SSE endpoint has been observed to terminate before those
+ * arguments finish. Streaming is kept on for the interactive experience;
+ * when a stream degrades mid-flight, the caller retries the same request
+ * through the non-streaming endpoint (see queryOpenAI's retry loop), so
+ * completion integrity is preserved without disabling streaming up front.
+ */
+export function resolveOpenAIStreamDecision(args: {
+  configuredStream: boolean
+  model: string
+  toolNames: readonly string[]
+}): OpenAIStreamDecision {
+  if (!args.configuredStream) {
+    return { stream: false, reason: 'configured_off' }
+  }
+  return { stream: true, reason: 'configured_on' }
+}
+
 /**
  * MiMo / DeepSeek thinking burns completion budget and can break tool_calls.
  * Enable only for medium/high effort without tools.
+ */
+/**
+ * MiMo / DeepSeek thinking is left enabled by default: disabling it degraded
+ * reasoning accuracy badly and could cause models to emit tool-call text
+ * instead of invoking tools. Reasoning models handle tool calls alongside
+ * thinking; only voice turns (snappy replies) or an explicit
+ * `reasoningEffort: none|minimal` disable it.
  */
 export function shouldDisableProviderThinking(args: {
   model: string
   toolSchemasLength: number
   reasoningEffort?: string | null
   provider?: string | null
+  /** Voice turns answer quickly and skip deep reasoning. */
+  isVoice?: boolean
 }): boolean {
-  const family = detectModelFamily(args.model)
-  const isDeepSeek =
-    family === 'deepseek' || args.provider?.trim().toLowerCase() === 'deepseek'
-  if (family !== 'mimo' && !isDeepSeek) return false
-  if (args.toolSchemasLength > 0) return true
-  const effort = args.reasoningEffort
-  return effort !== 'medium' && effort !== 'high'
+  if (args.isVoice) return true
+  return args.reasoningEffort === 'none' || args.reasoningEffort === 'minimal'
 }
 
 /** @deprecated use shouldDisableProviderThinking */
@@ -58,6 +86,8 @@ export function buildOpenAIChatCompletionCreateParams(args: {
   reasoningEffort?: any
   /** Optional provider for provider-specific request shaping. */
   provider?: string | null
+  /** Voice turns skip thinking for a snappy reply. */
+  isVoice?: boolean
 }): OpenAI.ChatCompletionCreateParams {
   const isGPT5 = isGPT5Model(args.model)
   const isMiMo = isMiMoModel(args.model)
@@ -100,6 +130,7 @@ export function buildOpenAIChatCompletionCreateParams(args: {
     toolSchemasLength: args.toolSchemas.length,
     reasoningEffort: args.reasoningEffort,
     provider: args.provider,
+    isVoice: args.isVoice,
   })
   const enableDeepSeekThinking =
     !disableThinking &&
@@ -131,7 +162,9 @@ export function buildOpenAIChatCompletionCreateParams(args: {
     delete (opts as { top_logprobs?: number }).top_logprobs
   }
 
-  if (args.reasoningEffort) {
+  // MiMo uses its non-standard `thinking` object for reasoning control and
+  // rejects OpenAI's `reasoning_effort` field (including GPT-only xhigh/max).
+  if (args.reasoningEffort && !isMiMo) {
     opts.reasoning_effort = args.reasoningEffort
   }
 

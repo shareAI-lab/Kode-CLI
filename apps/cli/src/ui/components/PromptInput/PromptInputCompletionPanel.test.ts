@@ -6,6 +6,8 @@ import stripAnsi from 'strip-ansi'
 
 import { getTheme } from '#core/utils/theme'
 import {
+  __areSuggestionItemPropsEqualForTests,
+  __areHelpTextPropsEqualForTests,
   __getSuggestionWindowForTests,
   PromptInputCompletionPanel,
 } from './PromptInputCompletionPanel'
@@ -69,6 +71,49 @@ function createHarness(
 }
 
 describe('__getSuggestionWindowForTests', () => {
+  it('rerenders selected suggestions when their theme color changes', () => {
+    const theme = getTheme()
+    const suggestion = {
+      type: 'command',
+      value: '/help',
+      displayValue: '/help',
+    }
+    const props = {
+      suggestion,
+      isSelected: true,
+      theme,
+      maxWidth: 80,
+    }
+
+    expect(
+      __areSuggestionItemPropsEqualForTests(props, {
+        ...props,
+        theme: { ...theme, suggestion: '#ff0000' },
+      }),
+    ).toBe(false)
+  })
+
+  it('refreshes completion help when a suggestion changes type', () => {
+    const theme = getTheme()
+    const props = {
+      emptyDirMessage: '',
+      selectedSuggestion: {
+        type: 'command',
+        value: '/help',
+        displayValue: '/help',
+      },
+      maxWidth: 80,
+      theme,
+    }
+
+    expect(
+      __areHelpTextPropsEqualForTests(props, {
+        ...props,
+        selectedSuggestion: { ...props.selectedSuggestion, type: 'agent' },
+      }),
+    ).toBe(false)
+  })
+
   it('never exceeds available rows in small terminals', () => {
     const rows = 12
     const reservedRows = 10

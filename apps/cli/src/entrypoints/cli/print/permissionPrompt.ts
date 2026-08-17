@@ -30,13 +30,7 @@ function getOptionalStringInput(
 function isPermissionMode(
   value: unknown,
 ): value is ToolPermissionContext['mode'] {
-  return (
-    value === 'default' ||
-    value === 'acceptEdits' ||
-    value === 'plan' ||
-    value === 'dontAsk' ||
-    value === 'bypassPermissions'
-  )
+  return value === 'acceptEdits' || value === 'cautious' || value === 'plan'
 }
 
 function isToolPermissionContextUpdate(

@@ -85,6 +85,8 @@ export type BunShellSandboxOptions = {
 }
 
 export type BunShellExecOptions = {
+  /** Immutable launch cwd. Prefer this over the process-wide shell state. */
+  cwd?: string
   sandbox?: BunShellSandboxOptions
   stdin?: string
   onStdoutChunk?: (chunk: string) => void

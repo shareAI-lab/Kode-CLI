@@ -317,6 +317,7 @@ export async function* callBashTool(
     if (input.run_in_background) {
       const { bashId, completion, pid } =
         BunShell.getInstance().execInBackground(input.command, input.timeout, {
+          cwd: getCwd(),
           sandbox: sandboxOptions,
           backgroundTask: {
             sessionId: getEffectiveSessionId(),

@@ -10,10 +10,13 @@
         "@anthropic-ai/vertex-sdk": "0.19.0",
         "@aws-sdk/client-bedrock-runtime": "3.1081.0",
         "@commander-js/extra-typings": "^13.1.0",
+        "@github/copilot": "1.0.79",
+        "@github/copilot-sdk": "1.0.9",
         "@inkjs/ui": "^2.0.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@types/lodash-es": "^4.17.12",
         "@types/react": "^19.2.17",
+        "@xai-official/grok": "1.0.3",
         "ajv": "^8.20.0",
         "ansi-escapes": "^7.3.0",
         "chalk": "^5.4.1",
@@ -56,8 +59,7 @@
         "which": "^6.0.0",
         "wrap-ansi": "10.0.0",
         "ws": "8.21.0",
-        "zod": "^3.25.76",
-        "zod-to-json-schema": "^3.25.2",
+        "zod": "4.4.3",
       },
       "devDependencies": {
         "@codemirror/lang-css": "^6.3.1",
@@ -119,17 +121,29 @@
       "dependencies": {
         "@kode/agent": "workspace:*",
         "@kode/ai": "workspace:*",
+        "@kode/automation": "workspace:*",
+        "@kode/checkpoints": "workspace:*",
         "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/engine": "workspace:*",
+        "@kode/goals": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/mcp": "workspace:*",
+        "@kode/memory": "workspace:*",
         "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/sandbox": "workspace:*",
         "@kode/server": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
         "@kode/tools": "workspace:*",
+        "@kode/types": "workspace:*",
+        "@kode/worktrees": "workspace:*",
       },
     },
     "apps/server": {
@@ -138,12 +152,19 @@
       "dependencies": {
         "@kode/agent": "workspace:*",
         "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/engine": "workspace:*",
+        "@kode/goals": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/mcp": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tools": "workspace:*",
+        "@kode/types": "workspace:*",
       },
     },
     "apps/web": {
@@ -171,9 +192,24 @@
         "@kode/tool-interface": "workspace:*",
       },
     },
+    "packages/automation": {
+      "name": "@kode/automation",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/tasks": "workspace:*",
+      },
+    },
     "packages/builtin-skills": {
       "name": "@kode/builtin-skills",
       "version": "0.0.0",
+    },
+    "packages/checkpoints": {
+      "name": "@kode/checkpoints",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+      },
     },
     "packages/client": {
       "name": "@kode/client",
@@ -185,6 +221,10 @@
     "packages/config": {
       "name": "@kode/config",
       "version": "0.0.0",
+    },
+    "packages/constants": {
+      "name": "@kode/constants",
+      "version": "2.2.1",
     },
     "packages/context": {
       "name": "@kode/context",
@@ -199,12 +239,20 @@
       "version": "0.0.0",
       "dependencies": {
         "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/memory": "workspace:*",
+        "@kode/message-utils": "workspace:*",
         "@kode/permissions": "workspace:*",
+        "@kode/plan": "workspace:*",
         "@kode/protocol": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/sandbox": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
+        "@kode/types": "workspace:*",
       },
     },
     "packages/engine": {
@@ -213,11 +261,24 @@
       "dependencies": {
         "@kode/config": "workspace:*",
         "@kode/core": "workspace:*",
+        "@kode/goals": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/memory": "workspace:*",
+        "@kode/message-utils": "workspace:*",
         "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/goals": {
+      "name": "@kode/goals",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/core": "workspace:*",
       },
     },
     "packages/hooks": {
@@ -286,11 +347,62 @@
       "name": "@shareai-lab/kode-ripgrep-win32-x64",
       "version": "2.2.1",
     },
+    "packages/logging": {
+      "name": "@kode/logging",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
+        "@kode/plan": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/types": "workspace:*",
+      },
+    },
+    "packages/mcp": {
+      "name": "@kode/mcp",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/constants": "workspace:*",
+        "@kode/core": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/memory": {
+      "name": "@kode/memory",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/runtime": "workspace:*",
+      },
+    },
+    "packages/message-utils": {
+      "name": "@kode/message-utils",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/protocol": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
     "packages/permissions": {
       "name": "@kode/permissions",
       "version": "0.0.0",
       "dependencies": {
         "@kode/config": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/plan": {
+      "name": "@kode/plan",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/protocol": "workspace:*",
         "@kode/runtime": "workspace:*",
         "@kode/tool-interface": "workspace:*",
       },
@@ -302,11 +414,41 @@
         "@kode/config": "workspace:*",
       },
     },
+    "packages/runs": {
+      "name": "@kode/runs",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/memory": "workspace:*",
+      },
+    },
     "packages/runtime": {
       "name": "@kode/runtime",
       "version": "0.0.0",
       "dependencies": {
         "@kode/config": "workspace:*",
+        "@kode/protocol": "workspace:*",
+      },
+    },
+    "packages/sandbox": {
+      "name": "@kode/sandbox",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
+        "@kode/tool-interface": "workspace:*",
+      },
+    },
+    "packages/tasks": {
+      "name": "@kode/tasks",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
+        "@kode/logging": "workspace:*",
+        "@kode/message-utils": "workspace:*",
+        "@kode/protocol": "workspace:*",
+        "@kode/runtime": "workspace:*",
       },
     },
     "packages/tool-interface": {
@@ -318,13 +460,31 @@
       "version": "0.0.0",
       "dependencies": {
         "@kode/agent": "workspace:*",
+        "@kode/automation": "workspace:*",
+        "@kode/constants": "workspace:*",
         "@kode/context": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/engine": "workspace:*",
+        "@kode/mcp": "workspace:*",
         "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
+        "@kode/runs": "workspace:*",
         "@kode/runtime": "workspace:*",
+        "@kode/sandbox": "workspace:*",
+        "@kode/tasks": "workspace:*",
         "@kode/tool-interface": "workspace:*",
+        "@kode/types": "workspace:*",
+      },
+    },
+    "packages/types": {
+      "name": "@kode/types",
+      "version": "2.2.1",
+    },
+    "packages/worktrees": {
+      "name": "@kode/worktrees",
+      "version": "2.2.1",
+      "dependencies": {
+        "@kode/config": "workspace:*",
       },
     },
   },
@@ -512,7 +672,29 @@
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
 
+    "@github/copilot": ["@github/copilot@1.0.79", "", { "dependencies": { "detect-libc": "^2.1.2" }, "optionalDependencies": { "@github/copilot-darwin-arm64": "1.0.79", "@github/copilot-darwin-x64": "1.0.79", "@github/copilot-linux-arm64": "1.0.79", "@github/copilot-linux-x64": "1.0.79", "@github/copilot-linuxmusl-arm64": "1.0.79", "@github/copilot-linuxmusl-x64": "1.0.79", "@github/copilot-win32-arm64": "1.0.79", "@github/copilot-win32-x64": "1.0.79" }, "bin": { "copilot": "npm-loader.js" } }, "sha512-uHBm2BYbKJgyfiKp1WokX7QUNHGvzEX0zaGeb3qM3CybP06rsJrX3JgQe95qwwma6vQz0ah9gV68ERW2JqaKRA=="],
+
+    "@github/copilot-darwin-arm64": ["@github/copilot-darwin-arm64@1.0.79", "", { "os": "darwin", "cpu": "arm64", "bin": { "copilot-darwin-arm64": "copilot" } }, "sha512-rsw7JoMvlcxXb0yx08oIeEc0x2hUEwKSfhX9ESKfdMVt0Ckrzm4OEvNUyzOpOnLJ9+l3h/aI+u1w5g2ZU2K7UA=="],
+
+    "@github/copilot-darwin-x64": ["@github/copilot-darwin-x64@1.0.79", "", { "os": "darwin", "cpu": "x64", "bin": { "copilot-darwin-x64": "copilot" } }, "sha512-D983e2lXYnq+KhjA8mTZXonY1+LGfJN9BM195J73shUvx49nRJmibDHWLvVtGeYc+43evGUOAQrOqOspAhhWPQ=="],
+
+    "@github/copilot-linux-arm64": ["@github/copilot-linux-arm64@1.0.79", "", { "os": "linux", "cpu": "arm64", "bin": { "copilot-linux-arm64": "copilot" } }, "sha512-qqaNkvi92Wg+4OZk/kTWC2nUG72G0vV6eRAo5+PnKaPmjdX1GsI0a+lPxXPEbzX0zYLi/8yrUyANwyyNEsGgXA=="],
+
+    "@github/copilot-linux-x64": ["@github/copilot-linux-x64@1.0.79", "", { "os": "linux", "cpu": "x64", "bin": { "copilot-linux-x64": "copilot" } }, "sha512-wzotZfvHkItutciLFMXZT2k9Qiii4Ta8tsVDCMQ7CP8hPxV91FyJ1yf3+FFSSfPvWrfYM6BOAiqIuX+LjgRuiw=="],
+
+    "@github/copilot-linuxmusl-arm64": ["@github/copilot-linuxmusl-arm64@1.0.79", "", { "os": "linux", "cpu": "arm64", "bin": { "copilot-linuxmusl-arm64": "copilot" } }, "sha512-INtRSARl7DdNm2MXnn4GJuK+Y7QD24ANox02uH8htNQwRlNvdvg+YGS1V/mYgLDXFepeUjMjzTNC+i70+kh5uw=="],
+
+    "@github/copilot-linuxmusl-x64": ["@github/copilot-linuxmusl-x64@1.0.79", "", { "os": "linux", "cpu": "x64", "bin": { "copilot-linuxmusl-x64": "copilot" } }, "sha512-LxJAIfPP6Ok/9qpXGZuhnAft3W9JVcK9tbO3jWXcGDJT3v+2NtutyjmP/A7/cDXdTruXVQ4MybwAgacN8Gj/sg=="],
+
+    "@github/copilot-sdk": ["@github/copilot-sdk@1.0.9", "", { "dependencies": { "@github/copilot": "^1.0.78", "koffi": "^3.1.0", "vscode-jsonrpc": "^8.2.1", "zod": "^4.3.6" } }, "sha512-ZQJYbKhQTvpiUOU4rtPjppzVQv41gGymaD+AuWDbiZPYvSMSB4jZ/epvCrDs7jgqWa52r+j2D9eOQoSzdUMO6Q=="],
+
+    "@github/copilot-win32-arm64": ["@github/copilot-win32-arm64@1.0.79", "", { "os": "win32", "cpu": "arm64", "bin": { "copilot-win32-arm64": "copilot.exe" } }, "sha512-5wg/ayCBTVy4g4FdO/9BJZRVARY0sgjAn9rBkw5BSJMv4u7Mvxg5Sftlift+V5UWxTyCSHAELZ5IHKvox4Yi8w=="],
+
+    "@github/copilot-win32-x64": ["@github/copilot-win32-x64@1.0.79", "", { "os": "win32", "cpu": "x64", "bin": { "copilot-win32-x64": "copilot.exe" } }, "sha512-FTpThWwwCDYnLdE0pfdo5zpAQLLVg36kmC2IKyVMuCYv9iPe7rE1mz7ng/UITN9M3TAMBrwHSvCV3pITvw4W8Q=="],
+
     "@hono/node-server": ["@hono/node-server@2.0.11", "", { "peerDependencies": { "hono": "^4" } }, "sha512-bjD221KPLoJTWUwso1J6fGKiTXEUFedG/s0visavY4zakFPkeGURMRNly+FhBHs7T8Dz4qHaZIMX9ZoJHSJtKA=="],
+
+    "@iarna/toml": ["@iarna/toml@3.0.0", "", {}, "sha512-td6ZUkz2oS3VeleBcN+m//Q6HlCFCPrnI0FZhrt/h4XqLEdOyYp2u21nd8MdsR+WJy5r9PTDaHTDDfhf4H4l6Q=="],
 
     "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 
@@ -596,7 +778,11 @@
 
     "@kode/ai": ["@kode/ai@workspace:packages/ai"],
 
+    "@kode/automation": ["@kode/automation@workspace:packages/automation"],
+
     "@kode/builtin-skills": ["@kode/builtin-skills@workspace:packages/builtin-skills"],
+
+    "@kode/checkpoints": ["@kode/checkpoints@workspace:packages/checkpoints"],
 
     "@kode/cli": ["@kode/cli@workspace:apps/cli"],
 
@@ -604,29 +790,83 @@
 
     "@kode/config": ["@kode/config@workspace:packages/config"],
 
+    "@kode/constants": ["@kode/constants@workspace:packages/constants"],
+
     "@kode/context": ["@kode/context@workspace:packages/context"],
 
     "@kode/core": ["@kode/core@workspace:packages/core"],
 
     "@kode/engine": ["@kode/engine@workspace:packages/engine"],
 
+    "@kode/goals": ["@kode/goals@workspace:packages/goals"],
+
     "@kode/hooks": ["@kode/hooks@workspace:packages/hooks"],
 
     "@kode/host": ["@kode/host@workspace:packages/host"],
 
+    "@kode/logging": ["@kode/logging@workspace:packages/logging"],
+
+    "@kode/mcp": ["@kode/mcp@workspace:packages/mcp"],
+
+    "@kode/memory": ["@kode/memory@workspace:packages/memory"],
+
+    "@kode/message-utils": ["@kode/message-utils@workspace:packages/message-utils"],
+
     "@kode/permissions": ["@kode/permissions@workspace:packages/permissions"],
+
+    "@kode/plan": ["@kode/plan@workspace:packages/plan"],
 
     "@kode/protocol": ["@kode/protocol@workspace:packages/protocol"],
 
+    "@kode/runs": ["@kode/runs@workspace:packages/runs"],
+
     "@kode/runtime": ["@kode/runtime@workspace:packages/runtime"],
 
+    "@kode/sandbox": ["@kode/sandbox@workspace:packages/sandbox"],
+
     "@kode/server": ["@kode/server@workspace:apps/server"],
+
+    "@kode/tasks": ["@kode/tasks@workspace:packages/tasks"],
 
     "@kode/tool-interface": ["@kode/tool-interface@workspace:packages/tool-interface"],
 
     "@kode/tools": ["@kode/tools@workspace:packages/tools"],
 
+    "@kode/types": ["@kode/types@workspace:packages/types"],
+
     "@kode/web": ["@kode/web@workspace:apps/web"],
+
+    "@kode/worktrees": ["@kode/worktrees@workspace:packages/worktrees"],
+
+    "@koromix/koffi-darwin-arm64": ["@koromix/koffi-darwin-arm64@3.1.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-/9o0uahf25sNXz7CczfMAsgdHrrrkDK3/d1W5ygJUC7QnpWo80103yTYpYahWP3vTABK5yjzKtURgssv1paskA=="],
+
+    "@koromix/koffi-darwin-x64": ["@koromix/koffi-darwin-x64@3.1.4", "", { "os": "darwin", "cpu": "x64" }, "sha512-6IOhfAHbrySr6lYRU720Hg+IMQvtMpN08k9Ppf9WF8NxYRdHLnW1FJm7zCbClfrwudtjhS/piwDYwgAkO5u8cg=="],
+
+    "@koromix/koffi-freebsd-arm64": ["@koromix/koffi-freebsd-arm64@3.1.4", "", { "os": "freebsd", "cpu": "arm64" }, "sha512-JKCWC0awdVvq7Nd/etn4PXFTa7uvyHn7IzqtaOZ3r4dJRdwQVby7Ai/wsQo8UUrJfAYlALkLYgFgU8wgsnAE/A=="],
+
+    "@koromix/koffi-freebsd-ia32": ["@koromix/koffi-freebsd-ia32@3.1.4", "", { "os": "freebsd", "cpu": "ia32" }, "sha512-gU9pShDRLMZzftdGW+mTzyL8Cpa/7nzHPHe5vFakjGgtIzVFzdFBqwli4oB+tFsx44W1VqMMlvMMVlnz54ERiQ=="],
+
+    "@koromix/koffi-freebsd-x64": ["@koromix/koffi-freebsd-x64@3.1.4", "", { "os": "freebsd", "cpu": "x64" }, "sha512-2kppLX97xBM3WoQET6noN4W02zT2fkFRXHYluAwcCcmkEax8AVJ1CYs6hxcZ3kaNPc+5P7yMw3V/b1lg2v3aMw=="],
+
+    "@koromix/koffi-linux-arm64": ["@koromix/koffi-linux-arm64@3.1.4", "", { "os": "linux", "cpu": "arm64" }, "sha512-yYbypuGVGqrNchkAMY59kj+7TZ1c1u9lXRG1+74X9T8G4rOaushoVONNYLuu+ygpbwsKzz/NvEDtRioRU/dQlQ=="],
+
+    "@koromix/koffi-linux-ia32": ["@koromix/koffi-linux-ia32@3.1.4", "", { "os": "linux", "cpu": "ia32" }, "sha512-IoA/8Qfc6ZEmwMw2Nf4aSp9RfJnxh0UHhdqD4FsVXm0vC797kLMuzj744vv5tll+waVfjrU10jREqjtnMVFoQw=="],
+
+    "@koromix/koffi-linux-loong64": ["@koromix/koffi-linux-loong64@3.1.4", "", { "os": "linux", "cpu": "none" }, "sha512-ZUTdea+9dg6CV9J9CIGbhTh0FtSBgvcGKqDrlp9BVQF71jEDKOri1by/TrDe8yQUyC5kzWN8vWnkzES5wT0xDg=="],
+
+    "@koromix/koffi-linux-riscv64": ["@koromix/koffi-linux-riscv64@3.1.4", "", { "os": "linux", "cpu": "none" }, "sha512-CINyyhNYV/8MX52MGhYcik2G6PXH+KEU2JEO7dOONlsGol4lSGyW40RvYA4RQgNYk8q8imGSEScL08X8eOXnaA=="],
+
+    "@koromix/koffi-linux-x64": ["@koromix/koffi-linux-x64@3.1.4", "", { "os": "linux", "cpu": "x64" }, "sha512-x3XnAy/tUTTCX/gMpV7VJNpOQIVQvzNhNYDrpyIeS9Q8/f1qLsE0vp0tj7A/YEDIfMVLqoJtyamfRJc04+vk4w=="],
+
+    "@koromix/koffi-openbsd-ia32": ["@koromix/koffi-openbsd-ia32@3.1.4", "", { "os": "openbsd", "cpu": "ia32" }, "sha512-r9p/fffvmBm7+iT5BZ+c17gZJ280jvmbinrPZqjG14rF9I4lk7xrlV79YfsexkeN4mcPjF2hSPtbMNFBoQU3Dw=="],
+
+    "@koromix/koffi-openbsd-x64": ["@koromix/koffi-openbsd-x64@3.1.4", "", { "os": "openbsd", "cpu": "x64" }, "sha512-SNp5AxOzheC2YaWPu3Y86wxRHHWf6V9NMl5Ot5nu9OpnP61Yinzug7JwsCeXtcZZTbKLsfsWoT7y4n17UYpOVA=="],
+
+    "@koromix/koffi-win32-arm64": ["@koromix/koffi-win32-arm64@3.1.4", "", { "os": "win32", "cpu": "arm64" }, "sha512-oS8ETU35AelOD6DY7xmmz9qq26Xl38upXWiZbsdxbtH9UEIY0QpenQOuCK/0+q4CtfiLorRUlglGkO9YgPAIeA=="],
+
+    "@koromix/koffi-win32-ia32": ["@koromix/koffi-win32-ia32@3.1.4", "", { "os": "win32", "cpu": "ia32" }, "sha512-zd7Qh8s4fzblD9zzuDf44XCbujYg3QrffhgcNJg79/YC6ABT2m0CUtX4yFic9EWm2ps8NPAM25kCTCXPpt3eaw=="],
+
+    "@koromix/koffi-win32-x64": ["@koromix/koffi-win32-x64@3.1.4", "", { "os": "win32", "cpu": "x64" }, "sha512-BPeQXc1bRd0QBOklvsP+AjoRnUzKbPNE6rfx7VNxrebhh09MKld2ibstgKWn6ejQLEcfKEoUJ+WAWIhX4AOsIg=="],
 
     "@lezer/common": ["@lezer/common@1.5.2", "", {}, "sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ=="],
 
@@ -998,6 +1238,20 @@
 
     "@vscode/ripgrep-win32-x64": ["@vscode/ripgrep-win32-x64@1.18.0", "", { "os": "win32", "cpu": "x64" }, "sha512-KNPvtElldqILHdnAetujPaowkNbpqJy3ssIGGN6F6Kve9Qi+nNLI2DN01O83JjCEVQbCzl8Ov3QZ9Eov3BR8Dg=="],
 
+    "@xai-official/grok": ["@xai-official/grok@1.0.3", "", { "dependencies": { "@iarna/toml": "^3.0.0" }, "optionalDependencies": { "@xai-official/grok-darwin-arm64": "1.0.3", "@xai-official/grok-darwin-x64": "1.0.3", "@xai-official/grok-linux-arm64": "1.0.3", "@xai-official/grok-linux-x64": "1.0.3", "@xai-official/grok-win32-arm64": "1.0.3", "@xai-official/grok-win32-x64": "1.0.3" }, "os": [ "linux", "win32", "darwin", ], "cpu": [ "x64", "arm64", ], "bin": { "grok": "bin/grok" } }, "sha512-/R9Vh6yjqrBgWhRiU7yBlMyLcTpFrdBIqKIaHq63ePNWyJUPR1RMqeZ9mwLr1sKQrcngTa4SGOYd8uGc2z4OlA=="],
+
+    "@xai-official/grok-darwin-arm64": ["@xai-official/grok-darwin-arm64@1.0.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-DznI/QVV1IeGaHnIFVDX9uTWD21ha8T+ehzrc+RoJmSU7DnEPDizGbeImCGpyVOUwuL3OsHMDQAlzGT7pyyHjQ=="],
+
+    "@xai-official/grok-darwin-x64": ["@xai-official/grok-darwin-x64@1.0.3", "", { "os": "darwin", "cpu": "x64" }, "sha512-Q2jNkGXtFjZsFH7eRN7GN3n/6/41ozt0H+i+8KxFY13339+2z2ZGPxQed/hnvFGttUxo6kWudXb+zbDTowU9CQ=="],
+
+    "@xai-official/grok-linux-arm64": ["@xai-official/grok-linux-arm64@1.0.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-VgfZcuSjI2+9afIcOtp8RvwwPZZFG2pPIV7X7xyKPLsKVVBJMjuEs7p5ElbWboVbG7liGIAr69o990GeMq5nvw=="],
+
+    "@xai-official/grok-linux-x64": ["@xai-official/grok-linux-x64@1.0.3", "", { "os": "linux", "cpu": "x64" }, "sha512-A9s99QssxwjtffUFvMiCVp7CdyRh1/7oTyxOxhhZvQgv//AV3lXaF2Mi2/7O+am9CxW7WcJJdbZE7DDWMi231g=="],
+
+    "@xai-official/grok-win32-arm64": ["@xai-official/grok-win32-arm64@1.0.3", "", { "os": "win32", "cpu": "arm64" }, "sha512-asBijDs5Faa8iSilZlQcrS9V5BrXrVvhHKofjbp/dQ8+efsqy6+5HQqTRtl472DZ3Y7P91B7Hu0QBJVYYvqPwQ=="],
+
+    "@xai-official/grok-win32-x64": ["@xai-official/grok-win32-x64@1.0.3", "", { "os": "win32", "cpu": "x64" }, "sha512-rSBEtzJXVmHEKg0r+G/qP/Is45AJgQjlpgunVO7OPJ15rSXKq32vqDwKvTFIOZeW6N0DQIv7WadtaMtyX1rllw=="],
+
     "@xterm/xterm": ["@xterm/xterm@6.0.0", "", {}, "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
@@ -1359,6 +1613,8 @@
     "jwa": ["jwa@2.0.1", "", { "dependencies": { "buffer-equal-constant-time": "^1.0.1", "ecdsa-sig-formatter": "1.0.11", "safe-buffer": "^5.0.1" } }, "sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg=="],
 
     "jws": ["jws@4.0.1", "", { "dependencies": { "jwa": "^2.0.1", "safe-buffer": "^5.0.1" } }, "sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA=="],
+
+    "koffi": ["koffi@3.1.4", "", { "optionalDependencies": { "@koromix/koffi-darwin-arm64": "3.1.4", "@koromix/koffi-darwin-x64": "3.1.4", "@koromix/koffi-freebsd-arm64": "3.1.4", "@koromix/koffi-freebsd-ia32": "3.1.4", "@koromix/koffi-freebsd-x64": "3.1.4", "@koromix/koffi-linux-arm64": "3.1.4", "@koromix/koffi-linux-ia32": "3.1.4", "@koromix/koffi-linux-loong64": "3.1.4", "@koromix/koffi-linux-riscv64": "3.1.4", "@koromix/koffi-linux-x64": "3.1.4", "@koromix/koffi-openbsd-ia32": "3.1.4", "@koromix/koffi-openbsd-x64": "3.1.4", "@koromix/koffi-win32-arm64": "3.1.4", "@koromix/koffi-win32-ia32": "3.1.4", "@koromix/koffi-win32-x64": "3.1.4" } }, "sha512-KHX39XIg7afe8ds+0MHPoLiKR9dCzsVK4oAmBUSaeJlcX0xur22f15C2DILbZ6GJ9eyqC+e6Sb1cTG7M17z+Tg=="],
 
     "lightningcss": ["lightningcss@1.32.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.32.0", "lightningcss-darwin-arm64": "1.32.0", "lightningcss-darwin-x64": "1.32.0", "lightningcss-freebsd-x64": "1.32.0", "lightningcss-linux-arm-gnueabihf": "1.32.0", "lightningcss-linux-arm64-gnu": "1.32.0", "lightningcss-linux-arm64-musl": "1.32.0", "lightningcss-linux-x64-gnu": "1.32.0", "lightningcss-linux-x64-musl": "1.32.0", "lightningcss-win32-arm64-msvc": "1.32.0", "lightningcss-win32-x64-msvc": "1.32.0" } }, "sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ=="],
 
@@ -1754,6 +2010,8 @@
 
     "vite": ["vite@8.1.5", "", { "dependencies": { "lightningcss": "^1.32.0", "picomatch": "^4.0.5", "postcss": "^8.5.17", "rolldown": "~1.1.5", "tinyglobby": "^0.2.17" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^20.19.0 || >=22.12.0", "@vitejs/devtools": "^0.3.0", "esbuild": "^0.27.0 || ^0.28.0", "jiti": ">=1.21.0", "less": "^4.0.0", "sass": "^1.70.0", "sass-embedded": "^1.70.0", "stylus": ">=0.54.8", "sugarss": "^5.0.0", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "@vitejs/devtools", "esbuild", "jiti", "less", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-7ULLwsCdYx/nRyrpiEwvqb5TFHrMVZyBt+rg/OAXT7rgj/z+DtTDyKFeLAdDkubDVDKD8jOsndmy7m55XcfUsw=="],
 
+    "vscode-jsonrpc": ["vscode-jsonrpc@8.2.1", "", {}, "sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ=="],
+
     "w3c-keyname": ["w3c-keyname@2.2.8", "", {}, "sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ=="],
 
     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
@@ -1778,7 +2036,7 @@
 
     "yoga-layout": ["yoga-layout@3.2.1", "", {}, "sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ=="],
 
-    "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+    "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
@@ -1963,6 +2221,8 @@
     "@jest/types/@types/node": ["@types/node@24.13.2", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA=="],
 
     "@jest/types/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
+
+    "@modelcontextprotocol/sdk/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@smithy/core/@smithy/types": ["@smithy/types@4.15.1", "", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-x3L0XSACF6UYzKpa9biqiRMgvH5+wnFFew9Tm/grFYqgaupPwx/+ojDPpPJM8dZON3S9tjz5U+PQYsCBd1Mw5Q=="],
 

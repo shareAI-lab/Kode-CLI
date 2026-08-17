@@ -75,6 +75,18 @@ export class AgentConcurrencyLimitError extends Error {
   }
 }
 
+export class AgentAlreadyRunningError extends Error {
+  readonly agentId: string
+
+  constructor(agentId: string) {
+    super(
+      `Agent "${agentId}" is already running; wait for it to finish before resuming it`,
+    )
+    this.name = 'AgentAlreadyRunningError'
+    this.agentId = agentId
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Supervisor Instance
 // ---------------------------------------------------------------------------
@@ -88,6 +100,7 @@ export class AgentSupervisor {
   readonly maxTurnsHardCap: number
 
   private released = false
+  private deadlineTimer: ReturnType<typeof setTimeout> | null = null
 
   private constructor(agentId: string, config: AgentLimitsConfig) {
     this.agentId = agentId
@@ -108,6 +121,10 @@ export class AgentSupervisor {
   static acquire(agentId: string, config?: AgentLimitsConfig): AgentSupervisor {
     const limit = config?.concurrentAgentLimit ?? DEFAULT_CONCURRENT_AGENT_LIMIT
 
+    if (AgentSupervisor.activeAgents.has(agentId)) {
+      throw new AgentAlreadyRunningError(agentId)
+    }
+
     if (AgentSupervisor.activeAgents.size >= limit) {
       throw new AgentConcurrencyLimitError(
         AgentSupervisor.activeAgents.size,
@@ -127,7 +144,34 @@ export class AgentSupervisor {
   release(): void {
     if (this.released) return
     this.released = true
-    AgentSupervisor.activeAgents.delete(this.agentId)
+    if (this.deadlineTimer) clearTimeout(this.deadlineTimer)
+    this.deadlineTimer = null
+    if (AgentSupervisor.activeAgents.get(this.agentId) === this) {
+      AgentSupervisor.activeAgents.delete(this.agentId)
+    }
+  }
+
+  /**
+   * Actively abort a run at its deadline. Passive checks between streamed
+   * chunks cannot stop a provider or tool call that never yields.
+   */
+  attachAbortController(controller: AbortController): void {
+    if (this.released || this.deadlineTimer) return
+    const remainingMs = Math.max(
+      0,
+      this.maxExecutionTimeMs - (Date.now() - this.startedAt),
+    )
+    this.deadlineTimer = setTimeout(() => {
+      if (this.released || controller.signal.aborted) return
+      controller.abort(
+        new AgentTimeoutError(
+          this.agentId,
+          Date.now() - this.startedAt,
+          this.maxExecutionTimeMs,
+        ),
+      )
+    }, remainingMs)
+    this.deadlineTimer.unref?.()
   }
 
   // -------------------------------------------------------------------------
@@ -184,6 +228,9 @@ export class AgentSupervisor {
 
   /** Reset all state. Only for tests. */
   static __resetForTests(): void {
+    for (const supervisor of AgentSupervisor.activeAgents.values()) {
+      supervisor.release()
+    }
     AgentSupervisor.activeAgents.clear()
   }
 }

@@ -2,9 +2,19 @@ import { z } from 'zod'
 import { Tool } from '@kode/tool-interface/Tool'
 import { DESCRIPTION, PROMPT, TOOL_NAME_FOR_PROMPT } from './prompt'
 import {
-  getBackgroundTaskSnapshot,
+  getOwnedBackgroundTaskSnapshot,
   killBackgroundTask,
 } from '#core/tasks/backgroundRegistry'
+import { getCwd } from '#core/utils/state'
+import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
+
+function getOwnedTask(taskId: string) {
+  return getOwnedBackgroundTaskSnapshot({
+    taskId,
+    cwd: getCwd(),
+    sessionId: getKodeAgentSessionId(),
+  })
+}
 
 const inputSchema = z.strictObject({
   task_id: z
@@ -65,7 +75,7 @@ export const TaskStopTool = {
       }
     }
 
-    const task = getBackgroundTaskSnapshot(taskId)
+    const task = getOwnedTask(taskId)
     if (task) {
       if (task.status === 'running') return { result: true }
 
@@ -86,7 +96,7 @@ export const TaskStopTool = {
     const taskId = resolveTaskId(input)
     if (!taskId) throw new Error('Missing required parameter: task_id')
 
-    const task = getBackgroundTaskSnapshot(taskId)
+    const task = getOwnedTask(taskId)
     if (!task) {
       throw new Error(`No task found with ID: ${taskId}`)
     }

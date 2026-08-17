@@ -7,6 +7,8 @@ import { getActiveAgents, SUBAGENT_DISALLOWED_TOOL_NAMES } from '@kode/agent'
 
 const TASK_TOOL_NAME = 'Task'
 const TASK_OUTPUT_TOOL_NAME = 'TaskOutput'
+const TASK_MONITOR_TOOL_NAME = 'TaskMonitor'
+const TASK_GUIDE_TOOL_NAME = 'TaskGuide'
 
 export async function getTaskTools(safeMode: boolean): Promise<Tool[]> {
   // No recursive tasks, yet..
@@ -54,6 +56,7 @@ Usage notes:
 - Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
 - When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 - You can optionally run agents in the background using the run_in_background parameter. When an agent runs in the background, you will need to use ${TASK_OUTPUT_TOOL_NAME} to retrieve its results once it's done. You can continue to work while background agents run - When you need their results to continue you can use ${TASK_OUTPUT_TOOL_NAME} in blocking mode to pause and wait for their results.
+- Use ${TASK_MONITOR_TOOL_NAME} for a non-blocking view of live Agent status, activity, turns, recent output, and queued/applied guidance. Use ${TASK_GUIDE_TOOL_NAME} to send a reviewed correction to a running background Agent at its next model-turn boundary. Use TaskStop instead if current work must stop immediately.
 - Agents can be resumed using the \`resume\` parameter by passing the agent ID from a previous invocation. When resumed, the agent continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
 - When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent later if needed for follow-up work.
 - Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.

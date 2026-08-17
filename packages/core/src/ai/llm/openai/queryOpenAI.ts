@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toInputJsonSchema } from '@kode/tool-interface/jsonSchema'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import type { AssistantMessage, UserMessage } from '#core/query'
@@ -44,7 +44,11 @@ import {
   convertAnthropicMessagesToOpenAIMessages,
   convertOpenAIResponseToAnthropic,
 } from './conversion'
-import { buildOpenAIChatCompletionCreateParams, isGPT5Model } from './params'
+import {
+  buildOpenAIChatCompletionCreateParams,
+  isGPT5Model,
+  resolveOpenAIStreamDecision,
+} from './params'
 import { handleMessageStream, isOpenAIStreamDegradedResponse } from './stream'
 import { buildAssistantMessageFromUnifiedResponse } from './unifiedResponse'
 import {
@@ -115,6 +119,9 @@ export async function queryOpenAI(
 ): Promise<AssistantMessage> {
   const config = getGlobalConfig()
   const toolUseContext = options?.toolUseContext
+  const thinkingMode = toolUseContext?.options?.thinkingMode
+  const isVoiceTurn = toolUseContext?.options?.voiceTurn === true
+  const shouldRequestReasoningSummary = thinkingMode !== 'disabled'
 
   const modelProfile =
     options?.modelProfile ?? getModelManager().getModel('main')
@@ -122,8 +129,20 @@ export async function queryOpenAI(
 
   // 🔍 Debug: 记录模型配置详情
   const currentRequest = getCurrentRequest()
+  const onAssistantStreamUpdate =
+    toolUseContext?.options?.onAssistantStreamUpdate
   const assistantStreamUpdateOptions = {
-    onAssistantStreamUpdate: toolUseContext?.options?.onAssistantStreamUpdate,
+    onAssistantStreamUpdate: onAssistantStreamUpdate
+      ? event => {
+          // A disabled session must not reintroduce provider thinking through a
+          // legacy OpenAI-compatible stream. The completed transcript is
+          // filtered below for the same reason.
+          if (thinkingMode === 'disabled' && event.type === 'thinking_delta') {
+            return
+          }
+          onAssistantStreamUpdate(event)
+        }
+      : undefined,
     agentId: toolUseContext?.agentId,
     requestId: toolUseContext?.requestId ?? currentRequest?.id ?? randomUUID(),
   } satisfies AssistantStreamUpdateOptions
@@ -176,11 +195,26 @@ export async function queryOpenAI(
             parameters:
               'inputJSONSchema' in _ && _.inputJSONSchema
                 ? _.inputJSONSchema
-                : (zodToJsonSchema(_.inputSchema) as Record<string, unknown>),
+                : toInputJsonSchema(_.inputSchema),
           },
         }) as OpenAI.ChatCompletionTool,
     ),
   )
+
+  const configuredStream = config.stream ?? true
+  const streamDecision = resolveOpenAIStreamDecision({
+    configuredStream,
+    model,
+    toolNames: tools.map(tool => tool.name),
+  })
+  debugLogger.api('OPENAI_STREAM_POLICY', {
+    model,
+    toolCount: String(toolSchemas.length),
+    configuredStream: String(configuredStream),
+    effectiveStream: String(streamDecision.stream),
+    reason: streamDecision.reason,
+    requestId: getCurrentRequest()?.id,
+  })
 
   const openaiSystem = system.map(
     s =>
@@ -235,13 +269,12 @@ export async function queryOpenAI(
       // Chat Completions models use legacy path for stability
       if (shouldUseResponses) {
         const adapter = ModelAdapterFactory.createAdapter(modelProfile)
-        const reasoningEffort = await getReasoningEffort(
-          modelProfile,
-          messages,
-          {
-            thinkingTokens: maxThinkingTokens,
-          },
-        )
+        const reasoningEffort = shouldRequestReasoningSummary
+          ? await getReasoningEffort(modelProfile, messages, {
+              thinkingTokens: maxThinkingTokens,
+              isVoice: isVoiceTurn,
+            })
+          : null
 
         // Determine verbosity based on model name
         // Most GPT-5 codex models only support 'medium', so default to that unless we detect 'high' in the name
@@ -260,8 +293,13 @@ export async function queryOpenAI(
           tools,
           maxTokens:
             options?.maxTokens ?? getMaxTokensFromProfile(modelProfile),
-          stream: config.stream,
+          stream: streamDecision.stream,
           reasoningEffort: reasoningEffort ?? undefined,
+          reasoning: {
+            enable: shouldRequestReasoningSummary,
+            effort: reasoningEffort ?? 'medium',
+            summary: 'auto',
+          },
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
@@ -285,7 +323,7 @@ export async function queryOpenAI(
 
   try {
     queryResult = await withRetry(
-      async () => {
+      async attempt => {
         start = Date.now()
 
         if (adapterContext) {
@@ -330,16 +368,23 @@ export async function queryOpenAI(
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
-          stream: config.stream ?? true,
+          stream: attempt > 1 ? false : streamDecision.stream,
           toolSchemas: toolSchemas,
           stopSequences: options?.stopSequences,
           provider:
             typeof modelProfile?.provider === 'string'
               ? modelProfile.provider
               : null,
-          reasoningEffort: await getReasoningEffort(modelProfile, messages, {
-            thinkingTokens: maxThinkingTokens,
-          }),
+          // Omitting this field avoids explicitly opting into profile-level
+          // extended reasoning in the legacy endpoint. Some old models have
+          // no portable `none` value, so they retain their provider default.
+          reasoningEffort: shouldRequestReasoningSummary
+            ? await getReasoningEffort(modelProfile, messages, {
+                thinkingTokens: maxThinkingTokens,
+                isVoice: isVoiceTurn,
+              })
+            : undefined,
+          isVoice: isVoiceTurn,
         })
 
         const completionFunction = isGPT5Model(modelProfile?.modelName || '')
@@ -398,6 +443,11 @@ export async function queryOpenAI(
   assistantMessage.message.content = normalizeContentFromAPI(
     assistantMessage.message.content || [],
   )
+  if (thinkingMode === 'disabled') {
+    assistantMessage.message.content = assistantMessage.message.content.filter(
+      block => block.type !== 'thinking' && block.type !== 'redacted_thinking',
+    )
+  }
 
   const normalizedUsage = normalizeUsage(assistantMessage.message.usage)
   assistantMessage.message.usage = normalizedUsage

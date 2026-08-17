@@ -41,6 +41,10 @@ function formatDecisionReason(
   return 'Compound command requires approval'
 }
 
+function isHighRiskAsk(decision: BashPermissionDecision): boolean {
+  return decision.decisionReason?.type !== 'rule'
+}
+
 function parseBoolLikeEnv(value: string | undefined): boolean {
   if (!value) return false
   const v = value.trim().toLowerCase()
@@ -191,6 +195,7 @@ export async function checkBashPermissions(args: {
         'message' in syntax && typeof syntax.message === 'string'
           ? syntax.message
           : 'Invalid Bash syntax requires approval',
+      requiresExplicitApproval: true,
     }
   }
 
@@ -212,6 +217,7 @@ export async function checkBashPermissions(args: {
         security.behavior === 'ask' && security.message
           ? security.message
           : 'Unsafe compound command requires approval',
+      requiresExplicitApproval: true,
     }
   }
 
@@ -295,6 +301,7 @@ export async function checkBashPermissions(args: {
       suggestions: fullPathDecision.suggestions,
       decisionReason: formatDecisionReason(fullPathDecision.decisionReason),
       blockedPath: fullPathDecision.blockedPath,
+      requiresExplicitApproval: isHighRiskAsk(fullPathDecision),
     }
   }
 
@@ -306,6 +313,7 @@ export async function checkBashPermissions(args: {
         suggestions: decision.suggestions,
         decisionReason: formatDecisionReason(decision.decisionReason),
         blockedPath: decision.blockedPath,
+        requiresExplicitApproval: isHighRiskAsk(decision),
       }
     }
   }

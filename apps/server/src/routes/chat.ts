@@ -1,6 +1,6 @@
 import type { Tool } from '@kode/core/tooling/Tool'
-import type { WrappedClient } from '@kode/core/mcp/client'
-import { isUuid } from '@kode/core/utils/uuid'
+import type { WrappedClient } from '@kode/mcp/client'
+import { isUuid } from '@kode/runtime'
 import type { AgentEvent } from '#protocol/agentEvent'
 import { makeSdkResultMessage } from '#protocol/utils/kodeAgentStreamJson'
 
@@ -263,7 +263,9 @@ export async function routeChat(
               : {}),
             onError: message => wsSend(log('error', message)),
           })
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
     }
   })()

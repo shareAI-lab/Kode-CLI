@@ -40,7 +40,9 @@ export function getOrCreateWebToken(): string {
         hardenTokenFilePermissions(tokenFile)
         return token
       }
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   const newToken = randomUUID().replace(/-/g, '')
@@ -49,7 +51,9 @@ export function getOrCreateWebToken(): string {
     if (process.platform !== 'win32') chmodSync(configDir, 0o700)
     writeFileSync(tokenFile, newToken, { encoding: 'utf-8', mode: 0o600 })
     hardenTokenFilePermissions(tokenFile)
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 
   return newToken
 }

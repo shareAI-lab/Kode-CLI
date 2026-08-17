@@ -44,8 +44,8 @@ describe('Tool isReadOnly/isConcurrencySafe flags (compatibility)', () => {
     expect(ExitPlanModeTool.isReadOnly()).toBe(false)
     expect(ExitPlanModeTool.isConcurrencySafe()).toBe(true)
 
-    expect(TaskTool.isReadOnly()).toBe(true)
-    expect(TaskTool.isConcurrencySafe()).toBe(true)
+    expect(TaskTool.isReadOnly()).toBe(false)
+    expect(TaskTool.isConcurrencySafe()).toBe(false)
   })
 
   test('BashTool concurrency-safe equals read-only (Reference CLI y9)', () => {

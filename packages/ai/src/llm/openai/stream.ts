@@ -32,6 +32,12 @@ function getToolCallDeltaIndex(
   throw new Error('OpenAI stream tool_calls delta index must be a number')
 }
 
+function mergeStreamingString(previous: string, next: string): string {
+  if (!next || previous === next || previous.endsWith(next)) return previous
+  if (!previous || next.startsWith(previous)) return next
+  return previous + next
+}
+
 function mergeToolCallDelta(
   previous: unknown,
   delta: Record<string, unknown>,
@@ -94,7 +100,14 @@ function mergeToolCallDelta(
         typeof mergedFunction.arguments === 'string'
           ? mergedFunction.arguments
           : ''
-      mergedFunction.arguments = previousArguments + delta.function.arguments
+      const deltaArguments = delta.function.arguments
+      // Some providers send the entire accumulated argument value instead of
+      // a pure increment. Keep the newest snapshot rather than concatenating
+      // its already-seen prefix.
+      mergedFunction.arguments = mergeStreamingString(
+        previousArguments,
+        deltaArguments,
+      )
     }
   }
 
@@ -104,6 +117,19 @@ function mergeToolCallDelta(
 
   return merged
 }
+
+const SNAPSHOT_STRING_FIELDS = new Set([
+  'type',
+  'id',
+  'role',
+  'model',
+  'object',
+  'finish_reason',
+  'stop_reason',
+  'stop_sequence',
+  'service_tier',
+  'status',
+])
 
 function messageReducer(
   previous: OpenAI.ChatCompletionMessage,
@@ -152,7 +178,15 @@ function messageReducer(
           }
         }
       } else if (typeof acc[key] === 'string' && typeof value === 'string') {
-        acc[key] += value
+        if (SNAPSHOT_STRING_FIELDS.has(key)) {
+          // Some OpenAI-compatible providers (e.g. mimo) repeat snapshot
+          // metadata (type/id/role) with every delta chunk. These fields are
+          // idempotent snapshots, not streamed text: overwrite instead of
+          // concatenating so the accumulated string cannot grow unbounded.
+          acc[key] = value
+          continue
+        }
+        acc[key] = mergeStreamingString(acc[key], value)
       } else if (typeof acc[key] === 'number' && typeof value === 'number') {
         acc[key] = value
       } else if (Array.isArray(acc[key]) && Array.isArray(value)) {
@@ -197,6 +231,33 @@ function hasAnyAssistantOutput(message: OpenAI.ChatCompletionMessage): boolean {
     (typeof record.reasoning_content === 'string' &&
       record.reasoning_content.length > 0)
   )
+}
+
+function getNewReasoningDelta(args: {
+  previous: OpenAI.ChatCompletionMessage
+  accumulated: OpenAI.ChatCompletionMessage
+  delta: unknown
+}): string {
+  if (!isRecord(args.delta)) return ''
+
+  const previous = args.previous as unknown as Record<string, unknown>
+  const accumulated = args.accumulated as unknown as Record<string, unknown>
+  const deltas: string[] = []
+
+  for (const field of ['reasoning_content', 'reasoning']) {
+    if (typeof args.delta[field] !== 'string') continue
+
+    const before = typeof previous[field] === 'string' ? previous[field] : ''
+    const after =
+      typeof accumulated[field] === 'string' ? accumulated[field] : ''
+    if (!after || after === before) continue
+
+    deltas.push(
+      after.startsWith(before) ? after.slice(before.length) : args.delta[field],
+    )
+  }
+
+  return deltas.join('')
 }
 
 export function isOpenAIStreamDegradedResponse(
@@ -272,13 +333,36 @@ export async function handleMessageStream(
           }
         }
 
+        const previousMessage = message
+        const previousContent =
+          typeof previousMessage.content === 'string'
+            ? previousMessage.content
+            : ''
         message = messageReducer(message, chunk)
+        const accumulatedContent =
+          typeof message.content === 'string' ? message.content : ''
+        const thinkingDelta = getNewReasoningDelta({
+          previous: previousMessage,
+          accumulated: message,
+          delta: chunk?.choices?.[0]?.delta,
+        })
 
         const textDelta = chunk?.choices?.[0]?.delta?.content
-        if (textDelta) {
+        const newTextDelta =
+          typeof textDelta === 'string' &&
+          accumulatedContent.startsWith(previousContent)
+            ? accumulatedContent.slice(previousContent.length)
+            : textDelta
+        if (thinkingDelta) {
+          emitAssistantStreamUpdate(options, {
+            type: 'thinking_delta',
+            delta: thinkingDelta,
+          })
+        }
+        if (newTextDelta) {
           emitAssistantStreamUpdate(options, {
             type: 'text_delta',
-            delta: textDelta,
+            delta: newTextDelta,
           })
           if (!hasMarkedStreaming) {
             setRequestStatus({ kind: 'streaming' })
@@ -413,8 +497,14 @@ export async function handleMessageStream(
   }
 
   if (degradationReason) {
-    completion.__streamDegraded = true
-    completion.__streamDegradationReason = degradationReason
+    // The stream did not complete cleanly (e.g. MiMo's SSE endpoint can
+    // terminate mid tool-call argument). Surface this as a retryable error so
+    // the caller's retry loop can re-issue the request through the
+    // non-streaming endpoint instead of silently returning partial output.
+    throw new OpenAIStreamError(
+      'read_error',
+      `OpenAI stream degraded: ${degradationReason}`,
+    )
   }
 
   return completion

@@ -162,6 +162,12 @@ function isNearScrollBottom(
   )
 }
 
+function getOutputFollowAction(
+  isFollowingOutput: boolean,
+): 'follow' | 'mark-new-output' {
+  return isFollowingOutput ? 'follow' : 'mark-new-output'
+}
+
 function extractTextFromContentBlocks(blocks: SdkContentBlock[]): string {
   return blocks
     .filter(block => block.type === 'text')
@@ -314,12 +320,25 @@ export function ChatPage(props: {
   const bottomRef = React.useRef<HTMLDivElement | null>(null)
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const shouldAutoFollowRef = React.useRef(true)
+  const hasNewOutputWhileDetachedRef = React.useRef(false)
   const draftBeforeHistoryRef = React.useRef('')
   const [historyCursor, setHistoryCursor] = React.useState<number | null>(null)
   const [isFollowingOutput, setIsFollowingOutput] = React.useState(true)
   const [hasNewOutputWhileDetached, setHasNewOutputWhileDetached] =
     React.useState(false)
   const terminalViewportSize = useTerminalViewportSize(scrollViewportRef)
+
+  const clearNewOutputWhileDetached = React.useCallback(() => {
+    if (!hasNewOutputWhileDetachedRef.current) return
+    hasNewOutputWhileDetachedRef.current = false
+    setHasNewOutputWhileDetached(false)
+  }, [])
+
+  const markNewOutputWhileDetached = React.useCallback(() => {
+    if (hasNewOutputWhileDetachedRef.current) return
+    hasNewOutputWhileDetachedRef.current = true
+    setHasNewOutputWhileDetached(true)
+  }, [])
 
   const chatEvents = React.useMemo(
     () => getChatEventsForRender(props.events),
@@ -357,6 +376,7 @@ export function ChatPage(props: {
 
   React.useEffect(() => {
     shouldAutoFollowRef.current = true
+    hasNewOutputWhileDetachedRef.current = false
     setIsFollowingOutput(true)
     setHasNewOutputWhileDetached(false)
     setHistoryCursor(null)
@@ -371,26 +391,33 @@ export function ChatPage(props: {
   const handleViewportScroll = React.useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
       const nearBottom = isNearScrollBottom(event.currentTarget)
+      if (nearBottom === shouldAutoFollowRef.current) return
       shouldAutoFollowRef.current = nearBottom
       setIsFollowingOutput(nearBottom)
-      if (nearBottom) setHasNewOutputWhileDetached(false)
+      if (nearBottom) clearNewOutputWhileDetached()
     },
-    [],
+    [clearNewOutputWhileDetached],
   )
 
-  const scrollToLatest = React.useCallback((behavior: ScrollBehavior) => {
-    bottomRef.current?.scrollIntoView({
-      block: 'end',
-      behavior,
-    })
-    shouldAutoFollowRef.current = true
-    setIsFollowingOutput(true)
-    setHasNewOutputWhileDetached(false)
-  }, [])
+  const scrollToLatest = React.useCallback(
+    (behavior: ScrollBehavior) => {
+      bottomRef.current?.scrollIntoView({
+        block: 'end',
+        behavior,
+      })
+      const wasFollowingOutput = shouldAutoFollowRef.current
+      shouldAutoFollowRef.current = true
+      if (!wasFollowingOutput) setIsFollowingOutput(true)
+      clearNewOutputWhileDetached()
+    },
+    [clearNewOutputWhileDetached],
+  )
 
   React.useEffect(() => {
-    if (!props.sending && !shouldAutoFollowRef.current) {
-      setHasNewOutputWhileDetached(true)
+    if (
+      getOutputFollowAction(shouldAutoFollowRef.current) === 'mark-new-output'
+    ) {
+      markNewOutputWhileDetached()
       return
     }
 
@@ -400,6 +427,7 @@ export function ChatPage(props: {
     props.events.length,
     props.sending,
     scrollToLatest,
+    markNewOutputWhileDetached,
     visibleEvents.length,
   ])
 
@@ -546,6 +574,7 @@ export const __chatPageForTests = {
   appendPermissionRequestEvent,
   extractUserPromptHistory,
   getEventKey,
+  getOutputFollowAction,
   isNearScrollBottom,
   resolvePromptHistoryNavigation,
   chatTerminalHints: CHAT_TERMINAL_HINTS,

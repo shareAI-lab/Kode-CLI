@@ -7,7 +7,7 @@ export default {
   description: 'Manage agent configurations',
   type: 'local-jsx' as const,
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' as const },
 
   async call(onExit: (message?: string) => void) {

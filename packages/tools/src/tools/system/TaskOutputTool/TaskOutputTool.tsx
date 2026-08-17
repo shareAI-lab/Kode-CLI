@@ -6,12 +6,14 @@ import type {
 } from '@kode/tool-interface/Tool'
 import {
   getBackgroundTaskOutputFilePath,
-  getBackgroundTaskSnapshot,
-  readBackgroundTaskOutput,
+  getOwnedBackgroundTaskSnapshot,
+  readBackgroundTaskOutputTail,
   type BackgroundTaskSnapshot,
   waitForBackgroundTaskSnapshot,
 } from '#core/tasks/backgroundRegistry'
 import { createAssistantMessage } from '#core/utils/messages'
+import { getCwd } from '#core/utils/state'
+import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { DESCRIPTION, PROMPT, TOOL_NAME_FOR_PROMPT } from './prompt'
 
 const inputSchema = z.strictObject({
@@ -42,6 +44,8 @@ type TaskSummary = {
   description: string
   output?: string
   exitCode?: number | null
+  /** Used by the engine to classify completed background shell work. */
+  command?: string
   prompt?: string
   result?: string
   error?: string
@@ -99,12 +103,17 @@ function normalizeTaskOutputInput(input: Input): Input {
 function buildTaskSummaryFromSnapshot(
   snapshot: BackgroundTaskSnapshot,
 ): TaskSummary {
-  const rawOutput =
-    readBackgroundTaskOutput(snapshot.taskId) ||
-    (snapshot.taskType === 'local_agent' ? snapshot.resultText || '' : '')
+  const limit = getTaskMaxOutputLength()
+  const persisted = readBackgroundTaskOutputTail(snapshot.taskId, limit)
+  const fallback =
+    snapshot.taskType === 'local_agent' ? snapshot.resultText || '' : ''
+  const rawOutput = persisted.content || fallback
+  const materializedOutput = persisted.wasTruncated
+    ? `[Earlier output omitted]\n${rawOutput}`
+    : rawOutput
   const { output } = truncateTaskOutput({
     taskId: snapshot.taskId,
-    output: rawOutput,
+    output: materializedOutput,
   })
 
   return {
@@ -115,6 +124,7 @@ function buildTaskSummaryFromSnapshot(
     output,
     exitCode:
       snapshot.taskType === 'local_bash' ? snapshot.exitCode : undefined,
+    command: snapshot.taskType === 'local_bash' ? snapshot.command : undefined,
     prompt: snapshot.taskType === 'local_agent' ? snapshot.prompt : undefined,
     result: snapshot.taskType === 'local_agent' ? output : undefined,
     error: snapshot.taskType === 'local_agent' ? snapshot.error : undefined,
@@ -122,12 +132,17 @@ function buildTaskSummaryFromSnapshot(
 }
 
 function buildTaskSummary(taskId: string): TaskSummary | null {
-  const snapshot = getBackgroundTaskSnapshot(taskId)
+  const snapshot = getOwnedBackgroundTaskSnapshot({
+    taskId,
+    cwd: getCwd(),
+    sessionId: getKodeAgentSessionId(),
+  })
   return snapshot ? buildTaskSummaryFromSnapshot(snapshot) : null
 }
 
 export const TaskOutputTool = {
   name: TOOL_NAME_FOR_PROMPT,
+  isTrustedExecutionTool: true,
   async description() {
     return DESCRIPTION
   },
@@ -185,7 +200,11 @@ export const TaskOutputTool = {
       return { result: false, message: 'Task ID is required', errorCode: 1 }
     }
 
-    const snapshot = getBackgroundTaskSnapshot(input.task_id)
+    const snapshot = getOwnedBackgroundTaskSnapshot({
+      taskId: input.task_id,
+      cwd: getCwd(),
+      sessionId: getKodeAgentSessionId(),
+    })
     if (!snapshot) {
       return {
         result: false,

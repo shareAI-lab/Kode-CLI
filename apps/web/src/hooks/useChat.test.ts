@@ -62,6 +62,31 @@ describe('useChat helpers', () => {
     expect(twice).toHaveLength(1)
   })
 
+  test('coalesces a buffered event batch without allocating for duplicates', () => {
+    const first = {
+      type: 'user' as const,
+      uuid: 'event-1',
+      message: { role: 'user' as const, content: 'first' },
+    }
+    const second = {
+      type: 'user' as const,
+      uuid: 'event-2',
+      message: { role: 'user' as const, content: 'second' },
+    }
+
+    const initial = [first]
+    const merged = __useChatForTests.appendUniqueEvents(initial, [
+      first,
+      second,
+      second,
+    ])
+
+    expect(merged).toEqual([first, second])
+    expect(__useChatForTests.appendUniqueEvents(merged, [first, second])).toBe(
+      merged,
+    )
+  })
+
   test('maps authoritative turn state to the sending indicator', () => {
     expect(
       __useChatForTests.getTurnStateSending({

@@ -27,7 +27,9 @@ async function openDaemonSocket(daemon: {
   ws.on('message', data => {
     try {
       events.push(JSON.parse(data.toString()) as DaemonEvent)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   })
   await new Promise<void>((resolve, reject) => {
     ws.once('open', () => resolve())

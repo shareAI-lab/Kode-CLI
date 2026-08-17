@@ -112,7 +112,9 @@ export async function runSingleTurnPrint(args: {
   } catch (e) {
     try {
       args.toolUseContext.abortController.abort()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     queryError = e
   } finally {
     cleanupSignalAbort()

@@ -51,6 +51,7 @@ function PopulatedSessionSelector({
   })
   const didSubmitRef = React.useRef(false)
   const mountedRef = React.useRef(true)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -94,11 +95,13 @@ function PopulatedSessionSelector({
 
     if (key.return) {
       didSubmitRef.current = true
+      setIsSubmitting(true)
       setSubmitError(null)
       void Promise.resolve(onSelect(selectedIndex)).catch(error => {
         logError(error)
         if (!mountedRef.current) return
         didSubmitRef.current = false
+        setIsSubmitting(false)
         setSubmitError(error instanceof Error ? error.message : String(error))
       })
       return true
@@ -220,6 +223,14 @@ function PopulatedSessionSelector({
         {submitError ? (
           <Text color={theme.error} wrap="truncate-end">
             {submitError}
+          </Text>
+        ) : null}
+
+        {isSubmitting ? (
+          <Text color={theme.secondaryText} wrap="truncate-end">
+            {enterLabel === 'resume'
+              ? 'Resuming conversation…'
+              : 'Importing conversation…'}
           </Text>
         ) : null}
 

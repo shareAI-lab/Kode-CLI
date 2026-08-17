@@ -77,7 +77,7 @@ const supervisor = {
   description: 'Plan and inspect a durable dependency-aware task supervisor',
   argumentHint: 'status|plan|list|refresh|cancel ...',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args: string) {
     const [verbRaw = 'status', ...rest] = args

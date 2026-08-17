@@ -5,7 +5,7 @@ export default {
   name: 'statusline',
   description: "Set up Kode's status line UI",
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   progressMessage: 'setting up statusLine',
   disableNonInteractive: true,
   allowedTools: ['Task', 'Read(~/**)', 'Edit(~/.kode/settings.json)'],

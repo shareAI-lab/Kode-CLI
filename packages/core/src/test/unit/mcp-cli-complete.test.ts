@@ -159,8 +159,8 @@ describe('mcp-cli client-capabilities', () => {
     expect(result.stderr).toBe('')
     expect(JSON.parse(result.stdout)).toEqual({
       roots: { enabled: true, listChanged: true },
-      // Sampling defaults to enabled (sampling/createMessage support).
-      sampling: { enabled: true, context: false, tools: false },
+      // Sampling is opt-in because an MCP server can initiate a billed model request.
+      sampling: { enabled: false, context: false, tools: false },
       elicitation: { enabled: false, form: false, url: false },
       tasks: {
         enabled: false,
@@ -184,5 +184,19 @@ describe('mcp-cli client-capabilities', () => {
     expect(result.stdout).toContain('sampling: disabled')
     expect(result.stdout).toContain('elicitation: disabled')
     expect(result.stdout).toContain('tasks: disabled')
+  })
+
+  test('prints sampling capabilities only after explicit opt-in', async () => {
+    __setMcpRootsTrustOverrideForTests(true)
+    __setMcpSamplingEnabledForTests(true)
+
+    const result = await captureMcpCli(['client-capabilities', '--json'])
+
+    expect(result.code).toBe(0)
+    expect(JSON.parse(result.stdout).sampling).toEqual({
+      enabled: true,
+      context: false,
+      tools: false,
+    })
   })
 })

@@ -429,10 +429,28 @@ export function TasksScreen({
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [status, setStatus] = useState<string | null>(null)
+  // 'k' kills without confirmation in other overlays? No — in Tasks, 'k' is
+  // the kill key, which collides with the j/k navigation convention used by
+  // every other overlay. Killing stays on 'k' but requires a second press on
+  // the same task (armed state) so a stray navigation key cannot kill.
+  const [confirmKillId, setConfirmKillId] = useState<string | null>(null)
+  const confirmKillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const [scrollTop, setScrollTop] = useState(0)
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all')
   const userMovedSelectionRef = useRef(false)
+  const isOpeningFileRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningFileRef.current = false
+    }
+  }, [])
 
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -561,47 +579,108 @@ export function TasksScreen({
     setDetailTarget({ kind: selected.kind, id: selected.id })
   }, [selected])
 
+  const openExternalFile = useCallback(
+    async ({ path, label }: { path: string; label: 'output' | 'log' }) => {
+      if (isOpeningFileRef.current) return
+
+      isOpeningFileRef.current = true
+      setStatus(`Opening ${label} in external editor…`)
+
+      try {
+        const result = await launchExternalEditorForFilePath(path)
+        if (!mountedRef.current) return
+
+        if (result.ok === true) {
+          setStatus(`Opened ${label} in ${result.editorLabel}`)
+        } else {
+          setStatus(result.error.message || `Failed to open ${label} file`)
+        }
+      } catch {
+        if (mountedRef.current) {
+          setStatus(
+            'Unable to open the external editor. Check $EDITOR and try again.',
+          )
+        }
+      } finally {
+        isOpeningFileRef.current = false
+      }
+    },
+    [],
+  )
+
   const openOutput = useCallback(async () => {
     if (!selected || selected.kind === 'group') return
 
-    const outputPath = getBackgroundTaskOutputFilePath(selected.id)
-    const result = await launchExternalEditorForFilePath(outputPath)
-    if (result.ok === true) {
-      setStatus(`Opened output in ${result.editorLabel}`)
-    } else {
-      setStatus(result.error.message || 'Failed to open output file')
-    }
-  }, [selected])
+    await openExternalFile({
+      path: getBackgroundTaskOutputFilePath(selected.id),
+      label: 'output',
+    })
+  }, [openExternalFile, selected])
 
   const openLog = useCallback(async () => {
     if (!selected || selected.kind !== 'agent') return
 
-    const logPath = getAgentLogFilePath({
-      cwd: getOriginalCwd(),
-      sessionId: getKodeAgentSessionId(),
-      agentId: selected.id,
+    await openExternalFile({
+      path: getAgentLogFilePath({
+        cwd: getOriginalCwd(),
+        sessionId: getKodeAgentSessionId(),
+        agentId: selected.id,
+      }),
+      label: 'log',
     })
-    const result = await launchExternalEditorForFilePath(logPath)
-    if (result.ok === true) {
-      setStatus(`Opened log in ${result.editorLabel}`)
-    } else {
-      setStatus(result.error.message || 'Failed to open log file')
-    }
-  }, [selected])
+  }, [openExternalFile, selected])
 
   const killSelected = useCallback(() => {
     if (!selected || selected.kind === 'group') return
 
+    if (confirmKillId !== selected.id) {
+      setConfirmKillId(selected.id)
+      setStatus(`Press k again to kill task: ${selected.id}`)
+      if (confirmKillTimeoutRef.current) {
+        clearTimeout(confirmKillTimeoutRef.current)
+      }
+      confirmKillTimeoutRef.current = setTimeout(() => {
+        confirmKillTimeoutRef.current = null
+        setConfirmKillId(null)
+        setStatus(null)
+      }, 5000)
+      return
+    }
+
+    if (confirmKillTimeoutRef.current) {
+      clearTimeout(confirmKillTimeoutRef.current)
+      confirmKillTimeoutRef.current = null
+    }
+    setConfirmKillId(null)
     const killed = killBackgroundTask(selected.id)
     setStatus(killed ? `Killed task: ${selected.id}` : 'Task not running')
-  }, [selected])
+  }, [confirmKillId, selected])
 
   const killDetailTask = useCallback(() => {
     if (!detailTarget) return
 
+    if (confirmKillId !== detailTarget.id) {
+      setConfirmKillId(detailTarget.id)
+      setStatus(`Press k again to kill task: ${detailTarget.id}`)
+      if (confirmKillTimeoutRef.current) {
+        clearTimeout(confirmKillTimeoutRef.current)
+      }
+      confirmKillTimeoutRef.current = setTimeout(() => {
+        confirmKillTimeoutRef.current = null
+        setConfirmKillId(null)
+        setStatus(null)
+      }, 5000)
+      return
+    }
+
+    if (confirmKillTimeoutRef.current) {
+      clearTimeout(confirmKillTimeoutRef.current)
+      confirmKillTimeoutRef.current = null
+    }
+    setConfirmKillId(null)
     const killed = killBackgroundTask(detailTarget.id)
     setStatus(killed ? `Killed task: ${detailTarget.id}` : 'Task not running')
-  }, [detailTarget])
+  }, [confirmKillId, detailTarget])
 
   useKeypress(
     (input, key) => {
@@ -747,7 +826,7 @@ export function TasksScreen({
   )
 
   const shortcutLine =
-    '↑/↓ select · ←/→ collapse · Enter view · f filter · k kill · o output · l log · Esc close'
+    '↑/↓ select · ←/→ collapse · Enter view · f filter · k kill (twice) · o output · l log · Esc close'
 
   const detailLines: string[] = []
   if (!selected) {

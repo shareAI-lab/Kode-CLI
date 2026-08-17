@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'fs'
 import { join } from 'path'
@@ -38,6 +39,11 @@ describe('agents/storage Kode-first writes', () => {
       systemPrompt: 'You are a storage behavior test agent.',
       source: 'projectSettings',
       location: 'project',
+      disallowedTools: ['Write'],
+      skills: ['security-review'],
+      permissionMode: 'plan',
+      forkContext: true,
+      maxExecutionTimeMs: 45_000,
     }
   }
 
@@ -60,6 +66,25 @@ describe('agents/storage Kode-first writes', () => {
 
     expect(existsSync(primaryPath)).toBe(true)
     expect(readFileSync(primaryPath, 'utf8')).toContain('\ntools: Read')
+    expect(readFileSync(primaryPath, 'utf8')).toContain(
+      '\ndisallowedTools: ["Write"]',
+    )
+    expect(readFileSync(primaryPath, 'utf8')).toContain(
+      '\nskills: ["security-review"]',
+    )
+    expect(readFileSync(primaryPath, 'utf8')).toContain(
+      '\npermissionMode: plan',
+    )
+    expect(readFileSync(primaryPath, 'utf8')).toContain('\nforkContext: true')
+    expect(readFileSync(primaryPath, 'utf8')).toContain(
+      '\nmaxExecutionTimeMs: 45000',
+    )
+    if (process.platform !== 'win32') {
+      expect(statSync(join(projectDir, '.kode', 'agents')).mode & 0o777).toBe(
+        0o700,
+      )
+      expect(statSync(primaryPath).mode & 0o777).toBe(0o600)
+    }
     expect(readFileSync(legacyPath, 'utf8')).toContain('Legacy prompt')
   })
 

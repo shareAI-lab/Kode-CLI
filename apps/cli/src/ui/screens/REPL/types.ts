@@ -25,6 +25,14 @@ export type REPLProps = {
   isDefaultModel?: boolean
   initialUpdateVersion?: string | null
   initialUpdateCommands?: string[] | null
+  /**
+   * When provided, the REPL mounts immediately with empty tools/commands/MCP
+   * clients and rehydrates them as these promises resolve. Queries and the
+   * initial prompt are gated until everything is ready.
+   */
+  toolsPromise?: Promise<Tool[]>
+  commandsPromise?: Promise<Command[]>
+  mcpClientsPromise?: Promise<WrappedClient[]>
 }
 
 export type BinaryFeedbackContext = {

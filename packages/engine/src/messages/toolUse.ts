@@ -1,5 +1,3 @@
-import { memoize } from 'lodash-es'
-
 import type {
   ToolResultBlockParam,
   ToolUseBlockParam,
@@ -139,21 +137,32 @@ export function reorderMessages(
   return reorderedMessages
 }
 
-const getToolResultIDs = memoize(
-  (normalizedMessages: NormalizedMessage[]): { [toolUseID: string]: boolean } =>
-    Object.fromEntries(
-      normalizedMessages.flatMap(_ =>
-        _.type === 'user' && _.message.content[0]?.type === 'tool_result'
-          ? [
-              [
-                _.message.content[0]!.tool_use_id,
-                _.message.content[0]!.is_error ?? false,
-              ],
-            ]
-          : ([] as [string, boolean][]),
-      ),
+const toolResultIDsCache = new WeakMap<
+  NormalizedMessage[],
+  { [toolUseID: string]: boolean }
+>()
+
+function getToolResultIDs(normalizedMessages: NormalizedMessage[]): {
+  [toolUseID: string]: boolean
+} {
+  const cached = toolResultIDsCache.get(normalizedMessages)
+  if (cached) return cached
+
+  const toolResults = Object.fromEntries(
+    normalizedMessages.flatMap(_ =>
+      _.type === 'user' && _.message.content[0]?.type === 'tool_result'
+        ? [
+            [
+              _.message.content[0]!.tool_use_id,
+              _.message.content[0]!.is_error ?? false,
+            ],
+          ]
+        : ([] as [string, boolean][]),
     ),
-)
+  )
+  toolResultIDsCache.set(normalizedMessages, toolResults)
+  return toolResults
+}
 
 export function getUnresolvedToolUseIDs(
   normalizedMessages: NormalizedMessage[],
@@ -178,9 +187,8 @@ export function getUnresolvedToolUseIDs(
 
 export function getInProgressToolUseIDs(
   normalizedMessages: NormalizedMessage[],
+  unresolvedToolUseIDs = getUnresolvedToolUseIDs(normalizedMessages),
 ): Set<string> {
-  const unresolvedToolUseIDs = getUnresolvedToolUseIDs(normalizedMessages)
-
   function isQueuedWaitingProgressMessage(message: NormalizedMessage): boolean {
     if (message.type !== 'progress') return false
     const firstBlock = message.content.message.content[0]
@@ -200,6 +208,7 @@ export function getInProgressToolUseIDs(
       )
       .map(_ => _.toolUseID),
   )
+  const firstUnresolvedToolUseID = unresolvedToolUseIDs.values().next().value
   return new Set(
     (
       normalizedMessages.filter(_ => {
@@ -209,7 +218,7 @@ export function getInProgressToolUseIDs(
         const firstBlock = _.message.content[0]
         if (!isToolUseLikeBlockParam(firstBlock)) return false
         const toolUseID = firstBlock.id
-        if (toolUseID === unresolvedToolUseIDs.values().next().value) {
+        if (toolUseID === firstUnresolvedToolUseID) {
           return true
         }
 

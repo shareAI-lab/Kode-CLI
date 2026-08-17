@@ -303,7 +303,7 @@ ${output.plan}`
     const safeMode = Boolean(context?.options?.safeMode ?? context?.safeMode)
     const permissionMode = getPermissionMode(context)
     const nextPermissionMode =
-      permissionMode === 'plan' ? 'default' : permissionMode
+      permissionMode === 'plan' ? 'acceptEdits' : permissionMode
     const conversationKey = getPlanConversationKey(context)
     const updatedToolPermissionContext =
       applyToolPermissionContextUpdateForConversationKey({

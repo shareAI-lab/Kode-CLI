@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { Message as MessageType } from '#core/query'
 import type { SetForkConvoWithMessagesOnTheNextRender } from '#ui-ink/types/conversationReset'
 
@@ -37,6 +37,19 @@ export function useMessageSelectorSelect(args: {
     setInputValue,
     setIsMessageSelectorVisible,
   } = args
+  const mountedRef = useRef(true)
+  const pendingForkRef = useRef<ReturnType<typeof setImmediate> | null>(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (pendingForkRef.current) {
+        clearImmediate(pendingForkRef.current)
+        pendingForkRef.current = null
+      }
+    }
+  }, [])
 
   return useCallback(
     (message: MessageType) => {
@@ -51,9 +64,16 @@ export function useMessageSelectorSelect(args: {
 
       onCancel()
 
+      if (pendingForkRef.current) {
+        clearImmediate(pendingForkRef.current)
+      }
+
       // Use setImmediate to ensure the "Interrupted by user" message renders
       // before we clear and reset the conversation
-      setImmediate(() => {
+      pendingForkRef.current = setImmediate(() => {
+        pendingForkRef.current = null
+        if (!mountedRef.current) return
+
         const forkMessages = messages
           .slice(0, selectedIndex)
           .filter(m => m.type !== 'progress')

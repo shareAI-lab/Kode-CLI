@@ -117,6 +117,7 @@ function LogoQuickActions({
 export function Logo({
   mcpClients,
   updateBannerVersion,
+  updateBannerCommands,
   terminalColumns,
   terminalRows,
 }: {
@@ -152,6 +153,9 @@ export function Logo({
         {updateBannerVersion && rows >= SHORT_HELP_MIN_ROWS && (
           <Text color="yellow" wrap="truncate-end">
             Update {updateBannerVersion} available
+            {updateBannerCommands?.length
+              ? `: ${updateBannerCommands.join(' | ')}`
+              : ''}
           </Text>
         )}
 
@@ -199,12 +203,16 @@ export function Logo({
 
   return (
     <Box flexDirection="column" width={columns} overflow="hidden">
-      {/* Update notice at very top */}
+      {/* Update notice at very top. Prefer the installer-appropriate commands
+          computed by the updater (bun on bun installs, npm otherwise); the
+          hardcoded npm line misleads users who installed via bun. */}
       {updateBannerVersion && (
         <Box marginBottom={1}>
           <Text color="yellow">
-            Update {updateBannerVersion} available: npm i -g
-            @shareai-lab/kode@latest
+            Update {updateBannerVersion} available:
+            {updateBannerCommands?.length
+              ? ` ${updateBannerCommands.join(' | ')}`
+              : ' npm i -g @shareai-lab/kode@latest'}
           </Text>
         </Box>
       )}

@@ -6,6 +6,8 @@ import { BashTool } from '#tools/tools/system/BashTool/BashTool'
 import { TaskOutputTool } from '#tools/tools/system/TaskOutputTool/TaskOutputTool'
 import { TaskStopTool } from '#tools/tools/system/TaskStopTool/TaskStopTool'
 import type { ToolUseLikeBlockParam } from '#core/utils/anthropic'
+import { getCwd } from '#core/utils/state'
+import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -26,6 +28,10 @@ describe('Background shell tools integration (no sibling tool errors)', () => {
     const { bashId } = shell.execInBackground(
       'i=1; while [ $i -le 5 ]; do echo "tick $i"; i=$((i+1)); sleep 0.1; done; sleep 10',
       10_000,
+      {
+        cwd: getCwd(),
+        backgroundTask: { sessionId: getKodeAgentSessionId() },
+      },
     )
     await sleep(150)
 

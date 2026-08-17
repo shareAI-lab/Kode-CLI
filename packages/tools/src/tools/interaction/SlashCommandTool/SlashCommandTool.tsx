@@ -134,6 +134,13 @@ export const SlashCommandTool = {
   isReadOnly() {
     return false
   },
+  workspaceMutationScope(_input?: Input, output?: Output) {
+    // Prompt expansion does not itself write files. Any later direct tool use,
+    // or a forked Task child, is responsible for its own verification gate.
+    return output?.success === false
+      ? ('direct' as const)
+      : ('delegated' as const)
+  },
   isConcurrencySafe() {
     return false
   },
@@ -170,7 +177,7 @@ Notes:
     if ('status' in output && output.status === 'forked') {
       const result = (output.result || '').trim()
       const resultBlock = result ? `\n\nResult:\n${result}` : ''
-      return `Slash command "/${output.commandName}" completed (forked execution).${resultBlock}\n\nAgent ID: ${output.agentId}`
+      return `Slash command "/${output.commandName}" ${output.success ? 'completed' : 'failed'} (forked execution).${resultBlock}\n\nAgent ID: ${output.agentId}`
     }
     return `Launching command: /${output.commandName}`
   },
@@ -308,7 +315,7 @@ Notes:
 
       const agentId = taskResult.agentId
       const resultText =
-        taskResult.status === 'completed'
+        taskResult.status === 'completed' || taskResult.status === 'failed'
           ? taskResult.content
               .map(b => b.text)
               .join('\n')
@@ -316,7 +323,7 @@ Notes:
           : ''
 
       const output: ForkedOutput = {
-        success: true,
+        success: taskResult.status === 'completed',
         commandName: parsed.commandName,
         status: 'forked',
         agentId,

@@ -21,6 +21,7 @@ type Props = {
   apiKeyEnv?: string
   hasStoredApiKey: boolean
   validationError: string | null
+  activateAsMain: boolean
   getProviderLabel: (provider: string, modelCount: number) => string
 }
 
@@ -39,6 +40,7 @@ export function ConfirmationScreen({
   apiKeyEnv,
   hasStoredApiKey,
   validationError,
+  activateAsMain,
   getProviderLabel,
 }: Props) {
   // Show model profile being created
@@ -128,9 +130,18 @@ export function ConfirmationScreen({
           )}
         </Box>
 
-        <Box marginTop={tightLayout ? 0 : 1}>
+        <Box flexDirection="column" marginTop={tightLayout ? 0 : 1}>
+          <Text>
+            <Text bold>Kode main model: </Text>
+            <Text color={theme.suggestion}>
+              {activateAsMain
+                ? 'switch to this model after saving'
+                : 'keep the current model'}
+            </Text>
+          </Text>
           <Text color={theme.secondaryText} wrap="truncate-end">
-            Enter save · A advanced settings · Esc back
+            ↑/↓ choose switch behavior · Enter save · A advanced settings · Esc
+            back
           </Text>
         </Box>
       </Box>

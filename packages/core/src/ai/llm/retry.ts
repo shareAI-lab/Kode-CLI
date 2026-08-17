@@ -1,8 +1,10 @@
 import { APIConnectionError, APIError } from '@anthropic-ai/sdk'
+import { OpenAIStreamError } from '#core/ai/openai/stream'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 
 const MAX_RETRIES = process.env.USER_TYPE === 'SWE_BENCH' ? 100 : 10
 const BASE_DELAY_MS = 500
+const MAX_SERVER_RETRY_DELAY_MS = 60_000
 
 interface RetryOptions {
   maxRetries?: number
@@ -39,9 +41,9 @@ function getRetryDelay(
   retryAfterHeader?: string | null,
 ): number {
   if (retryAfterHeader) {
-    const seconds = parseInt(retryAfterHeader, 10)
-    if (!isNaN(seconds)) {
-      return seconds * 1000
+    const seconds = Number(retryAfterHeader)
+    if (Number.isSafeInteger(seconds) && seconds > 0) {
+      return Math.min(seconds * 1000, MAX_SERVER_RETRY_DELAY_MS)
     }
   }
   return Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), 32000)
@@ -71,6 +73,17 @@ function shouldRetry(error: APIError): boolean {
   return false
 }
 
+/**
+ * A degraded/truncated stream is retryable: the retry loop re-issues the
+ * request through the non-streaming endpoint to preserve completion integrity
+ * (see queryOpenAI's `attempt > 1` fallback).
+ */
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof OpenAIStreamError) return true
+  if (!(error instanceof APIError)) return false
+  return shouldRetry(error)
+}
+
 export async function withRetry<T>(
   operation: (attempt: number) => Promise<T>,
   options: RetryOptions = {},
@@ -83,11 +96,7 @@ export async function withRetry<T>(
       return await operation(attempt)
     } catch (error) {
       lastError = error
-      if (
-        attempt > maxRetries ||
-        !(error instanceof APIError) ||
-        !shouldRetry(error)
-      ) {
+      if (attempt > maxRetries || !isRetryableError(error)) {
         throw error
       }
 
@@ -95,13 +104,19 @@ export async function withRetry<T>(
         throw new Error('Request cancelled by user')
       }
 
-      const retryAfter = error.headers?.get('retry-after') ?? null
+      const apiError =
+        error instanceof APIError
+          ? error
+          : error instanceof OpenAIStreamError
+            ? null
+            : null
+      const retryAfter = apiError?.headers?.get('retry-after') ?? null
       const delayMs = getRetryDelay(attempt, retryAfter)
 
       debugLogger.warn('LLM_API_RETRY', {
-        name: error.name,
-        message: error.message,
-        status: error.status,
+        name: error instanceof Error ? error.name : String(error),
+        message: error instanceof Error ? error.message : String(error),
+        status: apiError?.status,
         attempt,
         maxRetries,
         delayMs,

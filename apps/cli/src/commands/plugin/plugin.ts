@@ -117,7 +117,7 @@ const plugin = {
   name: 'plugin',
   description: 'Manage plugins and marketplaces',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(args: string, _context: any) {
     const tokens = parseTokens(args)
     if (tokens.length === 0) {

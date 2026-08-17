@@ -98,7 +98,7 @@ const runs = {
   description: 'Inspect locally persisted durable-run records',
   argumentHint: 'status [all|active|finished|failed] | reconcile',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   disableNonInteractive: true,
   async call(args) {
     const [verb, ...rest] = args.trim().split(/\s+/)

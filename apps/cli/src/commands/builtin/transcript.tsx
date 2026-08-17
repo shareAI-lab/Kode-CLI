@@ -7,7 +7,7 @@ const transcript = {
   name: 'transcript',
   description: 'View and scroll the current conversation transcript',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   ui: { displayMode: 'fullscreen' },
   async call(onDone, context) {
     const label = `${context.options?.messageLogName ?? 'conversation'}${

@@ -6,7 +6,7 @@ export default {
   description: 'Get comments from a GitHub pull request',
   progressMessage: 'fetching PR comments',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   userFacingName() {
     return 'pr-comments'
   },

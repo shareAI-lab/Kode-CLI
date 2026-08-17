@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { isUuid } from '@kode/core/utils/uuid'
+import { isUuid } from '@kode/runtime'
 import { getSessionProjectDir } from '#protocol/utils/kodeAgentSessionLog'
 
 export const SESSION_METADATA_SCHEMA_VERSION = 1
@@ -183,7 +183,9 @@ function writeMetadataAtomically(
   } catch (error) {
     try {
       rmSync(temporaryPath, { force: true })
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     throw error
   }
 }
