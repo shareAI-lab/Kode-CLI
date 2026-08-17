@@ -529,7 +529,7 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     expect(h.getOutput()).toContain('INPUT:src/ma|ORIG:|ACTIVE:false')
   })
 
-  test('Enter inserts a file path without submitting', async () => {
+  test('Enter closes file completion without changing the typed path', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
         <FileEnterCompletionHarness />
@@ -544,8 +544,6 @@ describe('TUI E2E regression (Ink render): completion navigation', () => {
     h.stdin.write('\r')
     await h.wait(50)
 
-    expect(h.getOutput()).toContain(
-      'INPUT:check src/main.ts |CURSOR:18|ACTIVE:false',
-    )
+    expect(h.getOutput()).toContain('INPUT:check src/ma|CURSOR:12|ACTIVE:false')
   })
 })

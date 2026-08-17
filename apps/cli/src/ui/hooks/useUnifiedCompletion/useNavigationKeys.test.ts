@@ -6,8 +6,8 @@ describe('completion Enter', () => {
     expect(__completionEnterActionForTests('command')).toBe('accept-and-submit')
   })
 
-  test('only inserts file and mention completions', () => {
-    expect(__completionEnterActionForTests('file')).toBe('accept')
+  test('submits typed file input and only inserts mention completions', () => {
+    expect(__completionEnterActionForTests('file')).toBe('submit')
     expect(__completionEnterActionForTests('agent')).toBe('accept')
   })
 })

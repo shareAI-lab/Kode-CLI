@@ -24,11 +24,11 @@ describe('PermissionRequestDetails helpers', () => {
     const lines = __buildPermissionRequestDetailsLinesForTests({
       toolUseContext: {
         agentId: 'main',
-        options: { toolPermissionContext: { mode: 'yolo' } },
+        options: { toolPermissionContext: { mode: 'acceptEdits' } },
       },
     } as any)
 
-    expect(lines).toEqual(['Agent: main · Mode: Auto-run safe tools'])
+    expect(lines).toEqual(['Agent: main · Mode: Edit'])
   })
 
   test('returns empty list when nothing is available', () => {

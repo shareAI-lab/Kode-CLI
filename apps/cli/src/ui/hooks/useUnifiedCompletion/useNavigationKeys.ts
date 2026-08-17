@@ -12,8 +12,9 @@ import type { CompletionState } from './types'
 
 export function __completionEnterActionForTests(
   contextType: CompletionContext['type'],
-): 'accept' | 'accept-and-submit' {
+): 'accept' | 'accept-and-submit' | 'submit' {
   if (contextType === 'command') return 'accept-and-submit'
+  if (contextType === 'file') return 'submit'
   return 'accept'
 }
 
@@ -114,9 +115,9 @@ export function useUnifiedCompletionNavigationKeys(args: {
         return false
       }
 
-      // Commands: Enter accepts the highlighted name and submits it
-      // (`/hel` → `/help`). File and @ mentions only insert — sending the
-      // unfinished prefix is the usual coding-path mistake.
+      // Commands accept the highlighted name and submit it (`/hel` →
+      // `/help`). Paths retain the typed input so the first Enter always
+      // submits; Tab or Right Arrow explicitly completes a path/directory.
       if (
         key.return &&
         !key.shift &&

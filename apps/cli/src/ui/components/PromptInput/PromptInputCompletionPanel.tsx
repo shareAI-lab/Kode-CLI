@@ -120,11 +120,11 @@ export function __completionKeybindingHelpForTests(
     case 'command':
       return 'Tab accept • Enter send • ↑↓ navigate • Esc close'
     case 'directory':
-      return 'Enter/→ open folder • ↑↓ navigate • Tab cycle • Esc close'
+      return 'Enter send • → open folder • ↑↓ navigate • Tab cycle • Esc close'
     case 'mention':
       return 'Enter/→ insert mention • ↑↓ navigate • Tab cycle • Esc close'
     case 'file':
-      return 'Enter/→ insert path • ↑↓ navigate • Tab cycle • Esc close'
+      return 'Enter send • → insert path • ↑↓ navigate • Tab cycle • Esc close'
   }
 }
 

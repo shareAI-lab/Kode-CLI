@@ -97,15 +97,15 @@ describe('completion help copy', () => {
     )
   })
 
-  it('describes directory follow-up as opening a folder', () => {
+  it('describes directory follow-up without claiming Enter opens it', () => {
     expect(
       __completionHelpKindForTests({
         emptyDirMessage: '',
         selectedSuggestion: { type: 'file', value: 'src/' },
       }),
     ).toBe('directory')
-    expect(__completionKeybindingHelpForTests('directory')).toContain(
-      'open folder',
+    expect(__completionKeybindingHelpForTests('directory')).toBe(
+      'Enter send • → open folder • ↑↓ navigate • Tab cycle • Esc close',
     )
   })
 })
