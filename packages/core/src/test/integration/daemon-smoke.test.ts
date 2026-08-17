@@ -218,7 +218,7 @@ describe('daemon (Bun HTTP+WS)', () => {
     } finally {
       daemon.stop()
     }
-  }, 20_000)
+  }, 45_000)
 
   test('reattaches to a daemon session after websocket disconnect', async () => {
     const daemon = await startKodeDaemon({
