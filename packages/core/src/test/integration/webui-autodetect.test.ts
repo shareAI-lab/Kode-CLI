@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { startKodeDaemon } from '#daemon/server'
 
 function ensureWebuiBuilt(): void {
-  const index = join(process.cwd(), 'dist', 'webui', 'index.html')
+  const index = join(process.cwd(), 'apps', 'server', 'static', 'index.html')
   if (existsSync(index)) return
 
   const res = spawnSync(process.execPath, ['run', 'build:web'], {

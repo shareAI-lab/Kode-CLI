@@ -106,6 +106,26 @@ const testFiles =
 
 if (testFiles.length === 0) throw new Error('No workspace test files found')
 
+const webUiTestFiles = new Set([
+  'packages/core/src/test/integration/webui-autodetect.test.ts',
+  'packages/core/src/test/integration/webui-static.test.ts',
+])
+
+if (testFiles.some(file => webUiTestFiles.has(file))) {
+  process.stdout.write('Building shared WebUI test artifact\n')
+  const webBuild = Bun.spawn([process.execPath, 'run', 'build:web'], {
+    cwd: repoRoot,
+    env: process.env,
+    stdin: 'ignore',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  const exitCode = await webBuild.exited
+  if (exitCode !== 0) {
+    throw new Error(`Shared WebUI build failed with exit code ${exitCode}`)
+  }
+}
+
 const isCI =
   isEnabledEnvironmentFlag(process.env.CI) ||
   isEnabledEnvironmentFlag(process.env.CONTINUOUS_INTEGRATION)
