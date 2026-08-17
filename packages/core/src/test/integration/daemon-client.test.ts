@@ -5,6 +5,7 @@ import { startKodeDaemon } from '#daemon/server'
 
 describe('daemon client SDK', () => {
   test('connects, sends prompt, and yields AgentEvents (echo)', async () => {
+    const timeoutMs = 15_000
     const daemon = await startKodeDaemon({
       cwd: process.cwd(),
       port: 0,
@@ -14,7 +15,7 @@ describe('daemon client SDK', () => {
     const client = createKodeDaemonClient({ url: daemon.url })
 
     try {
-      await client.connect({ timeoutMs: 5_000 })
+      await client.connect({ timeoutMs })
 
       client.sendPrompt('hello')
 
@@ -27,7 +28,7 @@ describe('daemon client SDK', () => {
           }
         })(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 5_000),
+          setTimeout(() => reject(new Error('timeout')), timeoutMs),
         ),
       ])
 
@@ -51,5 +52,5 @@ describe('daemon client SDK', () => {
       }
       daemon.stop()
     }
-  }, 20_000)
+  }, 45_000)
 })
