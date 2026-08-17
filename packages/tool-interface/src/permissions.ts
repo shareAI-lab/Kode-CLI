@@ -1,11 +1,4 @@
-export type PermissionMode =
-  | 'yolo'
-  | 'cautious'
-  | 'default'
-  | 'acceptEdits'
-  | 'plan'
-  | 'bypassPermissions'
-  | 'dontAsk'
+export type PermissionMode = 'cautious' | 'acceptEdits' | 'plan'
 
 export type ToolPermissionUpdateDestination =
   | 'session'
@@ -30,7 +23,6 @@ export type ToolPermissionContext = {
   alwaysAllowRules: Partial<Record<ToolPermissionUpdateDestination, string[]>>
   alwaysDenyRules: Partial<Record<ToolPermissionUpdateDestination, string[]>>
   alwaysAskRules: Partial<Record<ToolPermissionUpdateDestination, string[]>>
-  isBypassPermissionsModeAvailable: boolean
 }
 
 export type ToolPermissionContextUpdate =

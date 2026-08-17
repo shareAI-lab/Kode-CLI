@@ -25,7 +25,6 @@ export type ToolPermissionContext = {
   alwaysAllowRules: Partial<Record<ToolPermissionUpdateDestination, string[]>>
   alwaysDenyRules: Partial<Record<ToolPermissionUpdateDestination, string[]>>
   alwaysAskRules: Partial<Record<ToolPermissionUpdateDestination, string[]>>
-  isBypassPermissionsModeAvailable: boolean
 }
 
 export type ToolPermissionContextUpdate =
@@ -64,19 +63,19 @@ export type ToolPermissionContextUpdate =
     }
 
 export function createDefaultToolPermissionContext(options?: {
+  /** @deprecated Bypass is no longer a permission mode and this value is ignored. */
   isBypassPermissionsModeAvailable?: boolean
   mode?: PermissionMode
 }): ToolPermissionContext {
   return {
-    // New sessions start in an enforced read-only mode. Moving to an editing
-    // mode must be an explicit user action, never an implicit provider default.
-    mode: options?.mode ?? 'plan',
+    // Match the normal interactive CLI default: work inside the opened
+    // workspace proceeds without a per-tool approval. Plan mode and explicit
+    // allow/ask/deny rules remain opt-in controls.
+    mode: options?.mode ?? 'acceptEdits',
     additionalWorkingDirectories: new Map(),
     alwaysAllowRules: {},
     alwaysDenyRules: {},
     alwaysAskRules: {},
-    isBypassPermissionsModeAvailable:
-      options?.isBypassPermissionsModeAvailable ?? false,
   }
 }
 

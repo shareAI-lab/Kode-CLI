@@ -61,6 +61,5 @@ describe('applyToolPermissionUpdatesToLiveToolUseContext', () => {
     })
 
     expect(out?.mode).toBe('plan')
-    expect(out?.isBypassPermissionsModeAvailable).toBe(false)
   })
 })

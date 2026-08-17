@@ -14,7 +14,7 @@ import { createAssistantMessage } from '#core/utils/messages'
 
 function makeToolUseContext(
   toolPermissionContext: ToolPermissionContext,
-  permissionMode: PermissionMode = 'default',
+  permissionMode: PermissionMode = 'cautious',
 ): ToolUseContext {
   return {
     abortController: new AbortController(),

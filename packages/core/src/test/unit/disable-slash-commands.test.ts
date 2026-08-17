@@ -26,7 +26,7 @@ describe('--disable-slash-commands (compatibility)', () => {
         commands: [helpCommand],
         tools: [] as any[],
         verbose: false,
-        permissionMode: 'default',
+        permissionMode: 'cautious',
         disableSlashCommands: false,
       },
       messageId: undefined as string | undefined,

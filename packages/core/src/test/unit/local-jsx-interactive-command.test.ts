@@ -23,7 +23,7 @@ function makeTestCommandContext(args: {
       forkNumber: 0,
       messageLogName: 'test',
       maxThinkingTokens: 0,
-      permissionMode: 'default',
+      permissionMode: 'cautious',
     },
     setForkConvoWithMessagesOnTheNextRender: () => {},
   }

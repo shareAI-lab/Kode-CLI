@@ -1,4 +1,7 @@
-import type { PermissionMode } from '#core/types/PermissionMode'
+import {
+  normalizePermissionMode,
+  type PermissionMode,
+} from '#core/types/PermissionMode'
 import type {
   ToolPermissionContext,
   ToolPermissionContextUpdate,
@@ -8,7 +11,7 @@ import { applyToolPermissionContextUpdates } from '#core/types/toolPermissionCon
 export class InvalidHeadlessPermissionModeError extends Error {
   constructor(readonly permissionMode: string) {
     super(
-      `Invalid --permission-mode "${permissionMode}". Expected one of: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan`,
+      `Invalid --permission-mode "${permissionMode}". Expected one of: edit, plan, ask`,
     )
     this.name = 'InvalidHeadlessPermissionModeError'
   }
@@ -23,22 +26,26 @@ function cliRuleList(value: unknown): string[] {
     .filter(Boolean)
 }
 
-function isPermissionMode(value: string): value is PermissionMode {
-  return (
-    value === 'acceptEdits' ||
-    value === 'bypassPermissions' ||
-    value === 'default' ||
-    value === 'dontAsk' ||
-    value === 'plan'
-  )
-}
-
-function hasRuleEntries(
-  groups: ToolPermissionContext['alwaysAllowRules'],
-): boolean {
-  return Object.values(groups).some(
-    rules => Array.isArray(rules) && rules.length > 0,
-  )
+function parsePermissionMode(value: string): PermissionMode | null {
+  if (
+    ![
+      'acceptEdits',
+      'cautious',
+      'plan',
+      'yolo',
+      'default',
+      'bypassPermissions',
+      'dontAsk',
+      'delegate',
+      'edit',
+      'ask',
+    ].includes(value)
+  ) {
+    return null
+  }
+  if (value === 'edit') return 'acceptEdits'
+  if (value === 'ask') return 'cautious'
+  return normalizePermissionMode(value)
 }
 
 export function buildHeadlessToolPermissionContext(args: {
@@ -83,36 +90,9 @@ export function buildHeadlessToolPermissionContext(args: {
 
   const normalizedPermissionMode =
     typeof args.permissionMode === 'string' ? args.permissionMode.trim() : ''
-  const hasCustomPermissions =
-    allowedRules.length > 0 ||
-    deniedRules.length > 0 ||
-    additionalDirs.length > 0 ||
-    args.baseContext.additionalWorkingDirectories.size > 0 ||
-    hasRuleEntries(args.baseContext.alwaysAllowRules) ||
-    hasRuleEntries(args.baseContext.alwaysDenyRules) ||
-    hasRuleEntries(args.baseContext.alwaysAskRules)
-  const shouldAutoBypassForNonInteractive =
-    !normalizedPermissionMode &&
-    args.baseContext.mode === 'default' &&
-    !hasCustomPermissions &&
-    !args.safe &&
-    args.inputFormat !== 'stream-json' &&
-    !args.hasPermissionPromptTool
-
-  if (shouldAutoBypassForNonInteractive) {
-    updates.push({
-      type: 'setMode',
-      destination: 'cliArg',
-      mode: 'bypassPermissions',
-    })
-  }
-
   if (normalizedPermissionMode) {
-    const normalized =
-      normalizedPermissionMode === 'delegate'
-        ? 'default'
-        : normalizedPermissionMode
-    if (!isPermissionMode(normalized)) {
+    const normalized = parsePermissionMode(normalizedPermissionMode)
+    if (!normalized) {
       throw new InvalidHeadlessPermissionModeError(normalizedPermissionMode)
     }
     updates.push({
@@ -126,7 +106,7 @@ export function buildHeadlessToolPermissionContext(args: {
     updates.push({
       type: 'setMode',
       destination: 'cliArg',
-      mode: 'bypassPermissions',
+      mode: 'acceptEdits',
     })
   }
 

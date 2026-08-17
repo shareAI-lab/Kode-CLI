@@ -32,6 +32,7 @@ export function checkSlashCommandPermission(args: {
       result: false,
       message: `${PRODUCT_NAME} requested permissions to use ${args.tool.name}, but you haven't granted it yet.`,
       decisionReason: exactKey,
+      requiresExplicitApproval: true,
     }
   }
   if (args.effectiveAllowedTools.includes(exactKey)) {
@@ -54,6 +55,7 @@ export function checkSlashCommandPermission(args: {
         result: false,
         message: `${PRODUCT_NAME} requested permissions to use ${args.tool.name}, but you haven't granted it yet.`,
         decisionReason: prefixKey,
+        requiresExplicitApproval: true,
       }
     }
     if (args.effectiveAllowedTools.includes(prefixKey)) {

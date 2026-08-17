@@ -25,7 +25,7 @@ const makeContext = (permissionMode: PermissionMode): ToolUseContext => ({
   readFileTimestamps: {},
 })
 
-describe('dontAsk permission mode', () => {
+describe('Ask permission mode', () => {
   beforeEach(() => {
     const current = getCurrentProjectConfig()
     saveCurrentProjectConfig({
@@ -36,8 +36,8 @@ describe('dontAsk permission mode', () => {
     })
   })
 
-  test('auto-denies promptable tool uses', async () => {
-    const ctx = makeContext('dontAsk')
+  test('requests approval for promptable tool uses', async () => {
+    const ctx = makeContext('cautious')
     const result = await hasPermissionsToUseTool(
       BashTool,
       { command: 'echo hi' },
@@ -45,10 +45,8 @@ describe('dontAsk permission mode', () => {
       createAssistantMessage(''),
     )
 
-    expect(result).toEqual({
-      result: false,
-      shouldPromptUser: false,
-      message: 'Permission to use Bash has been auto-denied in dontAsk mode.',
-    })
+    expect(result.result).toBe(false)
+    if (result.result !== false) throw new Error('Expected permission request')
+    expect(result.shouldPromptUser).not.toBe(false)
   })
 })

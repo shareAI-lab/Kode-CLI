@@ -1,57 +1,46 @@
-import { describe, expect, test, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
+
 import {
-  PermissionMode,
   getNextPermissionMode,
   MODE_CONFIGS,
+  normalizePermissionMode,
+  type PermissionMode,
 } from '#core/types/PermissionMode'
 import { hasPermissionsToUseTool } from '#core/permissions/engine'
-import {
-  __resetPermissionModeStateForTests,
-  getPermissionMode,
-  setPermissionMode,
-} from '#core/utils/permissionModeState'
+import { createDefaultToolPermissionContext } from '#core/types/toolPermissionContext'
+import { __resetPermissionModeStateForTests } from '#core/utils/permissionModeState'
 import { __getModeIndicatorDisplayForTests } from '#ui-ink/components/ModeIndicator'
 import { getTheme } from '#core/utils/theme'
+import { BashTool } from '#tools/tools/system/BashTool/BashTool'
 
-describe('dontAsk PermissionMode type integration', () => {
+describe('three permission modes', () => {
   beforeEach(() => {
     __resetPermissionModeStateForTests()
   })
 
-  test('dontAsk is a valid PermissionMode', () => {
-    const mode: PermissionMode = 'dontAsk'
-    expect(mode).toBe('dontAsk')
+  test('exposes only Edit, Plan, and Ask modes', () => {
+    const modes: PermissionMode[] = ['acceptEdits', 'plan', 'cautious']
+
+    expect(Object.keys(MODE_CONFIGS).sort()).toEqual([...modes].sort())
+    expect(MODE_CONFIGS.acceptEdits.label).toBe('Edit')
+    expect(MODE_CONFIGS.plan.label).toBe('Plan')
+    expect(MODE_CONFIGS.cautious.label).toBe('Ask')
   })
 
-  test('MODE_CONFIGS includes dontAsk with correct config', () => {
-    const config = MODE_CONFIGS.dontAsk
-    expect(config).toBeDefined()
-    expect(config.name).toBe('dontAsk')
-    expect(config.label).toBe("Don't Ask")
-    expect(config.color).toBe('red')
-    expect(config.restrictions.requireConfirmation).toBe(true)
-    expect(config.restrictions.bypassValidation).toBe(false)
-    expect(config.allowedTools).toEqual(['*'])
+  test('maps legacy values onto the supported modes', () => {
+    expect(normalizePermissionMode('yolo')).toBe('acceptEdits')
+    expect(normalizePermissionMode('bypassPermissions')).toBe('acceptEdits')
+    expect(normalizePermissionMode('default')).toBe('cautious')
+    expect(normalizePermissionMode('dontAsk')).toBe('cautious')
   })
 
-  test('getNextPermissionMode cycles from dontAsk to yolo', () => {
-    expect(getNextPermissionMode('dontAsk', true)).toBe('yolo')
-    expect(getNextPermissionMode('dontAsk', false)).toBe('yolo')
+  test('cycles Edit -> Plan -> Ask -> Edit', () => {
+    expect(getNextPermissionMode('acceptEdits')).toBe('plan')
+    expect(getNextPermissionMode('plan')).toBe('cautious')
+    expect(getNextPermissionMode('cautious')).toBe('acceptEdits')
   })
 
-  test('getPermissionMode returns dontAsk when set', () => {
-    const ctx = {
-      options: {
-        forkNumber: 0,
-        messageLogName: 'test-dontask',
-      },
-    } as any
-
-    setPermissionMode(ctx, 'dontAsk')
-    expect(getPermissionMode(ctx)).toBe('dontAsk')
-  })
-
-  test('dontAsk auto-denies tool uses without prompting', async () => {
+  test('Edit permits dependency installation and typechecking without a prompt', async () => {
     const ctx = {
       abortController: new AbortController(),
       messageId: 'test',
@@ -61,78 +50,93 @@ describe('dontAsk PermissionMode type integration', () => {
         verbose: false,
         safeMode: false,
         forkNumber: 0,
-        messageLogName: 'test-dontask-perm',
+        messageLogName: 'test-edit-perm',
         maxThinkingTokens: 0,
-        permissionMode: 'dontAsk',
+        shouldAvoidPermissionPrompts: true,
+        toolPermissionContext: createDefaultToolPermissionContext(),
       },
       readFileTimestamps: {},
     }
 
-    const fakeTool = {
-      name: 'TestTool',
-      needsPermissions: () => true,
-      isReadOnly: () => false,
-    } as any
+    const result = await hasPermissionsToUseTool(
+      BashTool,
+      { command: 'bun install --frozen-lockfile && bun run typecheck' },
+      ctx as any,
+      {} as any,
+    )
+
+    expect(result.result).toBe(true)
+  })
+
+  test('Edit respects an explicit ask rule', async () => {
+    const toolPermissionContext = createDefaultToolPermissionContext()
+    toolPermissionContext.alwaysAskRules.session = ['Bash(bun:*)']
+    const ctx = {
+      abortController: new AbortController(),
+      messageId: 'test',
+      options: {
+        commands: [] as any[],
+        tools: [] as any[],
+        verbose: false,
+        safeMode: false,
+        forkNumber: 0,
+        messageLogName: 'test-edit-ask-rule',
+        maxThinkingTokens: 0,
+        toolPermissionContext,
+      },
+      readFileTimestamps: {},
+    }
 
     const result = await hasPermissionsToUseTool(
-      fakeTool,
-      {},
+      BashTool,
+      { command: 'bun run typecheck' },
       ctx as any,
       {} as any,
     )
 
     expect(result.result).toBe(false)
-    const denied = result as any
-    expect(denied.shouldPromptUser).toBe(false)
-    expect(denied.message).toContain('auto-denied')
-    expect(denied.message).toContain('dontAsk')
+    if (result.result !== false) throw new Error('Expected permission request')
+    expect(result.requiresExplicitApproval).toBe(true)
   })
 
-  test('dontAsk mode indicator renders correctly', () => {
+  test('safe mode forces a fresh Edit session to Ask', async () => {
+    const ctx = {
+      abortController: new AbortController(),
+      messageId: 'test',
+      options: {
+        commands: [] as any[],
+        tools: [] as any[],
+        verbose: false,
+        safeMode: true,
+        forkNumber: 0,
+        messageLogName: 'test-safe-perm',
+        maxThinkingTokens: 0,
+        toolPermissionContext: createDefaultToolPermissionContext(),
+      },
+      readFileTimestamps: {},
+    }
+
+    const result = await hasPermissionsToUseTool(
+      BashTool,
+      { command: 'bun run typecheck' },
+      ctx as any,
+      {} as any,
+    )
+
+    expect(result.result).toBe(false)
+    if (result.result !== false) throw new Error('Expected permission request')
+    expect(result.shouldPromptUser).not.toBe(false)
+  })
+
+  test('Ask mode exposes the Ask indicator', () => {
     const theme = getTheme('dark')
     const indicator = __getModeIndicatorDisplayForTests({
-      mode: 'dontAsk',
+      mode: 'cautious',
       shortcutDisplayText: 'shift+tab',
       theme,
     })
 
-    expect(indicator.shouldRender).toBe(true)
-    expect(indicator.color).toBe(theme.error)
-    expect(indicator.mainText).toBe('Tool permissions: Deny new tools')
-  })
-
-  test('all PermissionMode values are handled in getNextPermissionMode', () => {
-    const modes: PermissionMode[] = [
-      'yolo',
-      'cautious',
-      'default',
-      'acceptEdits',
-      'plan',
-      'bypassPermissions',
-      'dontAsk',
-    ]
-
-    for (const mode of modes) {
-      const next = getNextPermissionMode(mode, true)
-      expect(typeof next).toBe('string')
-      expect(modes).toContain(next)
-    }
-  })
-
-  test('all PermissionMode values have MODE_CONFIGS entries', () => {
-    const modes: PermissionMode[] = [
-      'yolo',
-      'cautious',
-      'default',
-      'acceptEdits',
-      'plan',
-      'bypassPermissions',
-      'dontAsk',
-    ]
-
-    for (const mode of modes) {
-      expect(MODE_CONFIGS[mode]).toBeDefined()
-      expect(MODE_CONFIGS[mode].name).toBe(mode)
-    }
+    expect(indicator.color).toBe(theme.warning)
+    expect(indicator.mainText).toBe('Tool permissions: Ask before tools')
   })
 })

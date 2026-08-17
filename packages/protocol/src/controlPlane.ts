@@ -102,22 +102,11 @@ export const DaemonTaskCancelResponseSchema = z
   .strict()
 
 export const DaemonPermissionModeSchema = z.enum([
-  'yolo',
   'cautious',
-  'default',
   'acceptEdits',
   'plan',
-  'bypassPermissions',
-  'dontAsk',
 ])
-export type DaemonPermissionMode =
-  | 'yolo'
-  | 'cautious'
-  | 'default'
-  | 'acceptEdits'
-  | 'plan'
-  | 'bypassPermissions'
-  | 'dontAsk'
+export type DaemonPermissionMode = 'cautious' | 'acceptEdits' | 'plan'
 
 export const DaemonPermissionDestinationSchema = z.enum([
   'session',
@@ -217,7 +206,6 @@ export type DaemonPermissionSnapshot = {
   source: 'runtime' | 'disk'
   sessionId: string | null
   mode: DaemonPermissionMode
-  isBypassPermissionsModeAvailable: boolean
   additionalWorkingDirectories: Array<{
     path: string
     source: DaemonPermissionDestination
@@ -234,7 +222,6 @@ export const DaemonPermissionSnapshotSchema = z
     source: z.enum(['runtime', 'disk']),
     sessionId: z.string().nullable(),
     mode: DaemonPermissionModeSchema,
-    isBypassPermissionsModeAvailable: z.boolean(),
     additionalWorkingDirectories: z.array(
       z
         .object({
@@ -288,12 +275,9 @@ export const DaemonAgentSourceSchema = z.enum([
 export type DaemonAgentSource = 'userSettings' | 'projectSettings'
 
 export const DaemonAgentPermissionModeSchema = z.enum([
-  'default',
   'acceptEdits',
+  'cautious',
   'plan',
-  'bypassPermissions',
-  'dontAsk',
-  'delegate',
 ])
 export type DaemonAgentPermissionMode = z.infer<
   typeof DaemonAgentPermissionModeSchema

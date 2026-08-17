@@ -15,7 +15,7 @@ import type { PermissionMode } from '#core/types/PermissionMode'
 import { createAssistantMessage } from '#core/utils/messages'
 
 function makeToolUseContext(
-  permissionMode: PermissionMode = 'default',
+  permissionMode: PermissionMode = 'cautious',
 ): ToolUseContext {
   return {
     abortController: new AbortController(),
@@ -162,6 +162,7 @@ describe('Bash permission engine parity', () => {
 
   test('wildcard rules do not allow compound commands (&&)', async () => {
     const toolPermissionContext = createDefaultToolPermissionContext()
+    toolPermissionContext.mode = 'cautious'
     toolPermissionContext.alwaysAllowRules.localSettings = ['Bash(git *)']
 
     const result = await checkBashPermissions({
@@ -175,6 +176,7 @@ describe('Bash permission engine parity', () => {
 
   test('wildcard rules do not allow compound commands (&)', async () => {
     const toolPermissionContext = createDefaultToolPermissionContext()
+    toolPermissionContext.mode = 'cautious'
     toolPermissionContext.alwaysAllowRules.localSettings = ['Bash(git *)']
 
     const result = await checkBashPermissions({
@@ -188,6 +190,7 @@ describe('Bash permission engine parity', () => {
 
   test('wildcard rules do not allow compound commands (|&)', async () => {
     const toolPermissionContext = createDefaultToolPermissionContext()
+    toolPermissionContext.mode = 'cautious'
     toolPermissionContext.alwaysAllowRules.localSettings = ['Bash(git *)']
 
     const result = await checkBashPermissions({
@@ -343,8 +346,8 @@ describe('Bash permission engine parity', () => {
     expect(result.message).toContain('$()')
   })
 
-  test('dontAsk mode auto-denies promptable bash tool use', async () => {
-    const ctx = makeToolUseContext('dontAsk')
+  test('Ask mode requests approval for promptable Bash tool use', async () => {
+    const ctx = makeToolUseContext('cautious')
     const result = await hasPermissionsToUseTool(
       BashTool,
       { command: 'echo hi' },
@@ -352,10 +355,8 @@ describe('Bash permission engine parity', () => {
       createAssistantMessage(''),
     )
 
-    expect(result).toEqual({
-      result: false,
-      shouldPromptUser: false,
-      message: 'Permission to use Bash has been auto-denied in dontAsk mode.',
-    })
+    expect(result.result).toBe(false)
+    if (result.result !== false) throw new Error('Expected permission request')
+    expect(result.shouldPromptUser).not.toBe(false)
   })
 })

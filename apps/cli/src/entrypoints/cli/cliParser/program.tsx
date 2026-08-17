@@ -169,7 +169,7 @@ export function createCliProgram(
     )
     .option(
       '--permission-mode <mode>',
-      'Permission mode: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan',
+      'Permission mode: edit, plan, ask',
       String,
     )
     .addOption(
@@ -190,7 +190,7 @@ export function createCliProgram(
     )
     .option(
       '--trust',
-      'Permissive mode (auto-approve safe operations)',
+      'Use Edit mode (auto-run normal workspace operations)',
       () => true,
     )
     .option(

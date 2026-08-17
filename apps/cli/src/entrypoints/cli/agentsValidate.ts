@@ -22,9 +22,11 @@ export type AgentValidateFileResult = {
 }
 
 const VALID_PERMISSION_MODES = new Set([
-  'default',
   'acceptEdits',
+  'cautious',
   'plan',
+  'yolo',
+  'default',
   'bypassPermissions',
   'dontAsk',
   'delegate',

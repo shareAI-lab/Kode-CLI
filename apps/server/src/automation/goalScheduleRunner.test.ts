@@ -23,7 +23,7 @@ function session(): DaemonSession {
     responseState: {},
     toolPermissionContext: {
       ...createDefaultToolPermissionContext(),
-      mode: 'default',
+      mode: 'cautious',
     },
     activeAbortController: null,
     turnInFlight: false,

@@ -6,16 +6,8 @@ export function getPermissionModeStatusLabel(mode: PermissionMode): string {
     case 'plan':
       return 'Plan first'
     case 'acceptEdits':
-      return 'Auto-accept edits'
-    case 'bypassPermissions':
-      return 'Bypass permissions'
-    case 'dontAsk':
-      return 'Deny new tools'
+      return 'Edit'
     case 'cautious':
-      return 'Ask before tools'
-    case 'yolo':
-      return 'Auto-run safe tools'
-    default:
       return 'Ask before tools'
   }
 }
@@ -30,16 +22,8 @@ export function getPermissionModeCompactLabel(mode: PermissionMode): string {
     case 'plan':
       return 'Plan'
     case 'acceptEdits':
-      return 'Auto edits'
-    case 'bypassPermissions':
-      return 'Bypass'
-    case 'dontAsk':
-      return 'Deny'
+      return 'Edit'
     case 'cautious':
-      return 'Ask'
-    case 'yolo':
-      return 'Safe auto'
-    default:
       return 'Ask'
   }
 }
@@ -49,16 +33,8 @@ export function getPermissionModeDetail(mode: PermissionMode): string {
     case 'plan':
       return 'review plans before implementation'
     case 'acceptEdits':
-      return 'edits accepted automatically'
-    case 'bypassPermissions':
-      return 'tool prompts bypassed'
-    case 'dontAsk':
-      return 'new tool requests denied'
+      return 'run workspace operations automatically'
     case 'cautious':
-      return 'ask before tool use'
-    case 'yolo':
-      return 'safe tools can run without prompts'
-    default:
       return 'ask before tool use'
   }
 }

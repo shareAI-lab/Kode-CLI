@@ -19,6 +19,7 @@ import type {
   DaemonAgentSource,
   DaemonManagedAgent,
 } from '@kode/protocol'
+import { normalizePermissionMode } from '#core/types/PermissionMode'
 
 import { appendAgentAuditRecord } from './agentAuditStore'
 
@@ -99,7 +100,7 @@ function toProtocolAgent(agent: ManagedAgent): DaemonManagedAgent {
   }
   if (agent.model !== undefined) output.model = agent.model
   if (agent.permissionMode !== undefined) {
-    output.permissionMode = agent.permissionMode
+    output.permissionMode = normalizePermissionMode(agent.permissionMode)
   }
   if (agent.forkContext === true) output.forkContext = true
   if (agent.maxExecutionTimeMs !== undefined) {

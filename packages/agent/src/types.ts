@@ -11,9 +11,11 @@ export type AgentLocation = 'built-in' | 'plugin' | 'user' | 'project'
 export type AgentModel = 'inherit' | 'haiku' | 'sonnet' | 'opus' | (string & {})
 
 export type AgentPermissionMode =
-  | 'default'
   | 'acceptEdits'
+  | 'cautious'
   | 'plan'
+  | 'yolo'
+  | 'default'
   | 'bypassPermissions'
   | 'dontAsk'
   | 'delegate'

@@ -53,10 +53,10 @@ describe('TaskTool', () => {
     expect(deniedEscalation?.mode).toBe('plan')
 
     const narrowed = applyAgentPermissionMode(base, {
-      agentPermissionMode: 'dontAsk',
+      agentPermissionMode: 'plan',
       safeMode: false,
     })
-    expect(narrowed?.mode).toBe('dontAsk')
+    expect(narrowed?.mode).toBe('plan')
   })
 
   test('inputSchema ignores unknown keys (compatibility)', () => {
@@ -852,7 +852,7 @@ describe('TaskTool', () => {
     const toolPermissionContext = createDefaultToolPermissionContext({
       isBypassPermissionsModeAvailable: true,
     })
-    toolPermissionContext.mode = 'dontAsk'
+    toolPermissionContext.mode = 'cautious'
 
     const gen = TaskTool.call(
       {
@@ -882,11 +882,11 @@ describe('TaskTool', () => {
       // exhaust
     }
 
-    expect(capturedOptions?.toolPermissionContext?.mode).toBe('dontAsk')
+    expect(capturedOptions?.toolPermissionContext?.mode).toBe('cautious')
     expect(capturedOptions?.commandAllowedTools).toEqual(['Read(~/**)'])
 
     expect(readPermission?.result).toBe(true)
     expect(writePermission?.result).toBe(false)
-    expect(writePermission?.shouldPromptUser).toBe(false)
+    expect(writePermission?.shouldPromptUser).not.toBe(false)
   })
 })

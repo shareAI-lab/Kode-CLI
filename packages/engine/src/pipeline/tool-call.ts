@@ -320,14 +320,14 @@ export async function* checkPermissionsAndCallTool(
   const permissionContextForCall =
     hookPermissionDecision === 'ask' &&
     context.options?.toolPermissionContext &&
-    context.options.toolPermissionContext.mode !== 'default'
+    context.options.toolPermissionContext.mode !== 'cautious'
       ? ({
           ...context,
           options: {
             ...context.options,
             toolPermissionContext: {
               ...context.options.toolPermissionContext,
-              mode: 'default',
+              mode: 'cautious',
             },
           },
         } as const)

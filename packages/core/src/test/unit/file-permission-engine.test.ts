@@ -91,6 +91,25 @@ describe('Compatibility: filesystem permission engine', () => {
     expect(result.result).toBe(true)
   })
 
+  test('allows writing inside the working directory in Edit mode', async () => {
+    const toolPermissionContext = createDefaultToolPermissionContext({
+      isBypassPermissionsModeAvailable: true,
+    })
+    const ctx = makeContext({ toolPermissionContext })
+
+    const result = await hasPermissionsToUseTool(
+      FileWriteTool,
+      {
+        file_path: path.join(getCwd(), 'permission-default-write.test.ts'),
+        content: 'test',
+      },
+      ctx,
+      createAssistantMessage(''),
+    )
+
+    expect(result.result).toBe(true)
+  })
+
   test('asks to read outside working directory and provides suggestions', async () => {
     const tmp = makeTempDir('kode-perm-read')
     const filePath = path.join(tmp, 'a.txt')

@@ -396,6 +396,7 @@ export function REPLView({
       <TransientViewportProvider value={transientViewportValue}>
         <PermissionProvider
           conversationKey={conversationKey}
+          safeMode={safeMode}
           isBypassPermissionsModeAvailable={!safeMode}
         >
           <Box ref={rootUiRef} flexDirection="column" width="100%">
@@ -415,6 +416,7 @@ export function REPLView({
       <TransientViewportProvider value={transientViewportValue}>
         <PermissionProvider
           conversationKey={conversationKey}
+          safeMode={safeMode}
           isBypassPermissionsModeAvailable={!safeMode}
         >
           <Box
@@ -451,6 +453,7 @@ export function REPLView({
     <TransientViewportProvider value={transientViewportValue}>
       <PermissionProvider
         conversationKey={conversationKey}
+        safeMode={safeMode}
         isBypassPermissionsModeAvailable={!safeMode}
       >
         {isFullScreenToolView && toolJSX ? (

@@ -1,22 +1,55 @@
-// Permission mode types
-// - yolo: Auto-execute non-destructive commands, prompt only for HIGH severity
-// - cautious: Requires confirmation for all tool uses (original default behavior)
-// - acceptEdits: Auto-approve edit operations
-// - plan: Research and planning - read-only tools only
-// - bypassPermissions: All permissions bypassed
-// - dontAsk: Auto-deny permission prompts
-export type PermissionMode =
-  | 'yolo'
-  | 'cautious'
-  | 'default' // Legacy alias for cautious
-  | 'acceptEdits'
-  | 'plan'
-  | 'bypassPermissions'
-  | 'dontAsk'
+// Permission modes deliberately have one clear purpose each:
+// - acceptEdits (Edit): run normal workspace operations without per-tool prompts
+// - plan (Plan): allow only read-only operations
+// - cautious (Ask): request approval before operations
+export type PermissionMode = 'acceptEdits' | 'plan' | 'cautious'
 
-// Normalize legacy 'default' to 'cautious'
-export function normalizePermissionMode(mode: PermissionMode): PermissionMode {
-  return mode === 'default' ? 'cautious' : mode
+export type LegacyPermissionMode =
+  'yolo' | 'default' | 'bypassPermissions' | 'dontAsk' | 'delegate'
+
+export function isSupportedPermissionModeInput(
+  value: unknown,
+): value is PermissionMode | LegacyPermissionMode | 'edit' | 'ask' {
+  return (
+    typeof value === 'string' &&
+    [
+      'acceptEdits',
+      'cautious',
+      'plan',
+      'yolo',
+      'default',
+      'bypassPermissions',
+      'dontAsk',
+      'delegate',
+      'edit',
+      'ask',
+    ].includes(value)
+  )
+}
+
+/**
+ * Converts persisted and command-line values from older releases into the
+ * three supported modes. Unknown values deliberately become Ask.
+ */
+export function normalizePermissionMode(
+  mode: PermissionMode | LegacyPermissionMode | string | null | undefined,
+): PermissionMode {
+  switch (mode) {
+    case 'edit':
+    case 'acceptEdits':
+    case 'yolo':
+    case 'bypassPermissions':
+      return 'acceptEdits'
+    case 'plan':
+      return 'plan'
+    case 'ask':
+    case 'cautious':
+    case 'default':
+    case 'dontAsk':
+    case 'delegate':
+    default:
+      return 'cautious'
+  }
 }
 
 export interface PermissionContext {
@@ -77,19 +110,6 @@ export const PLAN_MODE_TOOL_CATALOG = [
 
 // Mode configuration
 export const MODE_CONFIGS: Record<PermissionMode, ModeConfig> = {
-  yolo: {
-    name: 'yolo',
-    label: 'YOLO',
-    icon: '',
-    color: 'text',
-    description: 'Auto-execute non-destructive, prompt for HIGH severity only',
-    allowedTools: ['*'],
-    restrictions: {
-      readOnly: false,
-      requireConfirmation: false,
-      bypassValidation: false,
-    },
-  },
   cautious: {
     name: 'cautious',
     label: 'Ask',
@@ -103,25 +123,13 @@ export const MODE_CONFIGS: Record<PermissionMode, ModeConfig> = {
       bypassValidation: false,
     },
   },
-  default: {
-    name: 'default',
-    label: 'Ask',
-    icon: '??',
-    color: 'blue',
-    description: 'Legacy alias for cautious',
-    allowedTools: ['*'],
-    restrictions: {
-      readOnly: false,
-      requireConfirmation: true,
-      bypassValidation: false,
-    },
-  },
   acceptEdits: {
     name: 'acceptEdits',
-    label: 'Accept Edits',
+    label: 'Edit',
     icon: '>>',
     color: 'green',
-    description: 'Auto-approve edit operations',
+    description:
+      'Auto-run workspace edits and commands; explicit rules and protected paths still apply',
     allowedTools: ['*'],
     restrictions: {
       readOnly: false,
@@ -142,54 +150,18 @@ export const MODE_CONFIGS: Record<PermissionMode, ModeConfig> = {
       bypassValidation: false,
     },
   },
-  bypassPermissions: {
-    name: 'bypassPermissions',
-    label: 'Bypass',
-    icon: '🚀',
-    color: 'red',
-    description: 'All permissions bypassed',
-    allowedTools: ['*'],
-    restrictions: {
-      readOnly: false,
-      requireConfirmation: false,
-      bypassValidation: true,
-    },
-  },
-  dontAsk: {
-    name: 'dontAsk',
-    label: "Don't Ask",
-    icon: 'X',
-    color: 'red',
-    description: 'Auto-deny permission prompts',
-    allowedTools: ['*'],
-    restrictions: {
-      readOnly: false,
-      requireConfirmation: true,
-      bypassValidation: false,
-    },
-  },
 }
 
-// Mode cycling function: yolo -> plan -> acceptEdits -> cautious -> [bypassPermissions] -> yolo
+// Mode cycling function: Edit -> Plan -> Ask -> Edit.
 export function getNextPermissionMode(
   currentMode: PermissionMode,
-  isBypassAvailable: boolean = true,
 ): PermissionMode {
-  const normalized = normalizePermissionMode(currentMode)
-  switch (normalized) {
-    case 'yolo':
+  switch (currentMode) {
+    case 'acceptEdits':
       return 'plan'
     case 'plan':
-      return 'acceptEdits'
-    case 'acceptEdits':
       return 'cautious'
     case 'cautious':
-      return isBypassAvailable ? 'bypassPermissions' : 'yolo'
-    case 'bypassPermissions':
-      return 'yolo'
-    case 'dontAsk':
-      return 'yolo'
-    default:
-      return 'yolo'
+      return 'acceptEdits'
   }
 }

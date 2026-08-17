@@ -121,13 +121,33 @@ function qP(value: unknown): string[] {
 }
 
 const VALID_PERMISSION_MODES = [
-  'default',
   'acceptEdits',
+  'cautious',
   'plan',
+  'yolo',
+  'default',
   'bypassPermissions',
   'dontAsk',
   'delegate',
 ] as const
+
+function normalizeAgentPermissionMode(
+  mode: (typeof VALID_PERMISSION_MODES)[number],
+): AgentPermissionMode {
+  switch (mode) {
+    case 'acceptEdits':
+    case 'cautious':
+    case 'plan':
+      return mode
+    case 'yolo':
+    case 'bypassPermissions':
+      return 'acceptEdits'
+    case 'default':
+    case 'dontAsk':
+    case 'delegate':
+      return 'cautious'
+  }
+}
 
 function sourceToLocation(source: AgentSource): AgentLocation {
   switch (source) {
@@ -265,7 +285,11 @@ function parseAgentFromLoadedMarkdown(
       ...(color ? { color } : {}),
       ...(model ? { model: model as AgentModel } : {}),
       ...(permissionModeIsValid
-        ? { permissionMode: permissionModeValue as AgentPermissionMode }
+        ? {
+            permissionMode: normalizeAgentPermissionMode(
+              permissionModeValue as (typeof VALID_PERMISSION_MODES)[number],
+            ),
+          }
         : {}),
       ...(forkContext ? { forkContext: true } : {}),
       ...(maxExecutionTimeMs ? { maxExecutionTimeMs } : {}),
@@ -337,7 +361,11 @@ function parseAgentFromJson(
     location: 'built-in',
     ...(model ? { model: model as AgentModel } : {}),
     ...(parsed.data.permissionMode
-      ? { permissionMode: parsed.data.permissionMode }
+      ? {
+          permissionMode: normalizeAgentPermissionMode(
+            parsed.data.permissionMode,
+          ),
+        }
       : {}),
     ...(parsed.data.maxExecutionTimeMs
       ? { maxExecutionTimeMs: parsed.data.maxExecutionTimeMs }

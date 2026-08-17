@@ -1307,8 +1307,7 @@ describe('HttpClient', () => {
     const permission: DaemonPermissionSnapshot = {
       source: 'runtime',
       sessionId: task.sessionId,
-      mode: 'yolo',
-      isBypassPermissionsModeAvailable: true,
+      mode: 'acceptEdits',
       additionalWorkingDirectories: [],
       rules: { allow: {}, deny: {}, ask: {} },
     }

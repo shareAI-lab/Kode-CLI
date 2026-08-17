@@ -191,6 +191,7 @@ export async function checkBashPermissions(args: {
         'message' in syntax && typeof syntax.message === 'string'
           ? syntax.message
           : 'Invalid Bash syntax requires approval',
+      requiresExplicitApproval: true,
     }
   }
 
@@ -212,6 +213,7 @@ export async function checkBashPermissions(args: {
         security.behavior === 'ask' && security.message
           ? security.message
           : 'Unsafe compound command requires approval',
+      requiresExplicitApproval: true,
     }
   }
 
@@ -295,6 +297,7 @@ export async function checkBashPermissions(args: {
       suggestions: fullPathDecision.suggestions,
       decisionReason: formatDecisionReason(fullPathDecision.decisionReason),
       blockedPath: fullPathDecision.blockedPath,
+      requiresExplicitApproval: true,
     }
   }
 
@@ -306,6 +309,7 @@ export async function checkBashPermissions(args: {
         suggestions: decision.suggestions,
         decisionReason: formatDecisionReason(decision.decisionReason),
         blockedPath: decision.blockedPath,
+        requiresExplicitApproval: true,
       }
     }
   }
@@ -363,6 +367,7 @@ export function checkBashPermissionsAutoAllowedBySandbox(args: {
         result: false,
         message: `${PRODUCT_NAME} requested permissions to use Bash, but you haven't granted it yet.`,
         decisionReason: prefixMatches.ask,
+        requiresExplicitApproval: true,
       }
     }
   }

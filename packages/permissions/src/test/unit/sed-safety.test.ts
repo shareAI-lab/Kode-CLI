@@ -11,7 +11,6 @@ function ctx(mode: ToolPermissionContext['mode']): ToolPermissionContext {
     alwaysAllowRules: {},
     alwaysDenyRules: {},
     alwaysAskRules: {},
-    isBypassPermissionsModeAvailable: false,
   }
 }
 
@@ -19,7 +18,7 @@ describe('checkSedCommandSafety', () => {
   test('passthrough for plain read-only sed commands', () => {
     const decision = checkSedCommandSafety({
       command: 'sed -n 1,5p file.txt',
-      toolPermissionContext: ctx('default'),
+      toolPermissionContext: ctx('cautious'),
     })
     expect(decision.behavior).toBe('passthrough')
   })
@@ -27,7 +26,7 @@ describe('checkSedCommandSafety', () => {
   test('passthrough for multiple safe sed subcommands', () => {
     const decision = checkSedCommandSafety({
       command: 'sed -n 1p a.txt; sed -n 2p b.txt',
-      toolPermissionContext: ctx('default'),
+      toolPermissionContext: ctx('cautious'),
     })
     expect(decision.behavior).toBe('passthrough')
   })
@@ -35,7 +34,7 @@ describe('checkSedCommandSafety', () => {
   test('asks when sed writes files without acceptEdits', () => {
     const decision = checkSedCommandSafety({
       command: 'sed -i s/foo/bar/ file.txt',
-      toolPermissionContext: ctx('default'),
+      toolPermissionContext: ctx('cautious'),
     })
     expect(decision.behavior).toBe('ask')
     if (decision.behavior !== 'allow') {
@@ -54,7 +53,7 @@ describe('checkSedCommandSafety', () => {
   test('asks for dangerous operations (e flag / exec)', () => {
     const decision = checkSedCommandSafety({
       command: 'sed s/foo/bar/e file.txt',
-      toolPermissionContext: ctx('default'),
+      toolPermissionContext: ctx('cautious'),
     })
     expect(decision.behavior).toBe('ask')
   })
@@ -62,7 +61,7 @@ describe('checkSedCommandSafety', () => {
   test('conservatively asks for quoted scripts', () => {
     const decision = checkSedCommandSafety({
       command: 'sed "s/foo/bar/" file.txt',
-      toolPermissionContext: ctx('default'),
+      toolPermissionContext: ctx('cautious'),
     })
     expect(decision.behavior).toBe('ask')
   })
@@ -70,7 +69,7 @@ describe('checkSedCommandSafety', () => {
   test('ignores non-sed commands', () => {
     const decision = checkSedCommandSafety({
       command: 'echo hello; grep foo file.txt',
-      toolPermissionContext: ctx('default'),
+      toolPermissionContext: ctx('cautious'),
     })
     expect(decision.behavior).toBe('passthrough')
   })

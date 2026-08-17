@@ -12,6 +12,7 @@ import {
   appendReplQueryFailureMessage,
   CODEX_APP_SERVER_TIMEOUT_MESSAGE,
   REPL_QUERY_FAILURE_MESSAGE,
+  retainStreamThinkingInAssistantMessage,
   shouldAppendReplQueryFailure,
 } from './useReplQuery'
 import { getRequestStatus, setRequestStatus } from '#core/utils/requestStatus'
@@ -68,6 +69,40 @@ describe('appendMessagesForReplState', () => {
       user,
       assistant,
     ])
+  })
+})
+
+describe('stream reasoning transcript retention', () => {
+  test('retains provider thinking that is absent from the completed message', () => {
+    const result = retainStreamThinkingInAssistantMessage(
+      createAssistantMessage('Final answer.'),
+      'Inspect the permission flow first.',
+    )
+
+    expect(result.message.content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Inspect the permission flow first.',
+        signature: '',
+      },
+      { type: 'text', text: 'Final answer.', citations: [] },
+    ])
+  })
+
+  test('does not duplicate thinking already returned by the provider', () => {
+    const message = createAssistantMessage('Final answer.')
+    message.message.content.unshift({
+      type: 'thinking',
+      thinking: 'Inspect the permission flow first.',
+      signature: '',
+    })
+
+    const result = retainStreamThinkingInAssistantMessage(
+      message,
+      'Inspect the permission flow first.',
+    )
+
+    expect(result).toBe(message)
   })
 })
 

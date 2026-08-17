@@ -47,35 +47,7 @@ export function getToolPermissionContextForConversationKey(options: {
     options.conversationKey,
   )
   if (existing) {
-    let next = existing
-
-    if (
-      next.isBypassPermissionsModeAvailable !==
-      options.isBypassPermissionsModeAvailable
-    ) {
-      next = {
-        ...next,
-        isBypassPermissionsModeAvailable:
-          options.isBypassPermissionsModeAvailable,
-      }
-    }
-
-    if (
-      !options.isBypassPermissionsModeAvailable &&
-      next.mode === 'bypassPermissions'
-    ) {
-      next = { ...next, mode: 'yolo' }
-    }
-
-    if (next !== existing) {
-      toolPermissionContextByConversationKey.set(options.conversationKey, next)
-      notifyToolPermissionContextListeners({
-        conversationKey: options.conversationKey,
-        context: next,
-      })
-    }
-
-    return next
+    return existing
   }
 
   const initial = loadToolPermissionContextFromDisk({

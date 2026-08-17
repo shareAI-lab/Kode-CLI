@@ -173,8 +173,6 @@ export function ExitPlanModePermissionRequest({
     [planText, planViewportWidth],
   )
   const showExitWithoutPlan = !planExists || planText.trim().length === 0
-  const bypassAvailable =
-    toolUseConfirm.toolUseContext.options?.safeMode !== true
   const pushToRemoteAvailable = useMemo(
     () => isPlanExitPushToRemoteEnabled(),
     [],
@@ -182,14 +180,12 @@ export function ExitPlanModePermissionRequest({
   const swarmAvailable = useMemo(() => isPlanExitSwarmEnabled(), [])
   const options = useMemo(() => {
     return getExitPlanModeOptions({
-      bypassAvailable,
       pushToRemoteAvailable,
       swarmAvailable,
       teammateCount: swarmTeammateCount,
       quickSelectLabel: modeCycleShortcut.displayText,
     })
   }, [
-    bypassAvailable,
     modeCycleShortcut.displayText,
     pushToRemoteAvailable,
     swarmAvailable,
@@ -332,17 +328,13 @@ export function ExitPlanModePermissionRequest({
 
   const handleApprove = (value: ExitPlanModeOptionValue) => {
     let updatedInput: { [key: string]: unknown } | undefined
-    const clearContext =
-      value === 'yes-bypass-permissions' || value === 'yes-accept-edits'
+    const clearContext = value === 'yes-accept-edits'
 
-    let nextMode: PermissionMode = 'default'
+    let nextMode: PermissionMode = 'cautious'
     switch (value) {
       case 'yes-push-to-remote':
         startPushToRemoteFlow()
         return
-      case 'yes-bypass-permissions':
-        nextMode = 'bypassPermissions'
-        break
       case 'yes-accept-edits':
         nextMode = 'acceptEdits'
         break
@@ -354,19 +346,11 @@ export function ExitPlanModePermissionRequest({
           teammateCount: swarmTeammateCount,
         }
         break
-      case 'yes-launch-swarm-bypass':
-        nextMode = 'bypassPermissions'
-        updatedInput = {
-          ...toolUseConfirm.input,
-          launchSwarm: true,
-          teammateCount: swarmTeammateCount,
-        }
-        break
       case 'yes-accept-edits-keep-context':
-        nextMode = bypassAvailable ? 'bypassPermissions' : 'acceptEdits'
+        nextMode = 'acceptEdits'
         break
-      case 'yes-default-keep-context':
-        nextMode = 'default'
+      case 'yes-cautious-keep-context':
+        nextMode = 'cautious'
         break
       case 'no':
         return
@@ -487,7 +471,7 @@ export function ExitPlanModePermissionRequest({
 
       if (key.return) {
         if (focusedOptionIndex === 0) {
-          applyPermissionMode('default')
+          applyPermissionMode('acceptEdits')
           toolUseConfirm.onAllow('temporary')
           onDone()
           return true
@@ -589,7 +573,6 @@ export function ExitPlanModePermissionRequest({
     if (key.tab && !key.shift && focusSection === 'options') {
       const swarmValues: ExitPlanModeOptionValue[] = [
         'yes-launch-swarm-accept-edits',
-        'yes-launch-swarm-bypass',
       ]
       if (
         focusedOption &&

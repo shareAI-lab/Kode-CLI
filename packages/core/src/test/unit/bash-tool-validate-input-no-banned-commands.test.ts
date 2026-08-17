@@ -34,7 +34,7 @@ describe('BashTool validateInput does not hard-ban base commands (compatibility)
         forkNumber: 0,
         messageLogName: 'test',
         maxThinkingTokens: 0,
-        permissionMode: 'default',
+        permissionMode: 'cautious',
         toolPermissionContext,
         __sandboxProjectDir: sandboxProjectDir,
         __sandboxHomeDir: sandboxHomeDir,

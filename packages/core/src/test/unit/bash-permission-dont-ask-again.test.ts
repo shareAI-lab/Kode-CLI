@@ -63,7 +63,7 @@ describe('Bash permission dont-ask-again (prefix) parity', () => {
 
     try {
       const toolPermissionContext = createDefaultToolPermissionContext()
-      toolPermissionContext.mode = 'default'
+      toolPermissionContext.mode = 'cautious'
 
       const conversationKey = 'test:0'
       setToolPermissionContextForConversationKey({
@@ -111,7 +111,7 @@ describe('Bash permission dont-ask-again (prefix) parity', () => {
 
     try {
       const toolPermissionContext = createDefaultToolPermissionContext()
-      toolPermissionContext.mode = 'default'
+      toolPermissionContext.mode = 'cautious'
 
       const conversationKey = 'test:0'
       setToolPermissionContextForConversationKey({
@@ -152,7 +152,7 @@ describe('Bash permission dont-ask-again (prefix) parity', () => {
 
   test('prefix allow does not bypass dangerous rm -rf / in compound commands', async () => {
     const toolPermissionContext = createDefaultToolPermissionContext()
-    toolPermissionContext.mode = 'default'
+    toolPermissionContext.mode = 'cautious'
     toolPermissionContext.alwaysAllowRules.localSettings = ['Bash(echo:*)']
 
     const result = await checkBashPermissions({

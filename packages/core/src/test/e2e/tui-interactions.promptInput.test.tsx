@@ -738,7 +738,7 @@ describe('TUI E2E regression (Ink render): PromptInput', () => {
     h.stdin.write('\u001B[Z')
     await h.wait(50)
 
-    expect(h.getOutput()).toContain('Tools Auto edits (shift+tab)')
+    expect(h.getOutput()).toContain('Tools Plan (shift+tab)')
     expect(h.getOutput()).not.toContain('Tool permissions:')
   })
 

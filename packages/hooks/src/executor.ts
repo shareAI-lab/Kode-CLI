@@ -343,7 +343,7 @@ export function coerceHookMessage(stdout: string, stderr: string): string {
 }
 
 export function coerceHookPermissionMode(mode: unknown): 'ask' | 'allow' {
-  if (mode === 'acceptEdits' || mode === 'bypassPermissions') return 'allow'
+  if (mode === 'acceptEdits') return 'allow'
   return 'ask'
 }
 

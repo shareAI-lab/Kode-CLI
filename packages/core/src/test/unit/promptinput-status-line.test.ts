@@ -36,7 +36,7 @@ describe('PromptInput status line', () => {
 
     expect(text).toContain('Chat')
     expect(text).not.toContain('/ commands')
-    expect(text).toContain('Tools Auto edits (shift+tab)')
+    expect(text).toContain('Tools Edit (shift+tab)')
     expect(text).toContain('Tab queue')
     expect(text).toContain('pending 1')
     expect(text).toContain('queued 2')
@@ -44,16 +44,16 @@ describe('PromptInput status line', () => {
     expect(text).not.toContain('Auto-accept edits')
   })
 
-  test('retains the safety qualifier for automatic tool execution', () => {
+  test('shows Edit for automatic workspace execution', () => {
     const text = buildPromptInputStatusLine({
       mode: 'prompt',
-      permissionMode: 'yolo',
+      permissionMode: 'acceptEdits',
       modeCycleShortcutText: 'shift+tab',
       isLoading: false,
       pendingPromptCount: 0,
       queuedPromptCount: 0,
     })
 
-    expect(text).toContain('Tools Safe auto (shift+tab)')
+    expect(text).toContain('Tools Edit (shift+tab)')
   })
 })

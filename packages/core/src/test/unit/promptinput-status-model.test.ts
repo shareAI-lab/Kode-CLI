@@ -81,7 +81,7 @@ describe('PromptInput status line model', () => {
       messageLogName: 'log',
       forkNumber: 2,
       mode: 'prompt',
-      permissionMode: 'default',
+      permissionMode: 'cautious',
       editorMode: 'vim',
       vimMode: 'NORMAL',
     }) as any

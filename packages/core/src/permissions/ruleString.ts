@@ -10,8 +10,7 @@ export type ToolPermissionRuleSource =
   | 'command'
   | 'session'
 
-export type ToolPermissionMode =
-  'default' | 'acceptEdits' | 'bypassPermissions' | 'dontAsk'
+export type ToolPermissionMode = 'cautious' | 'acceptEdits'
 
 export type ToolPermissionRuleValue = {
   toolName: string

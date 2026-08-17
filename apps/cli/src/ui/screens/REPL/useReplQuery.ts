@@ -119,6 +119,63 @@ export function appendMessagesForReplState(
   return next ?? oldMessages
 }
 
+/**
+ * Some compatible providers stream reasoning deltas but omit that reasoning
+ * from their completed message. Preserve only provider-exposed stream content
+ * so clearing the live preview cannot make it disappear from the transcript.
+ */
+export function retainStreamThinkingInAssistantMessage(
+  message: AssistantMessage,
+  streamThinking: string,
+): AssistantMessage {
+  const thinking = streamThinking.trim()
+  if (!thinking || !Array.isArray(message.message.content)) return message
+
+  const content = message.message.content
+  const existingThinking = content
+    .filter(
+      (
+        block,
+      ): block is { type: 'thinking'; thinking: string; signature?: string } =>
+        block.type === 'thinking' && typeof block.thinking === 'string',
+    )
+    .map(block => block.thinking.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  if (existingThinking.includes(thinking)) return message
+
+  if (!existingThinking) {
+    return {
+      ...message,
+      message: {
+        ...message.message,
+        content: [{ type: 'thinking', thinking, signature: '' }, ...content],
+      },
+    }
+  }
+
+  const mergedThinking = thinking.startsWith(existingThinking)
+    ? thinking
+    : existingThinking.startsWith(thinking)
+      ? existingThinking
+      : `${existingThinking}\n\n${thinking}`
+  let emittedThinking = false
+
+  return {
+    ...message,
+    message: {
+      ...message.message,
+      content: content.flatMap(block => {
+        if (block.type !== 'thinking') return [block]
+        if (emittedThinking) return []
+        emittedThinking = true
+        return [{ ...block, thinking: mergedThinking }]
+      }),
+    },
+  }
+}
+
 export const DEFAULT_REPL_TURN_TIMEOUT_MS = 15 * 60 * 1000
 const REPL_TURN_TIMEOUT_MESSAGE =
   'Request timed out before the model or a tool completed. The turn was cancelled; check the provider or tool and retry.'
@@ -405,14 +462,19 @@ export function useReplQuery(args: {
               },
               getBinaryFeedbackResponse,
             })) {
+              let messageForTranscript = message
               if (message.type === 'assistant') {
+                messageForTranscript = retainStreamThinkingInAssistantMessage(
+                  message,
+                  assistantStreamStore.getSnapshot().thinking,
+                )
                 assistantStreamStore.clearPreview(controllerToUse)
               }
               setMessages(oldMessages =>
-                appendMessagesForReplState(oldMessages, [message]),
+                appendMessagesForReplState(oldMessages, [messageForTranscript]),
               )
-              if (message.type === 'assistant') {
-                lastAssistantMessage = message
+              if (messageForTranscript.type === 'assistant') {
+                lastAssistantMessage = messageForTranscript
               }
             }
 

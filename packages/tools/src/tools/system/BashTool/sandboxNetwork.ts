@@ -25,7 +25,7 @@ export async function maybeAttachSandboxNetworkPorts(args: {
   if (!needsRestriction) return sandboxOptions
 
   const { abortController } = context
-  const mode = context?.options?.toolPermissionContext?.mode ?? 'default'
+  const mode = context?.options?.toolPermissionContext?.mode ?? 'cautious'
   const shouldAvoidPermissionPrompts = Boolean(
     context?.options?.shouldAvoidPermissionPrompts,
   )
@@ -38,8 +38,8 @@ export async function maybeAttachSandboxNetworkPorts(args: {
     runtimeConfig: sandboxPlan.runtimeConfig,
     platform,
     permissionCallback: async ({ host, port }) => {
-      if (mode === 'acceptEdits' || mode === 'bypassPermissions') return true
-      if (mode === 'dontAsk' || shouldAvoidPermissionPrompts) return false
+      if (mode === 'acceptEdits') return true
+      if (shouldAvoidPermissionPrompts) return false
       if (!requestToolUsePermission) return false
       if (abortController.signal.aborted) return false
 

@@ -28,7 +28,7 @@ function makeToolUseContext(args: {
       forkNumber: 0,
       messageLogName: 'test',
       maxThinkingTokens: 0,
-      permissionMode: 'default',
+      permissionMode: 'cautious',
       __sandboxProjectDir: args.projectDir,
       __sandboxHomeDir: args.homeDir,
       __sandboxPlatform: 'linux',

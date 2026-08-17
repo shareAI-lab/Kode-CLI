@@ -1,4 +1,8 @@
-import type { PermissionMode } from '#core/types/PermissionMode'
+import {
+  isSupportedPermissionModeInput,
+  normalizePermissionMode,
+  type PermissionMode,
+} from '#core/types/PermissionMode'
 import type { WrappedClient } from '#core/mcp/client'
 import type { ControlRequestMessage } from '#protocol/structuredStdio'
 
@@ -28,14 +32,8 @@ export function createPrintControlRequestHandler(args: {
 
     if (subtype === 'set_permission_mode') {
       const mode = msg.request.mode
-      if (
-        mode === 'default' ||
-        mode === 'acceptEdits' ||
-        mode === 'plan' ||
-        mode === 'dontAsk' ||
-        mode === 'bypassPermissions'
-      ) {
-        args.setPermissionMode(mode)
+      if (isSupportedPermissionModeInput(mode)) {
+        args.setPermissionMode(normalizePermissionMode(mode))
       }
       return undefined
     }

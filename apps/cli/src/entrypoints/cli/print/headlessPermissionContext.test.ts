@@ -33,65 +33,30 @@ describe('buildHeadlessToolPermissionContext', () => {
     ])
   })
 
-  test('keeps safe text runs interactive instead of silently bypassing', () => {
-    const baseContext = createDefaultToolPermissionContext()
-    baseContext.mode = 'default'
-
-    const context = buildHeadlessToolPermissionContext({
-      baseContext,
-      safe: true,
-      inputFormat: 'text',
-      hasPermissionPromptTool: false,
-    })
-
-    expect(context.mode).toBe('default')
-  })
-
-  test('preserves legacy non-interactive auto bypass behavior', () => {
-    const baseContext = createDefaultToolPermissionContext({
-      isBypassPermissionsModeAvailable: true,
-    })
-    baseContext.mode = 'default'
-
-    const context = buildHeadlessToolPermissionContext({
-      baseContext,
-      inputFormat: 'text',
-      hasPermissionPromptTool: false,
-    })
-
-    expect(context.mode).toBe('bypassPermissions')
-  })
-
-  test('does not let auto bypass override explicit CLI permission boundaries', () => {
-    for (const rules of [
-      { allowedTools: 'Read(output.html)' },
-      { disallowedTools: 'Bash' },
-      { addDir: '/tmp/generated' },
-    ]) {
-      const baseContext = createDefaultToolPermissionContext({
-        isBypassPermissionsModeAvailable: true,
-      })
-      baseContext.mode = 'default'
-
-      const context = buildHeadlessToolPermissionContext({
-        baseContext,
-        ...rules,
-        inputFormat: 'text',
-        hasPermissionPromptTool: false,
-      })
-
-      expect(context.mode).toBe('default')
-    }
-  })
-
-  test('maps delegate to default and rejects unknown modes', () => {
+  test('accepts legacy values but emits one of the three supported modes', () => {
     const delegated = buildHeadlessToolPermissionContext({
       baseContext: createDefaultToolPermissionContext(),
       permissionMode: 'delegate',
       inputFormat: 'text',
       hasPermissionPromptTool: false,
     })
-    expect(delegated.mode).toBe('default')
+    expect(delegated.mode).toBe('cautious')
+
+    const legacyEdit = buildHeadlessToolPermissionContext({
+      baseContext: createDefaultToolPermissionContext(),
+      permissionMode: 'yolo',
+      inputFormat: 'text',
+      hasPermissionPromptTool: false,
+    })
+    expect(legacyEdit.mode).toBe('acceptEdits')
+
+    const ask = buildHeadlessToolPermissionContext({
+      baseContext: createDefaultToolPermissionContext(),
+      permissionMode: 'ask',
+      inputFormat: 'text',
+      hasPermissionPromptTool: false,
+    })
+    expect(ask.mode).toBe('cautious')
 
     expect(() =>
       buildHeadlessToolPermissionContext({

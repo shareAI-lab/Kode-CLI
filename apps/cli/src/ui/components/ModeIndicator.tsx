@@ -76,19 +76,12 @@ export function __getModeIndicatorDisplayForTests(args: {
 
 function getModeIndicatorColor(theme: Theme, mode: PermissionMode): string {
   switch (normalizePermissionMode(mode)) {
-    case 'yolo':
-      return theme.secondaryText
     case 'cautious':
       return theme.warning
     case 'plan':
       return theme.success
     case 'acceptEdits':
       return theme.autoAccept
-    case 'bypassPermissions':
-    case 'dontAsk':
-      return theme.error
-    default:
-      return theme.secondaryText
   }
 }
 

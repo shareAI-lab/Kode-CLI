@@ -46,14 +46,6 @@ const FILESYSTEM_LIKE_TOOL_NAMES = new Set([
   'Grep',
 ])
 
-function parseBoolLike(value: string | undefined): boolean {
-  if (!value) return false
-  const normalized = value.trim().toLowerCase()
-  return ['1', 'true', 'yes', 'y', 'on', 'enable', 'enabled'].includes(
-    normalized,
-  )
-}
-
 function flattenPermissionRuleGroups(
   groups: Partial<Record<string, string[]>> | undefined,
 ): string[] {
@@ -69,18 +61,10 @@ function flattenPermissionRuleGroups(
   return out
 }
 
-function checkBypassSafetyFloor(args: {
+function checkWriteSafetyFloor(args: {
   tool: Tool
   input: Record<string, unknown>
-  safeMode: boolean
 }): PermissionResult | null {
-  // SECURITY: KODE_BYPASS_SAFETY_FLOOR has been removed.
-  // The safety floor (preventing writes to sensitive system paths) must
-  // always be enforced regardless of permission mode. This prevents
-  // accidental or malicious writes to /etc, ~/.ssh, etc.
-  // Previously: parseBoolLike(process.env.KODE_BYPASS_SAFETY_FLOOR) could
-  // disable this check, which is a security anti-pattern.
-
   const denyIfUnsafeWrite = (toolPath: string): PermissionResult | null => {
     const safety = getWriteSafetyCheckForPath(toolPath)
     if ('message' in safety) {
@@ -176,37 +160,28 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
   assistantMessage,
 ): Promise<PermissionResult> => {
   const rawPermissionMode = getPermissionMode(context)
-  const permissionMode = normalizePermissionMode(rawPermissionMode)
-  const isDontAskMode = permissionMode === 'dontAsk'
-  const isYoloMode = permissionMode === 'yolo'
+  const normalizedPermissionMode = normalizePermissionMode(rawPermissionMode)
   const shouldAvoidPermissionPrompts =
     context.options?.shouldAvoidPermissionPrompts === true
   const safeMode = Boolean(context.options?.safeMode ?? context.safeMode)
+  const permissionMode =
+    safeMode && normalizedPermissionMode === 'acceptEdits'
+      ? 'cautious'
+      : normalizedPermissionMode
+  const isEditMode = permissionMode === 'acceptEdits'
   const requiresUserInteraction =
     tool.requiresUserInteraction?.(input as never) ?? false
 
-  const dontAskDenied: PermissionResult = {
-    result: false,
-    message: `Permission to use ${tool.name} has been auto-denied in dontAsk mode.`,
-    shouldPromptUser: false,
-  }
+  const safetyFloor = checkWriteSafetyFloor({ tool, input })
+  if (safetyFloor) return safetyFloor
+
   const promptsUnavailableDenied: PermissionResult = {
     result: false,
     message: `Permission to use ${tool.name} has been auto-denied (prompts unavailable).`,
     shouldPromptUser: false,
   }
 
-  // Note: YOLO mode auto-approve is applied at the end, after deny/ask rules are checked
-
-  if (permissionMode === 'bypassPermissions' && !requiresUserInteraction) {
-    const denied = checkBypassSafetyFloor({ tool, input, safeMode })
-    if (denied) return denied
-
-    return { result: true }
-  }
-
   if (requiresUserInteraction) {
-    if (isDontAskMode) return dontAskDenied
     if (shouldAvoidPermissionPrompts) return promptsUnavailableDenied
     return {
       result: false,
@@ -383,12 +358,17 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     checkEditPermissionForPath,
   })
 
+  // Edit mode auto-approves ordinary requests before the headless fallback
+  // turns unavailable prompts into denials. Explicit ask rules and protected
+  // boundaries set requiresExplicitApproval and remain promptable/blocked.
   if (
-    isDontAskMode &&
+    isEditMode &&
+    !requiresUserInteraction &&
     permissionResult.result === false &&
-    permissionResult.shouldPromptUser !== false
+    permissionResult.shouldPromptUser !== false &&
+    permissionResult.requiresExplicitApproval !== true
   ) {
-    return dontAskDenied
+    return { result: true }
   }
 
   if (
@@ -397,18 +377,6 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     permissionResult.shouldPromptUser !== false
   ) {
     return promptsUnavailableDenied
-  }
-
-  // YOLO mode: if result would prompt user (not explicitly denied), auto-approve instead
-  // Explicit deny rules (shouldPromptUser: false) are still respected
-  if (
-    isYoloMode &&
-    !requiresUserInteraction &&
-    permissionResult.result === false &&
-    permissionResult.shouldPromptUser !== false &&
-    permissionResult.requiresExplicitApproval !== true
-  ) {
-    return { result: true }
   }
 
   return permissionResult
