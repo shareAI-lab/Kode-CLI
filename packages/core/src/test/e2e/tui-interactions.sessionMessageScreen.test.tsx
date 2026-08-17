@@ -87,7 +87,7 @@ describe('TUI E2E: SessionMessageScreen', () => {
     h.stdin.write('Please verify the cancellation race.')
     await h.wait(100)
     h.stdin.write('\r')
-    await h.wait(120)
+    await h.waitFor(output => output.includes('Queued'))
 
     expect(h.getOutput()).toContain('Queued')
     expect(h.getOutput()).toContain('Please verify the cancellation race.')
