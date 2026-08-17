@@ -9,6 +9,7 @@ import {
   getRequestStatusTiming,
   getRequestStatusTokenDisplay,
   REQUEST_STATUS_ESC_CANCEL_HINT,
+  shouldShowRequestStatusPhase,
   subscribeRequestStatus,
   type RequestStatus,
 } from '#core/utils/requestStatus'
@@ -78,8 +79,10 @@ export function RequestStatusIndicator({
         )}
       </Text>
       <Text color={theme.secondaryText}>
-        {' '}
-        · {getRequestStatusPhaseLabel(status, now)} · total{' '}
+        {shouldShowRequestStatusPhase(status, now)
+          ? ` · ${getRequestStatusPhaseLabel(status, now)}`
+          : ''}
+        {' · total '}
         {formatRequestStatusDuration(
           Math.floor(timing.requestDurationMs / 1000),
         )}{' '}

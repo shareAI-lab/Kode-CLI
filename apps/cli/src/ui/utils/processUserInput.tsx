@@ -18,7 +18,9 @@ import { switchCwdForResume } from '#cli-utils/switchCwdForResume'
 import { getMessagesForSlashCommand } from './slashCommands'
 import {
   coerceImageMediaType,
+  collectCommandNames,
   extractAssistantText,
+  formatUnknownSlashCommandMessage,
 } from './processUserInputHelpers'
 import { parseBuiltinInputCommand } from './builtinInputCommands'
 import type { SetForkConvoWithMessagesOnTheNextRender } from '#ui-ink/types/conversationReset'
@@ -251,11 +253,21 @@ export async function processUserInput(
       ]
     }
 
+    // `//text` is the escape hatch for a literal leading slash.
+    if (inputTrimmedStart.startsWith('//')) {
+      return [createUserMessage(inputTrimmedStart.slice(1))]
+    }
+
     // Check if it's a real command before processing
     if (!hasCommand(commandName, context.options?.commands ?? [])) {
-      // If not a real command, treat it as a regular user input
-
-      return [createUserMessage(input)]
+      return [
+        createAssistantMessage(
+          formatUnknownSlashCommandMessage(
+            commandName,
+            collectCommandNames(context.options?.commands ?? []),
+          ),
+        ),
+      ]
     }
 
     // Slash commands can carry per-command `allowedTools` constraints. These must be

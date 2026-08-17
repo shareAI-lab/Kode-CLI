@@ -5,16 +5,25 @@ import type { ReactNode } from 'react'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 
+export type CancelRequestGate = {
+  isPermissionDialogVisible?: boolean
+  isOverlayVisible?: boolean
+}
+
 export function shouldHandleCancelRequest(args: {
   wantsCancel: boolean
   isLoading: boolean
   isMessageSelectorVisible: boolean
+  isPermissionDialogVisible?: boolean
+  isOverlayVisible?: boolean
   abortSignal?: AbortSignal
 }): boolean {
   return (
     args.wantsCancel &&
     args.isLoading &&
     !args.isMessageSelectorVisible &&
+    !args.isPermissionDialogVisible &&
+    !args.isOverlayVisible &&
     Boolean(args.abortSignal) &&
     !args.abortSignal?.aborted
   )
@@ -28,6 +37,7 @@ export function useCancelRequest(
   getIsLoading: () => boolean,
   isMessageSelectorVisible: boolean,
   getAbortSignal: () => AbortSignal | undefined,
+  options?: CancelRequestGate,
 ) {
   useKeypress(
     (input, key) => {
@@ -38,10 +48,12 @@ export function useCancelRequest(
           wantsCancel,
           isLoading: getIsLoading(),
           isMessageSelectorVisible,
+          isPermissionDialogVisible: options?.isPermissionDialogVisible,
+          isOverlayVisible: options?.isOverlayVisible,
           abortSignal: getAbortSignal(),
         })
       ) {
-        // Esc closes the message selector
+        // Esc closes the message selector, permission dialog, or overlay
         return undefined
       }
 

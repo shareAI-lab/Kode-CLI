@@ -8,6 +8,8 @@ const FIRST_LINE_PREFIX = '  ↳ '
 const WRAPPED_LINE_PREFIX = '    '
 const MORE_QUEUED_PREFIX = '    … '
 const ELLIPSIS_LINE = '    …'
+export const QUEUED_PROMPTS_HEADER = 'Queued · Alt+Up edit'
+export const QUEUED_PROMPTS_HEADER_SHORT = 'Queued'
 
 export function __getQueuedPromptLinesForTests(args: {
   queuedPrompts: string[]
@@ -59,6 +61,11 @@ export function __getQueuedPromptLinesForTests(args: {
     }
   }
 
+  if (lines.length === 0) return []
+
+  lines.unshift(
+    safeWidth >= 28 ? QUEUED_PROMPTS_HEADER : QUEUED_PROMPTS_HEADER_SHORT,
+  )
   return lines
 }
 

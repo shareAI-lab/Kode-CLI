@@ -22,6 +22,7 @@ import {
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { PermissionRequestDetails } from './PermissionRequestDetails'
+import { getPermissionDenyOptionLabel } from './toolUseOptions'
 import {
   defaultPermissionFocusValue,
   permissionSelectFocusScope,
@@ -105,7 +106,7 @@ export function FallbackPermissionRequest({
                   value: 'yes-dont-ask-again',
                 },
                 {
-                  label: `No, and provide instructions (${chalk.bold.hex(getTheme().warning)('esc')})`,
+                  label: getPermissionDenyOptionLabel(),
                   value: 'no',
                 },
               ]}

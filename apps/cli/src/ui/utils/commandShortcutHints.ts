@@ -21,10 +21,10 @@ export function getCommandShortcutHints(
 
   return {
     commands: [
-      { trigger: '/init', effect: 'create AGENTS.md' },
+      { trigger: '/config', effect: 'setup models and tools' },
       { trigger: '/help', effect: 'open help' },
-      { trigger: '/bash <cmd>', effect: 'run shell command' },
-      { trigger: '/note <text>', effect: 'save note to AGENTS.md' },
+      { trigger: '/model', effect: 'manage models' },
+      { trigger: '/init', effect: 'create AGENTS.md' },
     ],
     shortcuts: [
       { trigger: `${modifier}+M`, effect: 'switch model' },

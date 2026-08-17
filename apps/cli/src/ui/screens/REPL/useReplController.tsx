@@ -889,7 +889,16 @@ export function useReplController(props: REPLProps) {
         const { ConfigScreen } =
           await import('#ui-ink/screens/overlays/ConfigScreen')
         openToolView({
-          jsx: <ConfigScreen onClose={dismissToolView} />,
+          jsx: (
+            <ConfigScreen
+              onClose={dismissToolView}
+              onSelectCommand={command => {
+                setInputMode('prompt')
+                setInputValue(`${command} `)
+                showToast(`Command ready: ${command}`)
+              }}
+            />
+          ),
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
@@ -1009,7 +1018,16 @@ export function useReplController(props: REPLProps) {
                   const { ConfigScreen } =
                     await import('#ui-ink/screens/overlays/ConfigScreen')
                   openToolView({
-                    jsx: <ConfigScreen onClose={dismissToolView} />,
+                    jsx: (
+                      <ConfigScreen
+                        onClose={dismissToolView}
+                        onSelectCommand={command => {
+                          setInputMode('prompt')
+                          setInputValue(`${command} `)
+                          showToast(`Command ready: ${command}`)
+                        }}
+                      />
+                    ),
                     shouldHidePromptInput: true,
                     displayMode: 'fullscreen',
                   })
@@ -1198,6 +1216,10 @@ export function useReplController(props: REPLProps) {
     getIsLoading,
     isMessageSelectorVisible,
     getAbortSignal,
+    {
+      isPermissionDialogVisible: Boolean(toolUseConfirm),
+      isOverlayVisible: Boolean(toolJSX) || Boolean(binaryFeedbackContext),
+    },
   )
 
   useEffect(() => {

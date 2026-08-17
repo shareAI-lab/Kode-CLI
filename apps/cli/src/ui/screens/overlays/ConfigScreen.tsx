@@ -38,6 +38,28 @@ const THEME_OPTIONS: ThemeNames[] = [
 
 type Props = {
   onClose: () => void
+  onSelectCommand?: (command: string) => void
+}
+
+export const CONFIG_QUICK_START_COMMANDS = [
+  '/onboarding',
+  '/model',
+  '/permissions',
+  '/mcp',
+] as const
+
+export function __getConfigQuickStartCommandForTests(
+  inputChar: string,
+): (typeof CONFIG_QUICK_START_COMMANDS)[number] | null {
+  const index = Number.parseInt(inputChar, 10) - 1
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= CONFIG_QUICK_START_COMMANDS.length
+  ) {
+    return null
+  }
+  return CONFIG_QUICK_START_COMMANDS[index] ?? null
 }
 
 type Setting =
@@ -75,7 +97,10 @@ type Setting =
       disabled?: boolean
     }
 
-export function ConfigScreen({ onClose }: Props): React.ReactNode {
+export function ConfigScreen({
+  onClose,
+  onSelectCommand,
+}: Props): React.ReactNode {
   const [globalConfig, setGlobalConfig] = useState(getGlobalConfig())
   const initialConfig = React.useRef(getGlobalConfig())
   const exitState = { pending: false, keyName: null as null } as const
@@ -289,6 +314,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
           setEditingString(false)
           setCurrentInput('')
           setInputError(null)
+          return true
         } else if (key.delete || key.backspace) {
           setCurrentInput(prev => prev.slice(0, -1))
         } else if (input) {
@@ -298,6 +324,13 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
       }
 
       if (view === 'quick-start') {
+        const quickStartCommand =
+          __getConfigQuickStartCommandForTests(inputChar)
+        if (quickStartCommand) {
+          onSelectCommand?.(quickStartCommand)
+          safeOnClose()
+          return true
+        }
         if (key.tab || key.rightArrow || inputChar === 'a') {
           setView('advanced')
           return true
@@ -340,6 +373,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
         }
 
         safeOnClose()
+        return true
       }
 
       return undefined
@@ -412,8 +446,11 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
               models, and key validation. Keys are never shown here.
             </Text>
             <Text color={theme.secondaryText} wrap="truncate-end">
-              3. <Text color={theme.suggestion}>/permissions</Text> and{' '}
-              <Text color={theme.suggestion}>/mcp</Text> manage tool access and
+              3. <Text color={theme.suggestion}>/permissions</Text> manages tool
+              access.
+            </Text>
+            <Text color={theme.secondaryText} wrap="truncate-end">
+              4. <Text color={theme.suggestion}>/mcp</Text> manages
               integrations.
             </Text>
             <Box marginTop={gap} flexDirection="column" gap={0}>
@@ -498,7 +535,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
             {editingString
               ? 'Enter to save · Esc to cancel'
               : view === 'quick-start'
-                ? 'Tab/a advanced preferences · Esc close'
+                ? '1-4 open command · Tab/a advanced preferences · Esc close'
                 : '↑/↓ or j/k · Home/End · Enter change · Tab back · Esc close'}
           </Text>
         </Box>

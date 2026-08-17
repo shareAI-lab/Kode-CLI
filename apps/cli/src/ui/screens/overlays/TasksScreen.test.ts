@@ -6,9 +6,24 @@ import {
   __flattenTasksTreeForTests,
   __getPreferredSelectedIndexForTests,
   __nextTaskFilterForTests,
+  __resolveTasksDetailKeyActionForTests,
 } from './TasksScreen'
 
 describe('TasksScreen helpers', () => {
+  test('treats detail Escape as back, not overlay close', () => {
+    expect(__resolveTasksDetailKeyActionForTests({ escape: true })).toBe('back')
+    expect(__resolveTasksDetailKeyActionForTests({ leftArrow: true })).toBe(
+      'back',
+    )
+    expect(__resolveTasksDetailKeyActionForTests({ q: true })).toBe('back')
+    expect(__resolveTasksDetailKeyActionForTests({ return: true })).toBe(
+      'close',
+    )
+    expect(__resolveTasksDetailKeyActionForTests({ space: true })).toBe('close')
+    expect(__resolveTasksDetailKeyActionForTests({ ctrlC: true })).toBe('close')
+    expect(__resolveTasksDetailKeyActionForTests({ k: true })).toBe('kill')
+  })
+
   test('filters local task snapshots without treating them as durable history', () => {
     const tasks = [
       { taskId: 'running', status: 'running' },

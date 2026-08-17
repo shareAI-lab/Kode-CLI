@@ -286,7 +286,7 @@ describe('animation lifecycle', () => {
 
     expect(output).toContain('Writing response')
     expect(output).toContain('↓ 13k')
-    expect(output).toContain('(Esc cancel)')
+    expect(output).toContain('(Esc to cancel)')
     expect(setIntervalSpy).toHaveBeenCalled()
   })
 })

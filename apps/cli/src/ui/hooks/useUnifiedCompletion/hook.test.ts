@@ -236,6 +236,22 @@ describe('__shouldLoadMentionSuggestionsForTests', () => {
     ).toBe(true)
   })
 
+  test('does not load mention providers for @ path completions', () => {
+    expect(
+      __shouldLoadMentionSuggestionsForTests({
+        isEnabled: true,
+        currentContext: {
+          type: 'file',
+          prefix: 'src/',
+          startPos: 0,
+          endPos: 5,
+          trigger: '@',
+        },
+        activeContext: null,
+      }),
+    ).toBe(false)
+  })
+
   test('does not load mention providers when completion is disabled', () => {
     expect(
       __shouldLoadMentionSuggestionsForTests({

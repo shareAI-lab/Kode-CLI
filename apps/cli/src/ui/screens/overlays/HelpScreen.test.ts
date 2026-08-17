@@ -55,10 +55,17 @@ describe('HelpScreen helpers', () => {
 
   it('describes the transcript shortcut consistently with F6', () => {
     const lines = __buildHelpLinesForTests([])
+    expect(lines).toContain(
+      '- Ctrl+S: Stash prompt (press again on empty input to restore)',
+    )
+    expect(lines).toContain('- F8: Local agents and shells')
+    expect(lines).toContain('- Ctrl+T: Work / todo list')
     expect(lines).toContain('- Ctrl+O: Transcript (scroll/copy)')
     expect(lines.some(line => line.includes('Toggle verbose transcript'))).toBe(
       false,
     )
+    expect(lines).toContain('  > /bash ls')
+    expect(lines.some(line => line.includes('!ls'))).toBe(false)
     // The fictional "Down Arrow opens Tasks" claim is gone.
     expect(
       lines.some(line => line.includes('Down Arrow (empty input): Tasks')),
@@ -91,6 +98,7 @@ describe('HelpScreen helpers', () => {
     const defaultLines = __buildHelpLinesForTests([helpCommand, themeCommand])
     expect(defaultLines.some(line => line.includes('/theme'))).toBe(false)
     expect(defaultLines.some(line => line.includes('/help'))).toBe(true)
+    expect(defaultLines.some(line => line.includes('/help all'))).toBe(true)
 
     // /help all shows the whole catalog with category section headers.
     const allLines = __buildHelpLinesForTests([helpCommand, themeCommand], {

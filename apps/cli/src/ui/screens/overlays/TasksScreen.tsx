@@ -116,7 +116,23 @@ function aggregateStatus(
 }
 
 function statusLabel(status: BackgroundTaskStatus | null): string {
-  return status ?? 'idle'
+  if (status === 'pending') return 'queued'
+  return status ?? 'unknown'
+}
+
+export function __resolveTasksDetailKeyActionForTests(key: {
+  escape?: boolean
+  leftArrow?: boolean
+  return?: boolean
+  space?: boolean
+  ctrlC?: boolean
+  q?: boolean
+  k?: boolean
+}): 'back' | 'close' | 'kill' | null {
+  if (key.leftArrow || key.escape || key.q) return 'back'
+  if (key.k) return 'kill'
+  if (key.return || key.space || key.ctrlC) return 'close'
+  return null
 }
 
 function statusIcon(status: BackgroundTaskStatus | null): string {
@@ -171,7 +187,14 @@ export function __nextTaskFilterForTests(filter: TaskFilter): TaskFilter {
 }
 
 function taskFilterLabel(filter: TaskFilter): string {
-  return filter
+  switch (filter) {
+    case 'active':
+      return 'Active'
+    case 'finished':
+      return 'Finished'
+    default:
+      return 'All'
+  }
 }
 
 function buildAgentTree(tasks: BackgroundAgentTaskSnapshot[]): TreeNode | null {
@@ -685,22 +708,27 @@ export function TasksScreen({
   useKeypress(
     (input, key) => {
       if (detailTarget) {
-        if (key.leftArrow) {
+        const action = __resolveTasksDetailKeyActionForTests({
+          escape: key.escape,
+          leftArrow: key.leftArrow,
+          return: key.return,
+          space: input === ' ',
+          ctrlC: Boolean(key.ctrl && input === 'c'),
+          q: input === 'q',
+          k: input === 'k',
+        })
+
+        if (action === 'back') {
           setDetailTarget(null)
           return true
         }
 
-        if (input === 'k') {
+        if (action === 'kill') {
           killDetailTask()
           return true
         }
 
-        if (
-          key.escape ||
-          key.return ||
-          input === ' ' ||
-          (key.ctrl && input === 'c')
-        ) {
+        if (action === 'close') {
           safeOnDone()
           return true
         }
@@ -857,7 +885,7 @@ export function TasksScreen({
     status ??
     (totalTasks > 0
       ? `Local tasks: ${taskFilterLabel(taskFilter)} · ${runningTasks} running · ${totalTasks} shown`
-      : `No ${taskFilterLabel(taskFilter)} local tasks`)
+      : `No local tasks in ${taskFilterLabel(taskFilter)}`)
 
   const tipLine =
     'Local task snapshots end with this Kode process. Use /runs status for durable-run records.'
@@ -893,9 +921,9 @@ export function TasksScreen({
             : `Full output: ${outputFile}`
 
     const footerActions = [
-      '← to go back',
-      'Esc/Enter/Space to close',
-      detailTask?.status === 'running' ? 'k to kill' : null,
+      '←/Esc back',
+      'Enter/Space/Ctrl+C close',
+      detailTask?.status === 'running' ? 'k kill' : null,
     ]
       .filter(Boolean)
       .join(' · ')
@@ -972,7 +1000,7 @@ export function TasksScreen({
 
   return (
     <ScreenFrame
-      title="Local Tasks"
+      title="Local agents & shells"
       exitState={exitState}
       paddingX={layout.paddingX}
       paddingY={layout.paddingY}
@@ -998,11 +1026,13 @@ export function TasksScreen({
                 color={
                   row.isSelected
                     ? theme.text
-                    : row.status === 'failed'
+                    : row.status === 'failed' || row.status === 'killed'
                       ? theme.error
                       : row.status === 'running'
                         ? theme.warning
-                        : theme.secondaryText
+                        : row.status === 'completed'
+                          ? theme.success
+                          : theme.secondaryText
                 }
                 wrap="truncate-end"
               >

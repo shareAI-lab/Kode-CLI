@@ -134,7 +134,7 @@ export function LspStatus({ onDone }: Props): React.ReactNode {
       >
         <Box flexDirection="column" gap={layout.gap}>
           <Text color={theme.error}>✘ LSP status check failed</Text>
-          <Text dimColor>{state.message}</Text>
+          <Text color={theme.secondaryText}>{state.message}</Text>
           <PressEnterToContinue />
         </Box>
       </ScreenFrame>
@@ -154,7 +154,7 @@ export function LspStatus({ onDone }: Props): React.ReactNode {
     >
       <Box flexDirection="column" gap={layout.gap}>
         <Box flexDirection="column" gap={0}>
-          <Text dimColor>
+          <Text color={theme.secondaryText}>
             IDE MCP connected: {state.ideMcpConnected ? 'yes' : 'no'}
           </Text>
         </Box>
@@ -168,26 +168,33 @@ export function LspStatus({ onDone }: Props): React.ReactNode {
         <Box flexDirection="column" gap={0}>
           <Text color={theme.secondaryText}>Active servers (this session)</Text>
           {!state.runtime.hasManager ? (
-            <Text dimColor>
+            <Text color={theme.secondaryText}>
               Not initialized yet. LSP servers start automatically once
               configured and initialized.
             </Text>
           ) : activeServers.length === 0 ? (
-            <Text dimColor>No servers running yet.</Text>
+            <Text color={theme.secondaryText}>No servers running yet.</Text>
           ) : (
             <>
-              <Text dimColor>
-                Running: {runningServers.length} • Active:{' '}
+              <Text color={theme.secondaryText}>
+                Running: {runningServers.length} · Active:{' '}
                 {activeServers.length}
               </Text>
               {activeServers.slice(0, 8).map(s => (
-                <Text key={s.name} dimColor>
+                <Text
+                  key={s.name}
+                  color={
+                    s.state === 'running' ? theme.success : theme.secondaryText
+                  }
+                >
                   • {s.name} — {s.state}
                   {s.pid ? ` (pid ${s.pid})` : ''}
                 </Text>
               ))}
               {activeServers.length > 8 ? (
-                <Text dimColor>…and {activeServers.length - 8} more</Text>
+                <Text color={theme.secondaryText}>
+                  …and {activeServers.length - 8} more
+                </Text>
               ) : null}
             </>
           )}
@@ -203,18 +210,21 @@ export function LspStatus({ onDone }: Props): React.ReactNode {
               const resolvedPath = resolveCommandPath(server)
               return (
                 <Box key={server.name} flexDirection="column">
-                  <Text dimColor>
+                  <Text color={theme.secondaryText}>
                     • {server.name} ({summarizeSource(server.source)}) —{' '}
                     {extCount} ext
                   </Text>
                   {resolvedPath ? (
-                    <Text dimColor> ↳ bin: {resolvedPath}</Text>
+                    <Text color={theme.secondaryText}>
+                      {' '}
+                      ↳ bin: {resolvedPath}
+                    </Text>
                   ) : null}
                 </Box>
               )
             })}
             {summary.servers.length > runnablePreview.length ? (
-              <Text dimColor>
+              <Text color={theme.secondaryText}>
                 …and {summary.servers.length - runnablePreview.length} more
               </Text>
             ) : null}
@@ -222,7 +232,9 @@ export function LspStatus({ onDone }: Props): React.ReactNode {
         ) : (
           <Box flexDirection="column" gap={0}>
             <Text color={theme.warning}>No LSP servers configured.</Text>
-            <Text dimColor>Configure LSP servers via enabled plugins.</Text>
+            <Text color={theme.secondaryText}>
+              Configure LSP servers via enabled plugins.
+            </Text>
           </Box>
         )}
 

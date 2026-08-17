@@ -7,6 +7,8 @@ import type { ToolUseContext } from '#core/tooling/Tool'
 import { getDisableAllHooksState } from '@kode/hooks/disableAllHooks'
 import { getModelManager } from '#core/utils/model'
 import { getTheme } from '#core/utils/theme'
+import type { PermissionMode } from '#core/types/PermissionMode'
+import { getPermissionModeStatusLabel } from '#ui-ink/utils/permissionModeDisplay'
 import { getCwd } from '#core/utils/state'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
@@ -56,8 +58,11 @@ function buildStatusLines(args: {
   const connectedMcp = mcpClients.filter((c: any) => c?.type === 'connected')
   const failedMcp = mcpClients.filter((c: any) => c?.type !== 'connected')
 
+  const rawPermissionMode = args.context.options?.permissionMode
   const permissionMode =
-    (args.context.options?.permissionMode as string | undefined) ?? '(default)'
+    typeof rawPermissionMode === 'string'
+      ? getPermissionModeStatusLabel(rawPermissionMode as PermissionMode)
+      : getPermissionModeStatusLabel('cautious')
 
   const lines: string[] = []
   lines.push('Session')
@@ -65,7 +70,7 @@ function buildStatusLines(args: {
   lines.push(`- session_id: ${getKodeAgentSessionId()}`)
   lines.push(`- cwd: ${cwd}`)
   lines.push(`- safe_mode: ${args.context.safeMode ? 'on' : 'off'}`)
-  lines.push(`- permission_mode: ${permissionMode}`)
+  lines.push(`- permission policy: ${permissionMode}`)
 
   lines.push('')
   lines.push('Connectivity')

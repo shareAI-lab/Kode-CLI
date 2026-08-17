@@ -7,6 +7,7 @@ import {
   getRequestStatusLabel,
   getRequestStatusPhaseLabel,
   getRequestStatusTiming,
+  shouldShowRequestStatusPhase,
   getRequestStatusTokenDisplay,
   REQUEST_STATUS_ESC_CANCEL_HINT,
   setRequestStatus,
@@ -141,7 +142,7 @@ describe('shared request status display helpers', () => {
         { ...base, kind: 'waiting' },
         FIRST_RESPONSE_WARNING_SECONDS + 1,
       ),
-    ).toBe('Waiting for model response · still waiting')
+    ).toBe('Waiting for model response')
     expect(getRequestStatusLabel({ ...base, kind: 'thinking' }, 1)).toBe(
       'Thinking',
     )
@@ -219,6 +220,24 @@ describe('shared request status display helpers', () => {
   })
 
   test('exposes the shared cancel affordance text', () => {
-    expect(REQUEST_STATUS_ESC_CANCEL_HINT).toBe('(Esc cancel)')
+    expect(REQUEST_STATUS_ESC_CANCEL_HINT).toBe('(Esc to cancel)')
+  })
+
+  test('hides a phase chip that only restates the waiting label', () => {
+    const waiting: RequestStatus = {
+      kind: 'waiting',
+      updatedAt: 0,
+      startedAt: 0,
+      phaseStartedAt: 0,
+    }
+    expect(shouldShowRequestStatusPhase(waiting, 15_000)).toBe(false)
+
+    const thinkingAfterWait: RequestStatus = {
+      kind: 'thinking',
+      updatedAt: 20_000,
+      startedAt: 0,
+      phaseStartedAt: 18_000,
+    }
+    expect(shouldShowRequestStatusPhase(thinkingAfterWait, 20_000)).toBe(true)
   })
 })

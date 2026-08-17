@@ -20,6 +20,16 @@ export function getInputModeDisplay(mode: PromptMode): InputModeDisplay {
   }
 }
 
+export const PROMPT_STASHED_MESSAGE = 'Prompt stashed · Ctrl+S to restore'
+export const PROMPT_RESTORED_MESSAGE = 'Prompt restored'
+export const PROMPT_NOTHING_TO_STASH_MESSAGE = 'Nothing to stash'
+
+export function formatCancelledFollowUpsMessage(count: number): string {
+  if (count <= 0) return 'Cancelled'
+  if (count === 1) return 'Cancelled · discarded 1 follow-up'
+  return `Cancelled · discarded ${count} follow-ups`
+}
+
 export function buildPromptInputStatusLine(args: {
   mode: PromptMode
   permissionMode: PermissionMode
@@ -29,6 +39,7 @@ export function buildPromptInputStatusLine(args: {
   queuedPromptCount: number
   editorMode?: string
   vimMode?: 'INSERT' | 'NORMAL'
+  stashRestorable?: boolean
 }): string {
   const inputMode = getInputModeDisplay(args.mode)
   const parts = [
@@ -53,7 +64,14 @@ export function buildPromptInputStatusLine(args: {
 
   if (args.queuedPromptCount > 0) {
     parts.push(`queued ${args.queuedPromptCount}`)
+  }
+
+  if (args.pendingPromptCount > 0 || args.queuedPromptCount > 0) {
     parts.push('Alt+Up edit')
+  }
+
+  if (args.stashRestorable) {
+    parts.push('Ctrl+S restore')
   }
 
   return parts.join(' \u00b7 ')

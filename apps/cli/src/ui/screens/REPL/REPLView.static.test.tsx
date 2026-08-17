@@ -440,13 +440,13 @@ describe('REPLView Static output epoch', () => {
     )
 
     await harness.wait(480)
-    expect(harness.getOutput()).toContain('Local Tasks')
+    expect(harness.getOutput()).toContain('Local agents & shells')
 
     harness.clearOutput()
     harness.resize(80, 24)
     await harness.wait(80)
 
-    expect(harness.getOutput()).toContain('Local Tasks')
+    expect(harness.getOutput()).toContain('Local agents & shells')
   })
 
   test('keeps transient output visible when prompt text changes within the same height', async () => {

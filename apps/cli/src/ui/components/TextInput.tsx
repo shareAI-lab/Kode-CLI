@@ -335,17 +335,20 @@ export default function TextInput({
       return
     }
 
-    // Special handling for backspace or delete
-    if (
-      key.backspace ||
-      key.delete ||
-      input === '\b' ||
-      isBackspaceChar(input)
-    ) {
-      // Ensure backspace is handled directly
+    if (key.delete && !key.backspace && !isBackspaceChar(input)) {
+      onInput(input, {
+        ...key,
+        delete: true,
+        backspace: false,
+      })
+      return
+    }
+
+    if (key.backspace || input === '\b' || isBackspaceChar(input)) {
       onInput(input, {
         ...key,
         backspace: true,
+        delete: false,
       })
       return
     }

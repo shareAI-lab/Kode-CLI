@@ -911,7 +911,10 @@ describe('TUI E2E regression (Ink render): PromptInput', () => {
     h.stdin.write('\t')
     await h.wait(75)
     expect(h.getOutput()).not.toContain('/agents')
-    await waitForOutput(h, 'PROCESSED:[\"/a\"]', 1_500)
+    expect(h.getOutput()).toContain('/a')
+    await waitForOutput(h, 'LOADING:false', 1_500)
+    expect(h.getOutput()).not.toContain('/agents')
+    expect(h.getOutput()).toContain('PROCESSED:[""]')
   })
 
   test('statusline renders when configured', async () => {

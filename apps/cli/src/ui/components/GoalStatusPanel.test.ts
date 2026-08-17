@@ -47,8 +47,8 @@ describe('buildGoalStatusLineForTests', () => {
     })
     expect(out).not.toBeNull()
     expect(out!.label).toBe('scheduled')
-    expect(out!.line).toContain('轮 2/5')
-    expect(out!.line).toContain('下轮 1s')
+    expect(out!.line).toContain('turn 2/5')
+    expect(out!.line).toContain('next 1s')
     expect(out!.line).toContain('实现一个非常长')
   })
 
