@@ -84,6 +84,8 @@ describe('TUI E2E: SessionMessageScreen', () => {
     )
     expect(h.getOutput()).toContain('New message to Security reviewer')
 
+    // The heading is rendered one frame before the text input subscribes to keypresses.
+    await h.wait(100)
     await h.typeText('Please verify the cancellation race.', 50)
     await h.wait(200)
     h.stdin.write('\r')
