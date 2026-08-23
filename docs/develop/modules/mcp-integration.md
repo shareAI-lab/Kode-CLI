@@ -877,3 +877,30 @@ class ClaudeDesktopImporter {
 ```
 
 The MCP Integration provides powerful extensibility through standardized protocol communication, enabling seamless integration with third-party tools and services while maintaining security through approval systems and error handling.
+
+
+## Build Remote Agent (phone pairing)
+
+Kode can load [Build Remote Agent](https://grokbuildremote.com/) as a local stdio MCP server so a phone spectates this CLI session. Protocol `gbr/1`. Phone is spectator + veto, not orchestrator.
+
+Independent product by Linespotting AB. Not affiliated with xAI or SpaceX.
+
+```bash
+curl -fsSL https://grokbuildremote.com/install.sh | bash
+gbr-agent version          # v0.6.0+
+gbr-agent pair && gbr-agent run
+git clone https://github.com/LinespottingOrg/GrokBuildRemote-Agents.git
+cd GrokBuildRemote-Agents/mcp/gbr-mcp && npm install
+```
+
+Stdio server config (loopback only). Never put mailbox keys in `env`.
+
+```typescript
+const gbr: StdioServerConfig = {
+  type: 'stdio',
+  command: 'node',
+  args: ['GrokBuildRemote-Agents/mcp/gbr-mcp/bin/gbr-mcp.js'],
+}
+```
+
+Bot API after `gbr-agent run`: `http://127.0.0.1:8788` (`/health`, `/v1/sessions`).
