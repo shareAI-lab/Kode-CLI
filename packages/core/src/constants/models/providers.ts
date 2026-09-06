@@ -51,6 +51,10 @@ export const providers = {
     name: 'SiliconFlow',
     baseURL: 'https://api.siliconflow.cn/v1',
   },
+  atlascloud: {
+    name: 'Atlas Cloud',
+    baseURL: 'https://api.atlascloud.ai/v1',
+  },
   glm: {
     name: 'GLM (Zhipu AI)',
     baseURL: 'https://open.bigmodel.cn/api/paas/v4',

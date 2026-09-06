@@ -49,6 +49,7 @@ export function useModelSelectorMenus(args: {
       'openrouter',
       'burncloud',
       'siliconflow',
+      'atlascloud',
       'baidu-qianfan',
       'mistral',
       'xai',

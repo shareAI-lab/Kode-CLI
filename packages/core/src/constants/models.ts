@@ -22,6 +22,7 @@ const models = {
   minimax: [],
   'baidu-qianfan': [],
   siliconflow: [],
+  atlascloud: [],
   ollama: [],
   burncloud: [],
   'minimax-coding': [],

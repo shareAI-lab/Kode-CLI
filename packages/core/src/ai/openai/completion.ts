@@ -22,6 +22,7 @@ type OpenAICompatibleProvider =
   | 'kimi'
   | 'deepseek'
   | 'siliconflow'
+  | 'atlascloud'
   | 'qwen'
   | 'glm'
   | 'glm-coding'
@@ -37,6 +38,7 @@ const STREAM_OPENAI_COMPATIBLE: readonly OpenAICompatibleProvider[] = [
   'kimi',
   'deepseek',
   'siliconflow',
+  'atlascloud',
   'qwen',
   'glm',
   'glm-coding',
@@ -56,6 +58,7 @@ const NON_STREAM_OPENAI_COMPATIBLE: readonly Exclude<
   'kimi',
   'deepseek',
   'siliconflow',
+  'atlascloud',
   'qwen',
   'glm',
   'baidu-qianfan',

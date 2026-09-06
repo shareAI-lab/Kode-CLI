@@ -150,6 +150,7 @@ export type ProviderType =
   | 'minimax'
   | 'baidu-qianfan'
   | 'siliconflow'
+  | 'atlascloud'
   | 'bigdream'
   | 'opendev'
   | 'xai'
