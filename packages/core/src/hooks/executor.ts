@@ -11,13 +11,6 @@ export type HookExecutionResult = {
 }
 export type HookExecution = { hook: Hook; result: HookExecutionResult }
 
-function buildShellCommand(command: string): string[] {
-  if (process.platform === 'win32') {
-    return ['cmd.exe', '/d', '/s', '/c', command]
-  }
-  return ['/bin/sh', '-c', command]
-}
-
 export async function runCommandHook(args: {
   command: string
   stdinJson: unknown
@@ -27,11 +20,17 @@ export async function runCommandHook(args: {
 }): Promise<HookExecutionResult> {
   let proc: ReturnType<typeof spawn>
   try {
-    const cmd = buildShellCommand(args.command)
-    proc = spawn(cmd[0], cmd.slice(1), {
+    // `shell: true` lets Node build the platform shell invocation itself. The
+    // previous manual `spawn('cmd.exe', ['/d', '/s', '/c', command])` handed the
+    // command to Node as an *argument*, so Node escaped its quotes before
+    // cmd.exe saw them — which corrupted hook commands that quote a path (the
+    // common `bun "/path/to/hook.js"` form), leaving hooks silently
+    // non-functional on Windows. On POSIX this is still `/bin/sh -c <command>`.
+    proc = spawn(args.command, {
       cwd: args.cwd,
       env: { ...process.env, ...(args.env ?? {}) },
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true,
     })
   } catch (err) {
     return {
