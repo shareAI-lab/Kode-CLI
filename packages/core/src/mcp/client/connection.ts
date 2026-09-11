@@ -2,10 +2,6 @@ import type { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js'
 
 import {
   checkHasTrustDialogAccepted,
@@ -18,32 +14,11 @@ import { getCwd } from '#core/utils/state'
 import { notifyMcpListChanged } from './listChanged'
 import { getMcpOAuthProvider } from './oauth'
 import { getMcpServer } from './config'
-
-type GlobalWithWebSocket = { WebSocket?: unknown }
-
-async function ensureWebSocketGlobal(): Promise<void> {
-  const global = globalThis as unknown as GlobalWithWebSocket
-  if (typeof global.WebSocket === 'function') return
-
-  try {
-    const undiciModule = await import('undici')
-    const maybeWs = (undiciModule as unknown as GlobalWithWebSocket).WebSocket
-    if (typeof maybeWs === 'function') {
-      global.WebSocket = maybeWs
-    }
-  } catch {
-    // ignore
-  }
-}
-
-function buildStdioEnv(extra?: Record<string, string>): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (typeof value === 'string') env[key] = value
-  }
-  if (extra) Object.assign(env, extra)
-  return env
-}
+import {
+  getMcpClientCapabilities,
+  registerCapabilityHandlers,
+} from './capabilities'
+import { createTransportCandidates } from '../transports/registry'
 
 function buildShellCommand(command: string): string[] {
   if (process.platform === 'win32') {
@@ -205,125 +180,26 @@ async function resolveRequestHeaders(
   return Object.keys(merged).length ? merged : undefined
 }
 
-type Candidate =
-  | { kind: 'stdio'; transport: StdioClientTransport }
-  | { kind: 'sse'; transport: SSEClientTransport }
-  | { kind: 'http'; transport: StreamableHTTPClientTransport }
-  | { kind: 'ws'; transport: WebSocketClientTransport }
-
 export async function connectToServer(
   name: string,
   serverRef: McpServerConfig,
 ): Promise<Client> {
-  const candidates: Candidate[] = await (async () => {
-    switch (serverRef.type) {
-      case 'sse': {
-        const ref = serverRef
-        const authProvider = getMcpOAuthProvider(name)
-        const headers = await resolveRequestHeaders(name, ref)
-        return [
-          {
-            kind: 'sse',
-            transport: new SSEClientTransport(new URL(ref.url), {
-              authProvider,
-              ...(headers ? { requestInit: { headers } } : {}),
-            }),
-          },
-          {
-            kind: 'http',
-            transport: new StreamableHTTPClientTransport(new URL(ref.url), {
-              authProvider,
-              ...(headers ? { requestInit: { headers } } : {}),
-            }),
-          },
-        ]
-      }
-      case 'sse-ide': {
-        const ref = serverRef
-        const authProvider = getMcpOAuthProvider(name)
-        const headers = await resolveRequestHeaders(name, ref)
-        return [
-          {
-            kind: 'sse',
-            transport: new SSEClientTransport(new URL(ref.url), {
-              authProvider,
-              ...(headers ? { requestInit: { headers } } : {}),
-            }),
-          },
-        ]
-      }
-      case 'http': {
-        const ref = serverRef
-        const authProvider = getMcpOAuthProvider(name)
-        const headers = await resolveRequestHeaders(name, ref)
-        return [
-          {
-            kind: 'http',
-            transport: new StreamableHTTPClientTransport(new URL(ref.url), {
-              authProvider,
-              ...(headers ? { requestInit: { headers } } : {}),
-            }),
-          },
-          {
-            kind: 'sse',
-            transport: new SSEClientTransport(new URL(ref.url), {
-              authProvider,
-              ...(headers ? { requestInit: { headers } } : {}),
-            }),
-          },
-        ]
-      }
-      case 'ws': {
-        const ref = serverRef
-        await ensureWebSocketGlobal()
-        return [
-          {
-            kind: 'ws',
-            transport: new WebSocketClientTransport(new URL(ref.url)),
-          },
-        ]
-      }
-      case 'ws-ide': {
-        const ref = serverRef
+  // Only HTTP-based transports consume OAuth state and request headers. Doing
+  // this unconditionally would create OAuth state files for every stdio server.
+  const usesHttpAuth =
+    serverRef.type === 'sse' ||
+    serverRef.type === 'sse-ide' ||
+    serverRef.type === 'http'
 
-        let url = ref.url
-        if (ref.authToken) {
-          try {
-            const parsed = new URL(url)
-            if (!parsed.searchParams.has('authToken')) {
-              parsed.searchParams.set('authToken', ref.authToken)
-              url = parsed.toString()
-            }
-          } catch {
-            // ignore
-          }
-        }
+  const authProvider = usesHttpAuth ? getMcpOAuthProvider(name) : undefined
+  const headers = usesHttpAuth
+    ? await resolveRequestHeaders(name, serverRef)
+    : undefined
 
-        await ensureWebSocketGlobal()
-        return [
-          {
-            kind: 'ws',
-            transport: new WebSocketClientTransport(new URL(url)),
-          },
-        ]
-      }
-      case 'stdio':
-      default: {
-        const ref = serverRef
-        return [
-          {
-            kind: 'stdio',
-            transport: new StdioClientTransport({
-              command: ref.command,
-              args: ref.args,
-              env: buildStdioEnv(ref.env),
-              stderr: 'pipe',
-            }),
-          },
-        ]
-      }
-    }
-  })()
+  const candidates = await createTransportCandidates(serverRef, {
+    authProvider,
+    headers,
+  })
 
   const rawTimeout = process.env.MCP_CONNECTION_TIMEOUT_MS
   const parsedTimeout = rawTimeout ? Number.parseInt(rawTimeout, 10) : NaN
@@ -334,10 +210,13 @@ export async function connectToServer(
   let lastError: unknown
 
   for (const candidate of candidates) {
+    // One object drives both the advertised capabilities and the handler
+    // registration: the SDK refuses a handler for an undeclared capability.
+    const capabilities = getMcpClientCapabilities()
     const client = new Client(
       { name: PRODUCT_COMMAND, version: '0.1.0' },
       {
-        capabilities: {},
+        capabilities,
         listChanged: {
           tools: {
             onChanged: (error: Error | null) => {
@@ -380,6 +259,8 @@ export async function connectToServer(
     )
 
     try {
+      registerCapabilityHandlers(client, name, { capabilities })
+
       const connectPromise = client.connect(candidate.transport)
       let timeoutId: ReturnType<typeof setTimeout> | null = null
 

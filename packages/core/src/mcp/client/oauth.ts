@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import {
   auth,
   type OAuthClientProvider,
+  type OAuthDiscoveryState,
 } from '@modelcontextprotocol/sdk/client/auth.js'
 import type {
   OAuthClientInformationMixed,
@@ -20,6 +21,9 @@ import { safeParseJSON } from '#core/utils/json'
 
 import { sanitizeMcpIdentifierPart } from './settings'
 
+type McpOAuthInvalidationScope =
+  'all' | 'client' | 'tokens' | 'verifier' | 'discovery'
+
 type StoredMcpOAuthState = {
   redirectPort?: number
   clientInformation?: OAuthClientInformationMixed
@@ -27,6 +31,12 @@ type StoredMcpOAuthState = {
   pkceCodeVerifier?: string
   expectedState?: string
   lastAuthUrl?: string
+  /**
+   * Cached RFC 9728 / RFC 8414 (or OIDC) discovery result. Kode connects to
+   * every configured server on each CLI start, so replaying discovery on every
+   * launch costs several HTTP round-trips per OAuth server.
+   */
+  discoveryState?: OAuthDiscoveryState
   updatedAt?: number
 }
 
@@ -178,9 +188,24 @@ class FileBackedMcpOAuthProvider implements OAuthClientProvider {
     return verifier
   }
 
-  async invalidateCredentials(
-    scope: 'all' | 'client' | 'tokens' | 'verifier',
-  ): Promise<void> {
+  /**
+   * Reuse previously discovered authorization-server metadata instead of
+   * re-running RFC 9728 + metadata discovery on every connection attempt.
+   */
+  async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    return readState(this.serverName).discoveryState
+  }
+
+  async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
+    const stored = readState(this.serverName)
+    writeState(this.serverName, {
+      ...stored,
+      discoveryState: state,
+      updatedAt: Date.now(),
+    })
+  }
+
+  async invalidateCredentials(scope: McpOAuthInvalidationScope): Promise<void> {
     const stored = readState(this.serverName)
     const next: StoredMcpOAuthState = { ...stored }
 
@@ -191,6 +216,9 @@ class FileBackedMcpOAuthProvider implements OAuthClientProvider {
         delete next.pkceCodeVerifier
         delete next.expectedState
         delete next.lastAuthUrl
+        // Stale discovery metadata must be dropped with everything else,
+        // otherwise a moved authorization server can never be re-discovered.
+        delete next.discoveryState
         break
       }
       case 'client': {
@@ -204,6 +232,10 @@ class FileBackedMcpOAuthProvider implements OAuthClientProvider {
       case 'verifier': {
         delete next.pkceCodeVerifier
         delete next.expectedState
+        break
+      }
+      case 'discovery': {
+        delete next.discoveryState
         break
       }
     }

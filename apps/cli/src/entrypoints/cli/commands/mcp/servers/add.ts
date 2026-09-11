@@ -114,7 +114,7 @@ export function registerMcpServerAddCommands(args: {
     )
     .option(
       '-t, --transport <transport>',
-      'MCP transport (stdio, sse, or http)',
+      'MCP transport (stdio, sse, http, or ws)',
     )
     .option(
       '-H, --header <header...>',
@@ -285,23 +285,37 @@ export function registerMcpServerAddCommands(args: {
               )
             }
 
-            const headers = parseMcpHeaders(options.header)
-            addMcpServer(
-              name,
-              {
-                type: transportInfo.transport,
-                url: commandOrUrl,
-                ...(headers ? { headers } : {}),
-              },
-              scopeInfo.scope,
-            )
+            if (transportInfo.transport === 'ws') {
+              if (options.header?.length) {
+                throw new Error('--header is not supported for ws MCP servers')
+              }
+              addMcpServer(
+                name,
+                { type: 'ws', url: commandOrUrl },
+                scopeInfo.scope,
+              )
+              console.log(
+                `Added WebSocket MCP server ${name} with URL: ${commandOrUrl} to ${scopeInfo.display} config`,
+              )
+            } else {
+              const headers = parseMcpHeaders(options.header)
+              addMcpServer(
+                name,
+                {
+                  type: transportInfo.transport,
+                  url: commandOrUrl,
+                  ...(headers ? { headers } : {}),
+                },
+                scopeInfo.scope,
+              )
 
-            const kind = transportInfo.transport.toUpperCase()
-            console.log(
-              `Added ${kind} MCP server ${name} with URL: ${commandOrUrl} to ${scopeInfo.display} config`,
-            )
-            if (headers) {
-              console.log(`Headers: ${JSON.stringify(headers, null, 2)}`)
+              const kind = transportInfo.transport.toUpperCase()
+              console.log(
+                `Added ${kind} MCP server ${name} with URL: ${commandOrUrl} to ${scopeInfo.display} config`,
+              )
+              if (headers) {
+                console.log(`Headers: ${JSON.stringify(headers, null, 2)}`)
+              }
             }
           }
         } else {

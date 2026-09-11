@@ -19,6 +19,20 @@ export { __setMcpClientsForTests } from './clients'
 export { getMCPTools } from './tools'
 export { getMCPCommands, runCommand } from './commands'
 export {
+  buildMcpRoots,
+  getDefaultMcpRoots,
+  getMcpCapabilityResponders,
+  getMcpClientCapabilities,
+  registerCapabilityHandlers,
+  resolveMcpRoots,
+  setMcpCapabilityResponders,
+  type ElicitationMode,
+  type McpCapabilityRequestContext,
+  type McpCapabilityResponders,
+  type McpRoot,
+  type RegisterCapabilityHandlersOptions,
+} from './capabilities'
+export {
   authenticateMcpServer,
   clearMcpAuth,
   getMcpAuthSnapshot,

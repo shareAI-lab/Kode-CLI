@@ -28,6 +28,7 @@ export function handleInitialize(args: {
       mcpCapabilities: {
         http: true,
         sse: true,
+        ws: true,
       },
     },
     agentInfo: {
