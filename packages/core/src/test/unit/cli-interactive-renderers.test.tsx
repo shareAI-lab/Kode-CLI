@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import React from 'react'
 import type { RenderOptions } from 'ink'
+import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 
 import { renderRepl } from '#host-cli/entrypoints/cli/interactive/renderers'
 
@@ -34,8 +35,14 @@ describe('cli interactive renderers', () => {
 
     expect(capturedElement).not.toBeNull()
     if (!capturedElement) throw new Error('expected element to be rendered')
-    expect(capturedElement.type).toBe(FakeRepl)
-    const props = capturedElement.props as {
+    // renderRepl wraps the REPL screen in KeypressProvider so it can receive
+    // terminal key events; the injected REPL is the provider's child.
+    expect(capturedElement.type).toBe(KeypressProvider)
+    const replElement = (
+      capturedElement.props as { children: React.ReactElement }
+    ).children
+    expect(replElement.type).toBe(FakeRepl)
+    const props = replElement.props as {
       initialPrompt?: string
       messageLogName?: string
     }

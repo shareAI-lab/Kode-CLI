@@ -6,7 +6,8 @@ import stripAnsi from 'strip-ansi'
 import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 import { PermissionProvider } from '#ui-ink/contexts/PermissionContext'
 import { ExitPlanModePermissionRequest } from '#ui-ink/components/permissions/PlanModePermissionRequest/ExitPlanModePermissionRequest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { getPlanFilePath } from '#core/utils/planMode'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -55,6 +56,12 @@ describe('Exit plan mode permission UI microcopy (Esc is exit)', () => {
     process.env.KODE_CONFIG_DIR = configDir
 
     try {
+      // The auto-accept shortcut hint is only shown once a plan file exists
+      // (otherwise the component renders the "no plan" Yes/No fallback), and it
+      // is the strict-checking (safe) branch that exposes "auto-accept edits"
+      // instead of the permissive "bypass permissions" default.
+      writeFileSync(getPlanFilePath(undefined, 'plan:1'), 'Do the thing.')
+
       const out = await renderToText(
         <KeypressProvider>
           <PermissionProvider
@@ -72,7 +79,7 @@ describe('Exit plan mode permission UI microcopy (Esc is exit)', () => {
                     options: {
                       messageLogName: 'plan',
                       forkNumber: 1,
-                      safeMode: false,
+                      safeMode: true,
                     },
                   },
                   onReject: () => {},
@@ -87,7 +94,7 @@ describe('Exit plan mode permission UI microcopy (Esc is exit)', () => {
       )
 
       expect(out).toContain('Enter to confirm · Esc to exit')
-      expect(out).toMatch(/(shift\+tab|alt\+m) auto-accept edits/)
+      expect(out).toMatch(/auto-accept edits \((shift\+tab|alt\+m)\)/)
     } finally {
       if (previousConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
       else process.env.KODE_CONFIG_DIR = previousConfigDir

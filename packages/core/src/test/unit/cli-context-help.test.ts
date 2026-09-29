@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createCliProgram } from '#host-cli/entrypoints/cli/cliParser'
+import { exitOverrideRecursive } from '../helpers/cliExitOverride'
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -19,7 +20,7 @@ function runHelp(argv: string[]): string {
     },
   })
 
-  program.exitOverride()
+  exitOverrideRecursive(program)
   try {
     program.parse(argv, { from: 'user' })
     throw new Error('expected commander to exit')

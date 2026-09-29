@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
@@ -56,6 +56,7 @@ describe('plan files directory setting', () => {
   })
 
   test('respects plansDirectory from project settings', () => {
+    mkdirSync(join(projectDir, '.kode'), { recursive: true })
     writeFileSync(
       join(projectDir, '.kode', 'settings.json'),
       JSON.stringify({ plansDirectory: '.plans' }, null, 2) + '\n',

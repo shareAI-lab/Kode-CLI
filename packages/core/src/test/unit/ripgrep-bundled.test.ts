@@ -1,7 +1,10 @@
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
+  readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -111,10 +114,27 @@ test('prefers packaged ripgrep optionalDependency when present (default)', () =>
   const pkgName = `kode-ripgrep-${process.platform}-${process.arch}`
   const pkgDir = join(scopeDir, pkgName)
 
+  // In a Bun workspace this package is a SYMLINK to packages/kode-ripgrep-*,
+  // so writing here would modify a git-tracked source file. Snapshot whatever
+  // we touch and put it back, and never delete a directory we did not create.
+  let realPkgDir = pkgDir
   try {
-    const binName = getPlatformExecutableName()
-    const binDir = join(pkgDir, 'bin')
-    const binPath = join(binDir, binName)
+    realPkgDir = realpathSync(pkgDir)
+  } catch {
+    // package not installed: the path below simply won't exist until we make it
+  }
+  const pkgDirExisted = existsSync(realPkgDir)
+  const indexPath = join(realPkgDir, 'index.js')
+  const originalIndex = existsSync(indexPath)
+    ? readFileSync(indexPath, 'utf8')
+    : null
+
+  const binName = getPlatformExecutableName()
+  const binDir = join(realPkgDir, 'bin')
+  const binPath = join(binDir, binName)
+  const originalBin = existsSync(binPath) ? readFileSync(binPath) : null
+
+  try {
     mkdirSync(binDir, { recursive: true })
     writeExecutableStub(binPath)
 
@@ -126,7 +146,7 @@ test('prefers packaged ripgrep optionalDependency when present (default)', () =>
       '}',
       '',
     ].join('\n')
-    writeFileSync(join(pkgDir, 'index.js'), indexJs)
+    writeFileSync(indexPath, indexJs)
 
     setEnv({
       KODE_USE_BUILTIN_RIPGREP: '1',
@@ -135,7 +155,23 @@ test('prefers packaged ripgrep optionalDependency when present (default)', () =>
 
     expect(getRipgrepPath()).toBe(binPath)
   } finally {
-    rmSync(pkgDir, { recursive: true, force: true })
+    // Restore every file we overwrote; only remove what we created.
+    try {
+      if (originalIndex !== null) writeFileSync(indexPath, originalIndex)
+      else rmSync(indexPath, { force: true })
+    } catch {}
+
+    try {
+      if (originalBin !== null) writeFileSync(binPath, originalBin)
+      else rmSync(binPath, { force: true })
+    } catch {}
+
+    if (!pkgDirExisted) {
+      try {
+        rmSync(realPkgDir, { recursive: true, force: true })
+      } catch {}
+    }
+
     rmSync(root, { recursive: true, force: true })
   }
 })

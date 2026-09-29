@@ -27,6 +27,24 @@ function makeContext(overrides?: Partial<any>): any {
   }
 }
 
+/**
+ * Poll until `predicate` holds. Fixed sleeps made this test flaky on loaded CI
+ * runners: the background shell needs an unpredictable amount of time to write
+ * its first output and to exit.
+ */
+async function waitFor(
+  predicate: () => boolean,
+  what: string,
+  timeoutMs = 20_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (predicate()) return
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+  throw new Error(`Timed out after ${timeoutMs}ms waiting for ${what}`)
+}
+
 describe('BashTool ctrl+b backgrounding parity (Reference CLI K41 + gH5)', () => {
   test('shows ctrl+b hint after the initial delay', async () => {
     if (process.platform === 'win32') return
@@ -101,19 +119,32 @@ describe('BashTool ctrl+b backgrounding parity (Reference CLI K41 + gH5)', () =>
       expect(result.data.backgroundTaskId).toBe(result.data.bashId)
 
       const bashId = result.data.bashId as string
-      await new Promise(resolve => setTimeout(resolve, 120))
-      const first = BunShell.getInstance().readBackgroundOutput(bashId)
-      expect(first).not.toBeNull()
+
+      // `readBackgroundOutput` is consuming: it returns the output produced
+      // since the previous call. Capture each chunk from inside the predicate so
+      // polling does not consume the value the assertion needs.
+      let first: ReturnType<
+        ReturnType<typeof BunShell.getInstance>['readBackgroundOutput']
+      > = null
+      await waitFor(() => {
+        first = BunShell.getInstance().readBackgroundOutput(bashId)
+        return (first?.stdout ?? '') !== ''
+      }, 'the first background output chunk')
       expect(first?.stdout).not.toBe('')
 
-      await new Promise(resolve => setTimeout(resolve, 250))
-      const second = BunShell.getInstance().readBackgroundOutput(bashId)
-      expect(second).not.toBeNull()
+      let second: typeof first = null
+      await waitFor(() => {
+        second = BunShell.getInstance().readBackgroundOutput(bashId)
+        return (second?.stdout ?? '') !== ''
+      }, 'a subsequent background output chunk')
       expect(second?.stdout).not.toBe('')
 
-      await new Promise(resolve => setTimeout(resolve, 1200))
+      // The command runs ~3s; poll for completion instead of guessing.
+      await waitFor(
+        () => BunShell.getInstance().getBackgroundOutput(bashId)?.code === 0,
+        'the background command to exit with code 0',
+      )
       const final = BunShell.getInstance().getBackgroundOutput(bashId)
-      expect(final).not.toBeNull()
       expect(final?.code).toBe(0)
     } finally {
       rmSync(configDir, { recursive: true, force: true })

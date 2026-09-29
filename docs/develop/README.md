@@ -8,6 +8,11 @@ Start with the repository-level [architecture](../architecture.md) and
 - [System sandbox](../system-sandbox.md)
 - [TUI architecture](../tui/README.md)
 
+The silent-failure classes the test suite guards against (a test that ends the
+process, `mock.module` leaking between files, tests writing through
+`node_modules`) are listed under "Test quality rules" in
+[AGENTS.md](../../AGENTS.md).
+
 Development uses Bun 1.3.6 and the committed `bun.lock`:
 
 ```bash

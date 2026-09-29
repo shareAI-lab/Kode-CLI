@@ -19,11 +19,13 @@ describe('FileReadTool userFacingName parity', () => {
   let previousKodeConfigDir: string | undefined
   let previousClaudeTmpDir: string | undefined
   let previousClaudeTmp: string | undefined
+  let previousKodeProjectDir: string | undefined
 
   beforeEach(async () => {
     previousKodeConfigDir = process.env.KODE_CONFIG_DIR
     previousClaudeTmpDir = process.env.CLAUDE_TMPDIR
     previousClaudeTmp = process.env.CLAUDE_CODE_TMPDIR
+    previousKodeProjectDir = process.env.KODE_PROJECT_DIR
 
     configDir = mkdtempSync(join(tmpdir(), 'kode-read-name-config-'))
     projectDir = mkdtempSync(join(tmpdir(), 'kode-read-name-proj-'))
@@ -32,6 +34,7 @@ describe('FileReadTool userFacingName parity', () => {
     process.env.KODE_CONFIG_DIR = configDir
     delete process.env.CLAUDE_TMPDIR
     process.env.CLAUDE_CODE_TMPDIR = tmpClaude
+    process.env.KODE_PROJECT_DIR = projectDir
     setOriginalCwd(projectDir)
     await setCwd(projectDir)
   })
@@ -53,6 +56,11 @@ describe('FileReadTool userFacingName parity', () => {
       delete process.env.CLAUDE_CODE_TMPDIR
     } else {
       process.env.CLAUDE_CODE_TMPDIR = previousClaudeTmp
+    }
+    if (previousKodeProjectDir === undefined) {
+      delete process.env.KODE_PROJECT_DIR
+    } else {
+      process.env.KODE_PROJECT_DIR = previousKodeProjectDir
     }
     rmSync(configDir, { recursive: true, force: true })
     rmSync(projectDir, { recursive: true, force: true })

@@ -38,7 +38,7 @@ describe('Bash LLM gate failure dump (forensics)', () => {
         errorType: 'invalid_output',
       })
 
-      const projectKey = projectDir.replace(/[^a-zA-Z0-9]/g, '-')
+      const projectKey = process.cwd().replace(/[^a-zA-Z0-9]/g, '-')
       const dumpDir = join(configRoot, projectKey, 'errors', 'bash-llm-gate')
       const files = readdirSync(dumpDir).filter(name => name.endsWith('.txt'))
       expect(files.length).toBe(1)

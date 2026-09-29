@@ -97,6 +97,7 @@ describe('Web tool permission rules (compatibility)', () => {
       result: false,
       shouldPromptUser: false,
       message: 'Permission to use WebFetch has been denied.',
+      decisionReason: 'WebFetch(domain:api.example.com)',
     })
   })
 

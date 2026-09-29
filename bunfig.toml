@@ -2,3 +2,9 @@
 # Limit test discovery to the Bun-workspace test aggregator under `./test`.
 # This avoids accidentally running unrelated script-style files from the root.
 root = "./test"
+
+# Ink degrades its rendering when it detects CI: it stops writing intermediate
+# frames and only flushes the last one on unmount, so every frame-asserting TUI
+# test observes an empty stream under CI. This preload restores terminal-like
+# rendering for the test process only, without changing any other CI check.
+preload = ["./scripts/test-preload.ts"]

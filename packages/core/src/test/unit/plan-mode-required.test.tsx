@@ -14,6 +14,7 @@ import {
 import {
   PermissionProvider,
   usePermissionContext,
+  __applyPermissionModeSideEffectsForTests,
 } from '#ui-ink/contexts/PermissionContext'
 import { isPlanModeEnabled } from '#core/utils/planMode'
 
@@ -120,6 +121,12 @@ describe('plan mode required (startup parity)', () => {
       conversationKey,
       isBypassPermissionsModeAvailable: true,
       update: { type: 'setMode', mode: 'acceptEdits', destination: 'session' },
+    })
+    __applyPermissionModeSideEffectsForTests({
+      conversationKey,
+      previousMode: 'plan',
+      nextMode: 'acceptEdits',
+      recordPlanModeUse: false,
     })
 
     const out2 = await renderToText(

@@ -36,6 +36,11 @@ function makeContext(args?: {
       verbose: false,
       slowAndCapableModel: undefined,
       safeMode: false,
+      // These tests assert the *cautious* contract ("asks to read outside the
+      // working directory", "requires manual approval"). Kode's real default is
+      // `yolo` (see ACTUAL_DEFAULT_MODE; `--safe` opts into strict checking), so
+      // the mode must be stated explicitly rather than inherited.
+      permissionMode: 'cautious' as const,
       forkNumber: args?.forkNumber ?? 0,
       messageLogName: args?.messageLogName ?? 'test',
       maxThinkingTokens: 0,

@@ -62,6 +62,37 @@ keep transport and host adapters outside the owning domain module.
 - Runtime-required knowledge belongs in `packages/builtin-skills/skills/**`, not
   developer documentation.
 
+## Test quality rules
+
+A test that fails silently is worse than no test: it makes the whole suite's
+verdict untrustworthy. Each rule below exists because it was violated in
+practice, and none of them produce a visible error when broken.
+
+1. **Never let a test end the process.** Drive the commander CLI with
+   `exitOverrideRecursive(...)` from
+   `packages/core/src/test/helpers/cliExitOverride.ts`, not
+   `program.exitOverride()`. A subcommand only inherits the override that
+   existed when it was created, so its `--help` otherwise calls
+   `process.exit(0)` and kills the whole run with a _success_ exit code.
+2. **`mock.module` leaks across test files.** `mock.restore()` does not undo it
+   for modules that other files import later, so one suite can silently rewrite
+   another suite's dependencies. `test/all.test.ts` therefore runs any file
+   containing `mock.module` in its own process — keep that mechanism rather
+   than relying on restore.
+3. **Tests must not write through `node_modules` into the repo.** Workspace
+   packages are symlinks into `packages/**`, so a stub written to
+   `node_modules/<pkg>` overwrites a git-tracked file and `rmSync` removes the
+   symlink itself. Snapshot and restore, and only delete paths the test created;
+   `git status` must be clean after a test run.
+4. **Assertions must be able to fail.** Do not assert a substring the fixture
+   already contains (e.g. waiting for `'mai'` while the value is already
+   `'main'`), and prefer waiting on an observed condition over a fixed sleep.
+
+When running `bun test`, a missing `Ran N tests` summary means the run was
+truncated — investigate before trusting the result. Frame-asserting TUI tests
+depend on terminal-like rendering, which `scripts/test-preload.ts` restores for
+the test process; do not remove it.
+
 ## Adding functionality
 
 For a tool:

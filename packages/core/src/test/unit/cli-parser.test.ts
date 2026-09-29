@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createCliProgram } from '#host-cli/entrypoints/cli/cliParser'
+import { exitOverrideRecursive } from '../helpers/cliExitOverride'
 
 describe('cli parser (commander)', () => {
   test('--help prints help and exits (no UI started)', () => {
@@ -17,7 +18,7 @@ describe('cli parser (commander)', () => {
       },
     })
 
-    program.exitOverride()
+    exitOverrideRecursive(program)
     try {
       program.parse(['node', 'kode', '--help'], { from: 'user' })
       throw new Error('expected commander to exit')
@@ -28,7 +29,11 @@ describe('cli parser (commander)', () => {
 
     expect(out).toContain('Usage: kode')
     expect(out).toContain('--print')
-    expect(out).toContain('--web')
+    // `--web` / `--web-host` / `--web-port` are registered with
+    // `Option.hideHelp()`, so they must NOT be advertised here. They still
+    // parse (asserted below) — this previously asserted the opposite and had
+    // been failing invisibly, because this file killed the test process.
+    expect(out).not.toContain('--web')
   })
 
   test('--version prints package version and exits (no UI started)', () => {
@@ -47,7 +52,7 @@ describe('cli parser (commander)', () => {
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     )
 
-    program.exitOverride()
+    exitOverrideRecursive(program)
     try {
       program.parse(['node', 'kode', '--version'], { from: 'user' })
       throw new Error('expected commander to exit')

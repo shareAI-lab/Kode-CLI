@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import { AskUserQuestionTool } from '#tools/tools/interaction/AskUserQuestionTool/AskUserQuestionTool'
 import { TaskOutputTool } from '#tools/tools/system/TaskOutputTool/TaskOutputTool'
 import { BashTool } from '#tools/tools/system/BashTool/BashTool'
@@ -10,7 +10,14 @@ import { EnterPlanModeTool } from '#tools/tools/interaction/PlanModeTool/EnterPl
 import { ExitPlanModeTool } from '#tools/tools/interaction/PlanModeTool/ExitPlanModeTool'
 import { TaskTool } from '#tools/tools/ai/TaskTool/TaskTool'
 import { TodoWriteTool } from '#tools/tools/interaction/TodoWriteTool/TodoWriteTool'
+import { __resetPlanModeForTests } from '#core/plan/mode'
 import { WebFetchTool } from '#tools/tools/network/WebFetchTool/WebFetchTool'
+
+// Plan mode is process-global state: other suites force it on at startup, so
+// without a reset this file's plan-mode assertions depend on execution order.
+beforeEach(() => {
+  __resetPlanModeForTests()
+})
 
 describe('Tool isReadOnly/isConcurrencySafe flags (compatibility)', () => {
   test('key tools match expected flags', () => {

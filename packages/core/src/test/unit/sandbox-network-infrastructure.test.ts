@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import http from 'node:http'
 import net from 'node:net'
 import type { AddressInfo } from 'node:net'
+import which from 'which'
+
 import {
   __resetSandboxNetworkInfrastructureForTests,
   ensureSandboxNetworkInfrastructure,
@@ -31,6 +33,13 @@ async function canListenOnLoopback(): Promise<boolean> {
 }
 
 const CAN_LISTEN_ON_LOOPBACK = await canListenOnLoopback()
+
+// The Linux bridge is implemented with `socat` (see linuxBridge.ts). Hosts
+// without it — CI runners included — cannot exercise these paths at all, so the
+// dependent tests below are skipped rather than failed.
+const CAN_USE_LINUX_BRIDGE =
+  process.platform !== 'linux' ||
+  Boolean(which.sync('socat', { nothrow: true }))
 
 function createRuntimeConfig(
   overrides?: Partial<SandboxRuntimeConfig>,
@@ -93,8 +102,8 @@ describe('sandbox network infrastructure (compatibility)', () => {
     expect(matchesSandboxDomainPattern('Example.Com', 'example.com')).toBe(true)
   })
 
-  if (!CAN_LISTEN_ON_LOOPBACK) {
-    test('network-dependent tests skipped (loopback listen not permitted)', () => {
+  if (!CAN_LISTEN_ON_LOOPBACK || !CAN_USE_LINUX_BRIDGE) {
+    test('network-dependent tests skipped (loopback or socat unavailable)', () => {
       expect(true).toBe(true)
     })
     return

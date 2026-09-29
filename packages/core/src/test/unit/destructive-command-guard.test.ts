@@ -26,55 +26,83 @@ describe('destructiveCommandGuard (BashTool)', () => {
     expect(block).toBeNull()
   })
 
-  test('blocks rm targeting filesystem root', () => {
-    const block = getBashDestructiveCommandBlock({
-      command: 'rm -rf /',
-      cwd: '/Users/alice/project',
-      originalCwd: '/Users/alice/project',
-      homeDir: '/Users/alice',
-      platform: 'darwin',
-      commandSource: 'agent_call',
-    })
-    expect(block?.message).toContain('critical directory')
-    expect(block?.resolvedTarget).toBe('/')
-  })
+  // These assert POSIX path resolution (`/`, `~`, system directories). The
+  // command text is POSIX shell by construction, and the guard resolves it
+  // with the host path module, so on Windows the resolved target is a drive
+  // root (`D:\`) instead. The behaviour is only meaningful on POSIX hosts.
+  test.skipIf(process.platform === 'win32')(
+    'blocks rm targeting filesystem root',
+    () => {
+      const block = getBashDestructiveCommandBlock({
+        command: 'rm -rf /',
+        cwd: '/Users/alice/project',
+        originalCwd: '/Users/alice/project',
+        homeDir: '/Users/alice',
+        platform: 'darwin',
+        commandSource: 'agent_call',
+      })
+      expect(block?.message).toContain('critical directory')
+      expect(block?.resolvedTarget).toBe('/')
+    },
+  )
 
-  test('blocks rm targeting home directory via ~', () => {
-    const block = getBashDestructiveCommandBlock({
-      command: 'rm -rf ~',
-      cwd: '/Users/alice/project',
-      originalCwd: '/Users/alice/project',
-      homeDir: '/Users/alice',
-      platform: 'darwin',
-      commandSource: 'agent_call',
-    })
-    expect(block?.message).toContain('critical directory')
-    expect(block?.resolvedTarget).toBe('/Users/alice')
-  })
+  // These assert POSIX path resolution (`/`, `~`, system directories). The
+  // command text is POSIX shell by construction, and the guard resolves it
+  // with the host path module, so on Windows the resolved target is a drive
+  // root (`D:\`) instead. The behaviour is only meaningful on POSIX hosts.
+  test.skipIf(process.platform === 'win32')(
+    'blocks rm targeting home directory via ~',
+    () => {
+      const block = getBashDestructiveCommandBlock({
+        command: 'rm -rf ~',
+        cwd: '/Users/alice/project',
+        originalCwd: '/Users/alice/project',
+        homeDir: '/Users/alice',
+        platform: 'darwin',
+        commandSource: 'agent_call',
+      })
+      expect(block?.message).toContain('critical directory')
+      expect(block?.resolvedTarget).toBe('/Users/alice')
+    },
+  )
 
-  test('blocks rm targeting original working directory via .', () => {
-    const block = getBashDestructiveCommandBlock({
-      command: 'rm -rf .',
-      cwd: '/Users/alice/project',
-      originalCwd: '/Users/alice/project',
-      homeDir: '/Users/alice',
-      platform: 'darwin',
-      commandSource: 'agent_call',
-    })
-    expect(block?.resolvedTarget).toBe('/Users/alice/project')
-  })
+  // These assert POSIX path resolution (`/`, `~`, system directories). The
+  // command text is POSIX shell by construction, and the guard resolves it
+  // with the host path module, so on Windows the resolved target is a drive
+  // root (`D:\`) instead. The behaviour is only meaningful on POSIX hosts.
+  test.skipIf(process.platform === 'win32')(
+    'blocks rm targeting original working directory via .',
+    () => {
+      const block = getBashDestructiveCommandBlock({
+        command: 'rm -rf .',
+        cwd: '/Users/alice/project',
+        originalCwd: '/Users/alice/project',
+        homeDir: '/Users/alice',
+        platform: 'darwin',
+        commandSource: 'agent_call',
+      })
+      expect(block?.resolvedTarget).toBe('/Users/alice/project')
+    },
+  )
 
-  test('blocks rm targeting top-level system directories', () => {
-    const block = getBashDestructiveCommandBlock({
-      command: 'sudo rm -rf /usr',
-      cwd: '/Users/alice/project',
-      originalCwd: '/Users/alice/project',
-      homeDir: '/Users/alice',
-      platform: 'darwin',
-      commandSource: 'agent_call',
-    })
-    expect(block?.resolvedTarget).toBe('/usr')
-  })
+  // These assert POSIX path resolution (`/`, `~`, system directories). The
+  // command text is POSIX shell by construction, and the guard resolves it
+  // with the host path module, so on Windows the resolved target is a drive
+  // root (`D:\`) instead. The behaviour is only meaningful on POSIX hosts.
+  test.skipIf(process.platform === 'win32')(
+    'blocks rm targeting top-level system directories',
+    () => {
+      const block = getBashDestructiveCommandBlock({
+        command: 'sudo rm -rf /usr',
+        cwd: '/Users/alice/project',
+        originalCwd: '/Users/alice/project',
+        homeDir: '/Users/alice',
+        platform: 'darwin',
+        commandSource: 'agent_call',
+      })
+      expect(block?.resolvedTarget).toBe('/usr')
+    },
+  )
 
   test('blocks shell-expanded targets', () => {
     const block = getBashDestructiveCommandBlock({

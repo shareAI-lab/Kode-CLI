@@ -23,6 +23,10 @@ const makeContext = (
   options: {
     messageLogName: 'test',
     forkNumber: 0,
+    // Kode's real default mode is `yolo` (ACTUAL_DEFAULT_MODE; `--safe` opts
+    // into strict checking). This suite asserts the cautious -> plan
+    // transition, so the starting mode is stated explicitly.
+    permissionMode: 'cautious' as const,
   },
   ...overrides,
 })
@@ -61,7 +65,7 @@ describe('EnterPlanModeTool', () => {
     const ctx = makeContext()
 
     expect(isPlanModeEnabled(ctx)).toBe(false)
-    expect(getPermissionMode(ctx)).toBe('default')
+    expect(getPermissionMode(ctx)).toBe('cautious')
 
     expect(EnterPlanModeTool.needsPermissions()).toBe(false)
     expect(EnterPlanModeTool.requiresUserInteraction?.()).toBe(false)

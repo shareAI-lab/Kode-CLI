@@ -18,6 +18,9 @@ const makeContext = (): ToolUseContext => ({
     verbose: false,
     slowAndCapableModel: undefined,
     safeMode: true,
+    // Kode's default mode is `yolo` (permissive); these tests assert the
+    // ask/deny rule contract, so the mode is stated explicitly.
+    permissionMode: 'cautious' as const,
     forkNumber: 0,
     messageLogName: 'test',
     maxThinkingTokens: 0,

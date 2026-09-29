@@ -94,10 +94,10 @@ describe('repo structure contract', () => {
     expect(existsSync(gitignorePath)).toBe(true)
 
     const content = readFileSync(gitignorePath, 'utf8')
-    expect(content).toContain('\n.tmp/\n')
-    expect(content).toContain('\nvendor/\n')
-    expect(content).toContain('\n.kode/settings.local.json\n')
-    expect(content).toContain('\n.claude/settings.local.json\n')
+    expect(content).toContain('\n/.tmp/\n')
+    expect(content).toContain('\n/vendor/\n')
+    expect(content).toContain('\n/.kode/\n')
+    expect(content).toContain('\n/.claude/\n')
   })
 
   it('examples do not reference the removed root src/ layout', () => {
