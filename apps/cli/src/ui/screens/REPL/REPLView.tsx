@@ -5,6 +5,8 @@ import type { ReactNode } from 'react'
 
 import type { ToolUseConfirm } from '#ui-ink/components/permissions/PermissionRequest'
 import { PermissionRequest } from '#ui-ink/components/permissions/PermissionRequest'
+import { ElicitationRequest } from '#ui-ink/components/mcp/ElicitationRequest'
+import type { McpElicitationPrompt } from '#cli-services/mcpCapabilities'
 import PromptInput from '#ui-ink/components/PromptInput'
 import { RequestStatusIndicator } from '#ui-ink/components/RequestStatusIndicator'
 import { CostThresholdDialog } from '#ui-ink/components/CostThresholdDialog'
@@ -33,6 +35,8 @@ export function REPLView({
   toolJSX,
   toolUseConfirm,
   setToolUseConfirm,
+  mcpElicitation,
+  setMcpElicitation,
   toast,
   binaryFeedbackContext,
   setBinaryFeedbackContext,
@@ -65,6 +69,8 @@ export function REPLView({
   } | null
   toolUseConfirm: ToolUseConfirm | null
   setToolUseConfirm: (confirm: ToolUseConfirm | null) => void
+  mcpElicitation: McpElicitationPrompt | null
+  setMcpElicitation: (prompt: McpElicitationPrompt | null) => void
   toast: string | null
   binaryFeedbackContext: BinaryFeedbackContext | null
   setBinaryFeedbackContext: (ctx: BinaryFeedbackContext | null) => void
@@ -99,6 +105,7 @@ export function REPLView({
   const isFullScreenToolView = toolJSX?.displayMode === 'fullscreen'
   const hasToolJSX = Boolean(toolJSX)
   const hasToolUseConfirm = Boolean(toolUseConfirm)
+  const hasMcpElicitation = Boolean(mcpElicitation)
   const hasBinaryFeedback = Boolean(binaryFeedbackContext)
   const hasToast = Boolean(toast)
 
@@ -114,6 +121,7 @@ export function REPLView({
       isFullScreenToolView ? 1 : 0,
       hasToolJSX ? 1 : 0,
       hasToolUseConfirm ? 1 : 0,
+      hasMcpElicitation ? 1 : 0,
       hasBinaryFeedback ? 1 : 0,
       showingCostDialog ? 1 : 0,
       shouldShowPromptInput ? 1 : 0,
@@ -251,6 +259,17 @@ export function REPLView({
 
               {!toolJSX &&
                 !toolUseConfirm &&
+                mcpElicitation &&
+                !isMessageSelectorVisible &&
+                !binaryFeedbackContext && (
+                  <ElicitationRequest
+                    prompt={mcpElicitation}
+                    onDone={() => setMcpElicitation(null)}
+                  />
+                )}
+
+              {!toolJSX &&
+                !toolUseConfirm &&
                 !isMessageSelectorVisible &&
                 !binaryFeedbackContext &&
                 showingCostDialog && (
@@ -258,6 +277,7 @@ export function REPLView({
                 )}
 
               {!toolUseConfirm &&
+                !mcpElicitation &&
                 !toolJSX?.shouldHidePromptInput &&
                 shouldShowPromptInput &&
                 !isMessageSelectorVisible &&

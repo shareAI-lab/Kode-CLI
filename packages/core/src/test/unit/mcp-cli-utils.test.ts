@@ -70,6 +70,12 @@ describe('mcpCliUtils', () => {
       transport: 'http',
       explicit: true,
     })
-    expect(() => normalizeMcpTransport('ws')).toThrow('Invalid transport type')
+    expect(normalizeMcpTransport('ws')).toEqual({
+      transport: 'ws',
+      explicit: true,
+    })
+    expect(() => normalizeMcpTransport('carrier-pigeon')).toThrow(
+      'Invalid transport type',
+    )
   })
 })

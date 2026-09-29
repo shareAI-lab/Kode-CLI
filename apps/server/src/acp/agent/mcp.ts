@@ -1,37 +1,27 @@
 import type { Buffer } from 'node:buffer'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type { ServerCapabilities } from '@modelcontextprotocol/sdk/types.js'
 
 import { MACRO } from '#core/constants/macros'
 import { PRODUCT_COMMAND } from '#core/constants/product'
 import { logError, logMCPError } from '#core/utils/log'
-import type { WrappedClient } from '#core/mcp/client'
+import {
+  buildMcpRoots,
+  registerCapabilityHandlers,
+  type McpRoot,
+  type WrappedClient,
+} from '#core/mcp/client'
+import type { McpServerConfig } from '#core/utils/config'
+import { createTransportCandidates } from '#core/mcp/transports/registry'
 
 import type * as Protocol from '../protocol'
-
-type Candidate =
-  | { kind: 'stdio'; transport: StdioClientTransport }
-  | { kind: 'http'; transport: StreamableHTTPClientTransport }
-  | { kind: 'sse'; transport: SSEClientTransport }
 
 function getConnectionTimeoutMs(): number {
   const rawTimeout = process.env.MCP_CONNECTION_TIMEOUT_MS
   const parsedTimeout = rawTimeout ? Number.parseInt(rawTimeout, 10) : NaN
   return Number.isFinite(parsedTimeout) ? parsedTimeout : 30_000
-}
-
-function buildEnv(extra?: Record<string, string>): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (typeof value === 'string') env[key] = value
-  }
-  if (extra) Object.assign(env, extra)
-  return env
 }
 
 function normalizeHeaders(
@@ -87,99 +77,110 @@ async function connectWithTimeout(
   await Promise.race([connectPromise, timeoutPromise])
 }
 
-function createCandidates(server: Protocol.McpServer): {
-  name: string
-  candidates: Candidate[]
-} | null {
-  const name = server.name
-  if (!name) return null
+/**
+ * Normalize an ACP-provided server descriptor into Kode's MCP config shape so
+ * both hosts build transports through the same registry.
+ */
+export function toMcpServerConfig(
+  server: Protocol.McpServer,
+): McpServerConfig | null {
+  if (!server.name) return null
 
-  if (server.type === 'http' || server.type === 'sse') {
+  if (server.type === 'http' || server.type === 'sse' || server.type === 'ws') {
     const url = server.url
     if (!url) return null
 
-    let parsedUrl: URL
     try {
-      parsedUrl = new URL(url)
+      new URL(url)
     } catch (e) {
       logError(e)
       return null
     }
 
+    if (server.type === 'ws') return { type: 'ws', url }
+
     const headers = normalizeHeaders(server.headers)
-    const options =
-      Object.keys(headers).length > 0 ? { requestInit: { headers } } : undefined
+    const withHeaders = Object.keys(headers).length > 0 ? { headers } : {}
 
-    if (server.type === 'http') {
-      return {
-        name,
-        candidates: [
-          {
-            kind: 'http',
-            transport: new StreamableHTTPClientTransport(parsedUrl, options),
-          },
-          {
-            kind: 'sse',
-            transport: new SSEClientTransport(parsedUrl, options),
-          },
-        ],
-      }
-    }
-
-    return {
-      name,
-      candidates: [
-        { kind: 'sse', transport: new SSEClientTransport(parsedUrl, options) },
-        {
-          kind: 'http',
-          transport: new StreamableHTTPClientTransport(parsedUrl, options),
-        },
-      ],
-    }
+    if (server.type === 'http') return { type: 'http', url, ...withHeaders }
+    return { type: 'sse', url, ...withHeaders }
   }
 
-  const envFromParams = normalizeEnvVars(server.env)
+  const env = normalizeEnvVars(server.env)
   return {
-    name,
-    candidates: [
-      {
-        kind: 'stdio',
-        transport: new StdioClientTransport({
-          command: server.command,
-          args: server.args,
-          env: buildEnv(envFromParams),
-          stderr: 'pipe',
-        }),
-      },
-    ],
+    type: 'stdio',
+    command: server.command,
+    args: server.args,
+    ...(Object.keys(env).length > 0 ? { env } : {}),
   }
+}
+
+/**
+ * Advertise the client capabilities Kode can actually serve over ACP.
+ *
+ * `roots` is available whenever the session has a working directory (the ACP
+ * client supplies `cwd` per session). Elicitation is deliberately not
+ * advertised: ACP has no generic server-to-client question primitive, only
+ * `session/request_permission`, which is not a substitute.
+ */
+export function getAcpClientCapabilities(cwd: string): {
+  roots?: { listChanged: boolean }
+} {
+  if (!cwd) return {}
+  return { roots: { listChanged: false } }
+}
+
+/**
+ * Build an ACP MCP client. The advertised capabilities and the registered
+ * handlers come from the same object, because the SDK rejects a handler for a
+ * capability the client did not declare.
+ */
+export function createAcpMcpClient(
+  name: string,
+  capabilities: ReturnType<typeof getAcpClientCapabilities>,
+  getRoots: (serverName: string) => Promise<McpRoot[]>,
+): Client {
+  const client = new Client(
+    { name: PRODUCT_COMMAND, version: MACRO.VERSION || '0.0.0' },
+    { capabilities },
+  )
+  registerCapabilityHandlers(client, name, { capabilities, getRoots })
+  return client
 }
 
 export async function connectAcpMcpServers(
   mcpServers: Protocol.McpServer[],
+  options: { cwd?: string } = {},
 ): Promise<WrappedClient[]> {
   if (!Array.isArray(mcpServers) || mcpServers.length === 0) return []
 
+  const cwd = options.cwd ?? ''
   const timeoutMs = getConnectionTimeoutMs()
   const results: WrappedClient[] = []
+  const clientCapabilities = getAcpClientCapabilities(cwd)
+
+  // Serve `roots/list` from the session working directory — the workspace the
+  // ACP client (Zed, Toad) actually opened. It must never fall back to the
+  // daemon's own roots, and an unknown/empty cwd exposes nothing.
+  const getRoots = async (): Promise<McpRoot[]> =>
+    cwd ? buildMcpRoots({ trusted: true, configured: [], cwd }) : []
 
   for (const server of mcpServers) {
-    const normalized = createCandidates(server)
-    if (!normalized) {
+    const config = toMcpServerConfig(server)
+    const name = server.name
+    if (!config || !name) {
       results.push({ name: '<invalid>', type: 'failed' })
       continue
     }
 
-    const { name, candidates } = normalized
+    const candidates = await createTransportCandidates(config)
 
     let lastError: unknown
     for (const candidate of candidates) {
-      const client = new Client(
-        { name: PRODUCT_COMMAND, version: MACRO.VERSION || '0.0.0' },
-        { capabilities: {} },
-      )
-
+      let client: Client
       try {
+        client = createAcpMcpClient(name, clientCapabilities, getRoots)
+
         await connectWithTimeout(client, candidate.transport, name, timeoutMs)
 
         if (candidate.kind === 'stdio') {
@@ -189,14 +190,19 @@ export async function connectAcpMcpServers(
           })
         }
 
-        let capabilities: ServerCapabilities | null = null
+        let serverCapabilities: ServerCapabilities | null = null
         try {
-          capabilities = client.getServerCapabilities() ?? null
+          serverCapabilities = client.getServerCapabilities() ?? null
         } catch {
-          capabilities = null
+          serverCapabilities = null
         }
 
-        results.push({ name, client, capabilities, type: 'connected' as const })
+        results.push({
+          name,
+          client,
+          capabilities: serverCapabilities,
+          type: 'connected' as const,
+        })
         lastError = null
         break
       } catch (e) {

@@ -1,6 +1,6 @@
 import { ensureConfigScope } from '#core/mcp/client'
 
-export type McpCliTransport = 'stdio' | 'sse' | 'http'
+export type McpCliTransport = 'stdio' | 'sse' | 'http' | 'ws'
 
 export function looksLikeMcpUrl(value: string): boolean {
   const trimmed = value.trim()
@@ -67,10 +67,15 @@ export function normalizeMcpTransport(transport: string | undefined): {
 } {
   if (!transport) return { transport: 'stdio', explicit: false }
   const normalized = transport.trim()
-  if (normalized === 'stdio' || normalized === 'sse' || normalized === 'http') {
+  if (
+    normalized === 'stdio' ||
+    normalized === 'sse' ||
+    normalized === 'http' ||
+    normalized === 'ws'
+  ) {
     return { transport: normalized, explicit: true }
   }
   throw new Error(
-    `Invalid transport type: ${transport}. Must be one of: stdio, sse, http`,
+    `Invalid transport type: ${transport}. Must be one of: stdio, sse, http, ws`,
   )
 }

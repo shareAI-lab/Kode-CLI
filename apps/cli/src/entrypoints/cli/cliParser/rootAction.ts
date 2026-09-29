@@ -302,6 +302,12 @@ export function createRootAction(args: {
     ])
     const commands = await getCommands()
 
+    const { installCliMcpCapabilities } =
+      await import('#cli-services/mcpCapabilities')
+    // Install capability responders before connecting: the client advertises
+    // roots/elicitation/sampling during `initialize`.
+    installCliMcpCapabilities({ interactive: print !== true })
+
     const mcpClientsPromise =
       (Array.isArray(mcpConfig) && mcpConfig.length > 0) ||
       strictMcpConfig === true

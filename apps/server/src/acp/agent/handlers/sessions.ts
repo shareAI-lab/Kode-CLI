@@ -70,7 +70,7 @@ export async function handleSessionNew(args: {
   const { commands, tools, context, systemPrompt, configuredMcpClients } =
     await loadSessionDeps()
 
-  const acpMcpClients = await connectAcpMcpServers(mcpServers)
+  const acpMcpClients = await connectAcpMcpServers(mcpServers, { cwd })
   const mcpClients = mergeMcpClients(configuredMcpClients, acpMcpClients)
 
   const toolPermissionContext = loadToolPermissionContextFromDisk({
@@ -144,7 +144,7 @@ export async function handleSessionLoad(args: {
   const { commands, tools, context, systemPrompt, configuredMcpClients } =
     await loadSessionDeps()
 
-  const acpMcpClients = await connectAcpMcpServers(mcpServers)
+  const acpMcpClients = await connectAcpMcpServers(mcpServers, { cwd })
   const mcpClients = mergeMcpClients(configuredMcpClients, acpMcpClients)
 
   const toolPermissionContext = loadToolPermissionContextFromDisk({

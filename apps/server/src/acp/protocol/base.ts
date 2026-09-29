@@ -34,6 +34,7 @@ export type PromptCapabilities = {
 export type McpCapabilities = {
   http?: boolean
   sse?: boolean
+  ws?: boolean
   _meta?: JsonObject | null
 }
 
@@ -114,7 +115,15 @@ export type McpServerSse = {
   _meta?: JsonObject | null
 }
 
-export type McpServer = McpServerStdio | McpServerHttp | McpServerSse
+export type McpServerWs = {
+  type: 'ws'
+  name: string
+  url: string
+  _meta?: JsonObject | null
+}
+
+export type McpServer =
+  McpServerStdio | McpServerHttp | McpServerSse | McpServerWs
 
 export type SessionModeId = string
 

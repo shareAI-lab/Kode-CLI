@@ -29,6 +29,10 @@ import { getOriginalCwd } from '#core/utils/state'
 import { MACRO } from '#core/constants/macros'
 import { subscribeAgentReloads } from '#core/agent/events'
 import { subscribeCustomCommandReloads } from '#cli-services/customCommands'
+import {
+  setMcpElicitationPresenter,
+  type McpElicitationPrompt,
+} from '#cli-services/mcpCapabilities'
 import { HelpScreen } from '#ui-ink/screens/overlays/HelpScreen'
 import { ShortcutsScreen } from '#ui-ink/screens/overlays/ShortcutsScreen'
 import { ConfigScreen } from '#ui-ink/screens/overlays/ConfigScreen'
@@ -334,6 +338,27 @@ export function useReplController(props: REPLProps) {
   const [toolUseConfirm, setToolUseConfirm] = useState<ToolUseConfirm | null>(
     null,
   )
+  const [mcpElicitation, setMcpElicitation] =
+    useState<McpElicitationPrompt | null>(null)
+  const mcpElicitationRef = useRef<McpElicitationPrompt | null>(null)
+  mcpElicitationRef.current = mcpElicitation
+
+  // Let MCP servers ask the user questions while this REPL is mounted. A
+  // request that arrives with no mounted UI fails closed with a decline.
+  useEffect(() => {
+    setMcpElicitationPresenter(prompt => {
+      setMcpElicitation(prompt)
+      // Lets the bridge take the form down on timeout / server cancellation.
+      return () =>
+        setMcpElicitation(current => (current === prompt ? null : current))
+    })
+    return () => {
+      setMcpElicitationPresenter(null)
+      const pending = mcpElicitationRef.current
+      mcpElicitationRef.current = null
+      pending?.resolve({ action: 'decline' })
+    }
+  }, [])
   const [messages, setMessages] = useState<MessageType[]>(
     props.initialMessages ?? [],
   )
@@ -535,6 +560,7 @@ export function useReplController(props: REPLProps) {
       const hasModal =
         Boolean(toolJSX) ||
         Boolean(toolUseConfirm) ||
+        Boolean(mcpElicitationRef.current) ||
         Boolean(binaryFeedbackContext) ||
         showingCostDialog ||
         isMessageSelectorVisible
@@ -837,6 +863,17 @@ export function useReplController(props: REPLProps) {
   const onCancel = useCallback(() => {
     if (!isLoading) return
     setIsLoading(false)
+
+    // Cancelling a pending elicitation must not silently end the turn: the tool
+    // call that triggered it is still running, so fall through and abort that
+    // too instead of returning early.
+    const pending = mcpElicitationRef.current
+    if (pending) {
+      mcpElicitationRef.current = null
+      setMcpElicitation(null)
+      pending.resolve({ action: 'cancel' })
+    }
+
     if (toolUseConfirm) {
       toolUseConfirm.onAbort()
       return
@@ -1208,6 +1245,8 @@ export function useReplController(props: REPLProps) {
     toolJSX,
     toolUseConfirm,
     setToolUseConfirm,
+    mcpElicitation,
+    setMcpElicitation,
     toast,
     binaryFeedbackContext,
     setBinaryFeedbackContext,

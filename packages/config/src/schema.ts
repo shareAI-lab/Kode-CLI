@@ -88,6 +88,11 @@ export type ProjectConfig = {
   dontCrawlDirectory?: boolean
   enableArchitectTool?: boolean
   mcpContextUris: string[]
+  /**
+   * Filesystem roots exposed to MCP servers via the `roots/list` protocol
+   * request. When empty, the current working directory is used.
+   */
+  mcpRoots?: string[]
   mcpServers?: Record<string, McpServerConfig>
   disabledMcpServers?: string[]
   approvedMcprcServers?: string[]
@@ -112,6 +117,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   dontCrawlDirectory: false,
   enableArchitectTool: false,
   mcpContextUris: [],
+  mcpRoots: [],
   mcpServers: {},
   disabledMcpServers: [],
   approvedMcprcServers: [],

@@ -30,7 +30,8 @@ toad acp "kode-acp"
 - Session loading: `session/load` (replays history via `session/update`)
 - Session modes: `session/set_mode` maps to Kode permission modes (`default`, `acceptEdits`, `plan`, `dontAsk`, `bypassPermissions`)
 - Prompt resources: accepts `ContentBlock::resource` and `ContentBlock::resource_link`
-- MCP servers: connects to `mcpServers` passed in `session/new` / `session/load` (stdio + HTTP + SSE)
+- MCP servers: connects to `mcpServers` passed in `session/new` / `session/load` (stdio + HTTP + SSE + WebSocket)
+- MCP client capabilities: ACP sessions advertise and serve **`roots`** using the session `cwd`, so servers that ask `roots/list` see the workspace the client opened. `elicitation` is **not** available over ACP — ACP has no generic server-to-client question primitive (only `session/request_permission`, which is not a substitute). `sampling` is also not available: it is a CLI-host capability.
 
 ## Session persistence
 
@@ -54,6 +55,8 @@ Clients may include MCP servers in `session/new` / `session/load`:
   - `{ "type": "http", "name": "api", "url": "https://…/mcp", "headers": [{"name":"Authorization","value":"Bearer …"}] }`
 - **SSE** (requires `agentCapabilities.mcpCapabilities.sse`, deprecated upstream but supported):
   - `{ "type": "sse", "name": "events", "url": "https://…/mcp", "headers": [] }`
+- **WebSocket** (requires `agentCapabilities.mcpCapabilities.ws`):
+  - `{ "type": "ws", "name": "realtime", "url": "ws://…/mcp" }`
 
 ## stdout & logging
 
