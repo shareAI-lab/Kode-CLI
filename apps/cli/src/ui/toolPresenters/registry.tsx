@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Text } from 'ink'
 
 import type { Tool } from '#core/tooling/Tool'
 import { FallbackToolUseRejectedMessage } from '#ui-ink/components/FallbackToolUseRejectedMessage'
@@ -88,7 +89,8 @@ export function renderInkToolResultMessage(
   if (presenter?.renderToolResultMessage) {
     return presenter.renderToolResultMessage(output, options)
   }
-  return tool.renderToolResultMessage?.(output, options) ?? null
+  const node = tool.renderToolResultMessage?.(output, options) ?? null
+  return typeof node === 'string' ? <Text>{node}</Text> : node
 }
 
 export function renderInkToolUseRejectedMessage(

@@ -36,6 +36,16 @@ Included skill directories:
 
 License: Apache-2.0 (see `third_party/shareai-skills/LICENSE`).
 
+## Cohesivity (MIT)
+
+Source: [cohesivity.ai](https://cohesivity.ai)
+
+Included skill directories:
+
+- `cohesivity/`
+
+License: MIT (see `third_party/cohesivity/LICENSE`).
+
 ## Kode-native Skills (Apache-2.0)
 
 Included skill directories:
