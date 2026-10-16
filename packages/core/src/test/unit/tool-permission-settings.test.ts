@@ -22,15 +22,92 @@ function writeJson(filePath: string, value: unknown) {
 describe('tool permission settings (multi-source load/merge/persist)', () => {
   let projectDir: string
   let homeDir: string
+  let configDir: string
+  let prevConfigDir: string | undefined
+
+  function setTrusted(trusted: boolean) {
+    writeJson(join(configDir, 'config.json'), {
+      projects: trusted
+        ? { [projectDir]: { hasTrustDialogAccepted: true } }
+        : {},
+    })
+  }
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), 'kode-perm-project-'))
     homeDir = mkdtempSync(join(tmpdir(), 'kode-perm-home-'))
+    configDir = mkdtempSync(join(tmpdir(), 'kode-perm-config-'))
+    prevConfigDir = process.env.KODE_CONFIG_DIR
+    process.env.KODE_CONFIG_DIR = configDir
+    setTrusted(true)
   })
 
   afterEach(() => {
+    if (prevConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
+    else process.env.KODE_CONFIG_DIR = prevConfigDir
     rmSync(projectDir, { recursive: true, force: true })
     rmSync(homeDir, { recursive: true, force: true })
+    rmSync(configDir, { recursive: true, force: true })
+  })
+
+  test('untrusted workspace: repo settings cannot grant, but can restrict', () => {
+    setTrusted(false)
+    writeJson(join(homeDir, '.kode', 'settings.json'), {
+      permissions: { allow: ['Bash(ls:*)'] },
+    })
+    writeJson(join(projectDir, '.kode', 'settings.json'), {
+      permissions: {
+        allow: ['Bash(mkfifo:*)'],
+        deny: ['Bash(rm:*)'],
+        ask: ['Bash(curl:*)'],
+        additionalDirectories: ['/'],
+      },
+    })
+    writeJson(join(projectDir, '.kode', 'settings.local.json'), {
+      permissions: { allow: ['Read(~/**)'], additionalDirectories: ['/etc'] },
+    })
+
+    const ctx = loadToolPermissionContextFromDisk({
+      projectDir,
+      homeDir,
+      includeKodeProjectConfig: false,
+    })
+
+    expect(ctx.alwaysAllowRules.userSettings).toEqual(['Bash(ls:*)'])
+    expect(ctx.alwaysAllowRules.projectSettings).toBeUndefined()
+    expect(ctx.alwaysAllowRules.localSettings).toBeUndefined()
+    expect(ctx.alwaysDenyRules.projectSettings).toEqual(['Bash(rm:*)'])
+    expect(ctx.alwaysAskRules.projectSettings).toEqual(['Bash(curl:*)'])
+    expect(ctx.additionalWorkingDirectories.size).toBe(0)
+  })
+
+  test('untrusted workspace: legacy .claude settings are not granted or migrated', () => {
+    setTrusted(false)
+    writeJson(join(projectDir, '.claude', 'settings.json'), {
+      permissions: { allow: ['Bash(mkfifo:*)'] },
+    })
+
+    const ctx = loadToolPermissionContextFromDisk({
+      projectDir,
+      homeDir,
+      includeKodeProjectConfig: false,
+    })
+
+    expect(ctx.alwaysAllowRules.projectSettings).toBeUndefined()
+    expect(existsSync(join(projectDir, '.kode', 'settings.json'))).toBe(false)
+  })
+
+  test('trust is evaluated for projectDir, not process cwd', () => {
+    // process cwd (the repo) is not trusted; projectDir is.
+    writeJson(join(projectDir, '.kode', 'settings.json'), {
+      permissions: { allow: ['Bash(git:*)'] },
+    })
+    const ctx = loadToolPermissionContextFromDisk({
+      projectDir,
+      homeDir,
+      includeKodeProjectConfig: false,
+    })
+    expect(ctx.alwaysAllowRules.projectSettings).toEqual(['Bash(git:*)'])
   })
 
   test('loads .kode/settings.json + .kode/settings.local.json across sources', () => {
