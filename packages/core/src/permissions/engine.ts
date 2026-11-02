@@ -2,7 +2,7 @@ import type { CanUseToolFn } from './canUseTool'
 import type { PermissionResult } from './types'
 
 import type { Tool, ToolUseContext } from '#core/tooling/Tool'
-import { getCurrentProjectConfig } from '#config'
+import { SettingsFileError } from '#config'
 import { AbortError } from '#core/utils/errors'
 import { logError } from '#core/utils/log'
 import { getCwd } from '#core/utils/state'
@@ -12,10 +12,8 @@ import { normalizePermissionMode } from '#core/types/PermissionMode'
 import { isAbsolute, resolve } from 'path'
 import { resolveToolNameAlias } from '#core/utils/toolNameAliases'
 
-import {
-  createDefaultToolPermissionContext,
-  type ToolPermissionContextUpdate,
-} from '#core/types/toolPermissionContext'
+import type { ToolPermissionContextUpdate } from '#core/types/toolPermissionContext'
+import { loadToolPermissionContextFromDisk } from './toolPermissionSettings'
 import {
   expandSymlinkPaths,
   getWriteSafetyCheckForPath,
@@ -76,6 +74,35 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
 ): Promise<PermissionResult> => {
   const rawPermissionMode = getPermissionMode(context)
   const permissionMode = normalizePermissionMode(rawPermissionMode)
+  // Hosts such as plain-text print may not supply a permission context.
+  // Initialize one before any mode or tool-specific auto-approval can run.
+  let toolPermissionContext = context.options?.toolPermissionContext
+  if (!toolPermissionContext) {
+    try {
+      const loaded = loadToolPermissionContextFromDisk({
+        projectDir:
+          typeof context.options?.__sandboxProjectDir === 'string'
+            ? context.options.__sandboxProjectDir
+            : getCwd(),
+        isBypassPermissionsModeAvailable: !Boolean(
+          context.options?.safeMode ?? context.safeMode,
+        ),
+      })
+      loaded.mode = permissionMode
+      toolPermissionContext = loaded
+      context = {
+        ...context,
+        options: { ...context.options, toolPermissionContext },
+      }
+    } catch (error) {
+      if (!(error instanceof SettingsFileError)) throw error
+      return {
+        result: false,
+        message: error.message,
+        shouldPromptUser: false,
+      }
+    }
+  }
   const isDontAskMode = permissionMode === 'dontAsk'
   const isYoloMode = permissionMode === 'yolo'
   const shouldAvoidPermissionPrompts =
@@ -159,19 +186,15 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     }
   }
 
-  const projectConfig = getCurrentProjectConfig()
-  const toolPermissionContext = context.options?.toolPermissionContext
-  const normalizeToolRule = (rule: string) =>
-    resolveToolNameAlias(rule).resolvedName
-  const allowedTools = toolPermissionContext
-    ? flattenPermissionRuleGroups(toolPermissionContext.alwaysAllowRules)
-    : (projectConfig.allowedTools ?? []).map(normalizeToolRule)
-  const deniedTools = toolPermissionContext
-    ? flattenPermissionRuleGroups(toolPermissionContext.alwaysDenyRules)
-    : (projectConfig.deniedTools ?? []).map(normalizeToolRule)
-  const askedTools = toolPermissionContext
-    ? flattenPermissionRuleGroups(toolPermissionContext.alwaysAskRules)
-    : (projectConfig.askedTools ?? []).map(normalizeToolRule)
+  const allowedTools = flattenPermissionRuleGroups(
+    toolPermissionContext.alwaysAllowRules,
+  )
+  const deniedTools = flattenPermissionRuleGroups(
+    toolPermissionContext.alwaysDenyRules,
+  )
+  const askedTools = flattenPermissionRuleGroups(
+    toolPermissionContext.alwaysAskRules,
+  )
   const commandAllowedTools = Array.isArray(
     context.options?.commandAllowedTools,
   )
@@ -188,32 +211,11 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     return { result: true }
   }
 
-  let effectiveToolPermissionContext =
-    toolPermissionContext ??
-    (() => {
-      const fallback = createDefaultToolPermissionContext({
-        isBypassPermissionsModeAvailable: !(context.options?.safeMode ?? false),
-      })
-      fallback.mode = permissionMode
-      if (effectiveAllowedTools.length > 0) {
-        fallback.alwaysAllowRules.localSettings = effectiveAllowedTools
-      }
-      if (effectiveDeniedTools.length > 0) {
-        fallback.alwaysDenyRules.localSettings = effectiveDeniedTools
-      }
-      if (effectiveAskedTools.length > 0) {
-        fallback.alwaysAskRules.localSettings = effectiveAskedTools
-      }
-      return fallback
-    })()
-
-  if (toolPermissionContext) {
-    effectiveToolPermissionContext = {
-      ...toolPermissionContext,
-      alwaysAllowRules: { ...toolPermissionContext.alwaysAllowRules },
-      alwaysDenyRules: { ...toolPermissionContext.alwaysDenyRules },
-      alwaysAskRules: { ...toolPermissionContext.alwaysAskRules },
-    }
+  const effectiveToolPermissionContext = {
+    ...toolPermissionContext,
+    alwaysAllowRules: { ...toolPermissionContext.alwaysAllowRules },
+    alwaysDenyRules: { ...toolPermissionContext.alwaysDenyRules },
+    alwaysAskRules: { ...toolPermissionContext.alwaysAskRules },
   }
 
   // Per-command allowedTools (e.g. `Read(~/**)`) must participate in the same

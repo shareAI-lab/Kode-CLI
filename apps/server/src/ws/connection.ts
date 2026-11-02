@@ -1,6 +1,7 @@
 import type { RawData, WebSocket } from 'ws'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { SettingsFileError } from '@kode/config'
 
 import {
   makeSdkInitMessage,
@@ -188,6 +189,8 @@ export function createWebSocketHandlers(args: {
 
     async message(ws: WsWithSession, message: RawData) {
       const session = ws.data.session
+      // Ignore queued frames after a failed initialization or a closed session.
+      if (args.sessions.get(session.sessionId) !== session) return
       const parsed = parseClientWsMessage(message)
       if (parsed.ok === false) {
         sendJson(ws, log('error', parsed.error))
@@ -257,11 +260,20 @@ export function createWebSocketHandlers(args: {
         session.responseState = {}
         session.activeAbortController = null
 
-        session.toolPermissionContext = loadToolPermissionContextFromDisk({
-          projectDir: session.cwd,
-          includeKodeProjectConfig: true,
-          isBypassPermissionsModeAvailable: true,
-        })
+        try {
+          session.toolPermissionContext = loadToolPermissionContextFromDisk({
+            projectDir: session.cwd,
+            includeKodeProjectConfig: true,
+            isBypassPermissionsModeAvailable: true,
+          })
+        } catch (error) {
+          if (!(error instanceof SettingsFileError)) throw error
+          sendJson(ws, log('error', error.message))
+          // Do not leave a failed new-session request using the old policy.
+          args.sessions.delete(session.sessionId)
+          ws.close(1011, 'Cannot load permission settings')
+          return
+        }
 
         const nextId = crypto.randomUUID()
         args.sessions.delete(session.sessionId)
