@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -68,7 +69,10 @@ describe('permission settings initialization', () => {
     )
 
   beforeEach(async () => {
-    root = mkdtempSync(join(tmpdir(), 'kode-policy-'))
+    // Windows runner TMP contains an 8.3 alias (RUNNER~1), which correctly
+    // triggers the existing suspicious-path gate. Use an ordinary workspace
+    // path so positive controls exercise policy loading, not that safety floor.
+    root = realpathSync.native(mkdtempSync(join(tmpdir(), 'kode-policy-')))
     homeDir = join(root, 'home')
     projectDir = join(root, 'project')
     sources = [
@@ -132,7 +136,7 @@ describe('permission settings initialization', () => {
   })
 
   test('deny and ask retain precedence across sources; valid empty policy still permits edits', async () => {
-    expect((await checkWrite()).result).toBe(true)
+    expect(await checkWrite()).toEqual({ result: true })
     writeJson(sources[0]!, { permissions: { allow: ['Write(.env)'] } })
     writeJson(sources[1]!, { permissions: { ask: ['Write(.env)'] } })
     const interactive = await checkWrite(context('acceptEdits', false))
@@ -215,7 +219,9 @@ describe('permission settings initialization', () => {
         } as any,
       ))
         messages.push(message)
-      expect(existsSync(target)).toBe(policy === 'valid')
+      expect(existsSync(target), JSON.stringify(messages)).toBe(
+        policy === 'valid',
+      )
       if (policy === 'valid')
         expect(readFileSync(target, 'utf8')).toBe('test-only')
       else expect(JSON.stringify(messages)).toContain('is_error')

@@ -81,16 +81,28 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     )
     harnessManager.track(h)
 
+    const waitForOutput = async (text: string) => {
+      const deadline = Date.now() + 2_000
+      while (!h.getOutput().includes(text) && Date.now() < deadline) {
+        await h.wait(10)
+      }
+      expect(h.getOutput()).toContain(text)
+    }
+
     await h.wait(25)
 
     h.stdin.write('\u001B[B')
     await h.wait(10)
     h.stdin.write('\u001B[B')
-    await h.wait(10)
+    await waitForOutput('Type something.')
 
+    let typed = ''
     for (const ch of 'threejs') {
       h.stdin.write(ch)
-      await h.wait(5)
+      typed += ch
+      // Wait for the committed input frame before sending the next key.
+      // Fixed 5 ms gaps can race React updates and drop the second 'e' in CI.
+      await waitForOutput(`${typed}▌`)
     }
 
     // Avoid KeypressProvider's "fast return" heuristic (treats rapid enter after typing as insertable).
