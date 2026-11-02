@@ -15,6 +15,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { getCwd } from './cwd'
 import { resolveDataRoots } from './dataRoots'
 import { legacyConfigPathInProject } from './compat/legacyPaths'
+import { SettingsFileError } from './errors'
 
 export type SettingsDestination =
   'localSettings' | 'projectSettings' | 'userSettings'
@@ -67,17 +68,80 @@ export function getSettingsFileCandidates(options: {
   }
 }
 
-export function readSettingsFile(filePath: string): SettingsFile | null {
-  if (!existsSync(filePath)) return null
-  try {
-    const raw = readFileSync(filePath, 'utf-8')
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return null
-    return parsed as SettingsFile
-  } catch (error) {
-    logError(error)
-    return null
+// ENOENT also describes dangling symlinks. Only an absent entry beneath an
+// accessible directory is an optional settings file, not a broken link.
+function isMissingSettingsFile(filePath: string): boolean {
+  let current = filePath
+  for (;;) {
+    let entry
+    try {
+      entry = lstatSync(current)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false
+      const parent = dirname(current)
+      if (parent === current) return false
+      current = parent
+      continue
+    }
+    try {
+      return (
+        current !== filePath &&
+        (entry.isDirectory() ||
+          (entry.isSymbolicLink() && statSync(current).isDirectory()))
+      )
+    } catch {
+      return false
+    }
   }
+}
+
+function isSettingsObject(value: unknown): value is SettingsFile {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+export function readSettingsFile(filePath: string): SettingsFile | null {
+  let raw: string
+  try {
+    raw = readFileSync(filePath, 'utf-8')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' && isMissingSettingsFile(filePath)) return null
+    const detail = code && /^E[A-Z0-9]+$/.test(code) ? ` (${code})` : ''
+    throw new SettingsFileError(filePath, `unable to read file${detail}`)
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new SettingsFileError(filePath, 'invalid JSON')
+  }
+  if (!isSettingsObject(parsed)) {
+    throw new SettingsFileError(filePath, 'expected a JSON object')
+  }
+
+  // Validate only the permission fields we consume; preserve other settings
+  // and unknown keys for compatibility. Never silently discard policy rules.
+  if ('permissions' in parsed) {
+    const permissions = parsed.permissions
+    if (!isSettingsObject(permissions)) {
+      throw new SettingsFileError(filePath, 'permissions must be an object')
+    }
+    for (const key of ['allow', 'deny', 'ask', 'additionalDirectories']) {
+      if (!(key in permissions)) continue
+      const value = permissions[key]
+      if (
+        !Array.isArray(value) ||
+        value.some(item => typeof item !== 'string')
+      ) {
+        throw new SettingsFileError(
+          filePath,
+          `permissions.${key} must be an array of strings`,
+        )
+      }
+    }
+  }
+  return parsed
 }
 
 export function writeSettingsFile(

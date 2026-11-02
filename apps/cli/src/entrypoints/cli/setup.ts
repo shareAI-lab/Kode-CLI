@@ -5,6 +5,7 @@ import { grantReadPermissionForOriginalDir } from '#core/utils/permissions/files
 import { setCwd, setOriginalCwd } from '#core/utils/state'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { LEGACY_ENV } from '#config/compat/legacyEnv'
+import { loadToolPermissionContextFromDisk } from '#core/permissions/toolPermissionSettings'
 
 export async function setup(cwd: string, safeMode?: boolean): Promise<void> {
   process.env.KODE_PROJECT_DIR = cwd
@@ -15,6 +16,10 @@ export async function setup(cwd: string, safeMode?: boolean): Promise<void> {
     setOriginalCwd(cwd)
   }
   await setCwd(cwd)
+
+  // Validate all policy sources before watchers, hooks, plugins or model calls,
+  // including interactive and plain-text print entrypoints.
+  loadToolPermissionContextFromDisk({ projectDir: cwd })
 
   // Always grant read permissions for original working dir
   grantReadPermissionForOriginalDir()

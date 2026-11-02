@@ -63,6 +63,12 @@ export async function handleSessionNew(args: {
   await setCwd(cwd)
   grantReadPermissionForOriginalDir()
 
+  const toolPermissionContext = loadToolPermissionContextFromDisk({
+    projectDir: cwd,
+    includeKodeProjectConfig: true,
+    isBypassPermissionsModeAvailable: true,
+  })
+
   const mcpServers = Array.isArray(p.mcpServers)
     ? (p.mcpServers as Protocol.McpServer[])
     : []
@@ -72,12 +78,6 @@ export async function handleSessionNew(args: {
 
   const acpMcpClients = await connectAcpMcpServers(mcpServers)
   const mcpClients = mergeMcpClients(configuredMcpClients, acpMcpClients)
-
-  const toolPermissionContext = loadToolPermissionContextFromDisk({
-    projectDir: cwd,
-    includeKodeProjectConfig: true,
-    isBypassPermissionsModeAvailable: true,
-  })
 
   const sessionId = `sess_${nanoid()}`
   const currentModeId = toolPermissionContext.mode
@@ -137,6 +137,12 @@ export async function handleSessionLoad(args: {
     throw new JsonRpcError(-32602, `Session not found: ${sessionId}`)
   }
 
+  const toolPermissionContext = loadToolPermissionContextFromDisk({
+    projectDir: cwd,
+    includeKodeProjectConfig: true,
+    isBypassPermissionsModeAvailable: true,
+  })
+
   const mcpServers = Array.isArray(p.mcpServers)
     ? (p.mcpServers as Protocol.McpServer[])
     : []
@@ -146,12 +152,6 @@ export async function handleSessionLoad(args: {
 
   const acpMcpClients = await connectAcpMcpServers(mcpServers)
   const mcpClients = mergeMcpClients(configuredMcpClients, acpMcpClients)
-
-  const toolPermissionContext = loadToolPermissionContextFromDisk({
-    projectDir: cwd,
-    includeKodeProjectConfig: true,
-    isBypassPermissionsModeAvailable: true,
-  })
 
   const currentModeId = coercePermissionMode(
     typeof persisted.currentModeId === 'string' && persisted.currentModeId

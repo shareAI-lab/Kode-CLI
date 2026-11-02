@@ -30,6 +30,20 @@ Legacy compatibility:
 
 Example: output style selection is stored in `settings.local.json` under `outputStyle`.
 
+### Settings load failures
+
+Missing settings files are optional. Existing files must be readable JSON objects;
+`permissions`, when present, must be an object, and `allow`, `deny`, `ask`, and
+`additionalDirectories` must be arrays of strings when present. Other keys are
+preserved for compatibility.
+
+An unreadable, truncated, or invalid settings file stops permission initialization.
+The error identifies the file without printing its contents. CLI startup exits
+nonzero, including text, JSON, and stream-JSON print modes; server session creation
+fails. Repair the reported file or restore its intended policy and retry. A broken
+primary file never falls back to an older `.claude` policy. Legacy fallback and
+migration remain available when the primary file is absent.
+
 ## Models
 
 ### Model profiles + pointers (stored in global config)

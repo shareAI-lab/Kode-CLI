@@ -2,6 +2,7 @@ import { basename, resolve } from 'node:path'
 
 import { loadToolPermissionContextFromDisk } from '@kode/core/utils/permissions/toolPermissionSettings'
 import type { Tool } from '@kode/core/tooling/Tool'
+import { SettingsFileError } from '@kode/config'
 
 import { maybeServeWebui } from '../server/webui'
 import { routeChat } from './chat'
@@ -111,6 +112,18 @@ export function createRoutes(args: {
         const selectedCwd =
           workspaces.find(w => w.id === selected)?.path ?? resolve(args.cwd)
 
+        let toolPermissionContext
+        try {
+          toolPermissionContext = loadToolPermissionContextFromDisk({
+            projectDir: selectedCwd,
+            includeKodeProjectConfig: true,
+            isBypassPermissionsModeAvailable: true,
+          })
+        } catch (error) {
+          if (!(error instanceof SettingsFileError)) throw error
+          return Response.json({ error: error.message }, { status: 500 })
+        }
+
         const sessionId = crypto.randomUUID()
         const session: DaemonSession = {
           sessionId,
@@ -119,11 +132,7 @@ export function createRoutes(args: {
           messages: [],
           readFileTimestamps: {},
           responseState: {},
-          toolPermissionContext: loadToolPermissionContextFromDisk({
-            projectDir: selectedCwd,
-            includeKodeProjectConfig: true,
-            isBypassPermissionsModeAvailable: true,
-          }),
+          toolPermissionContext,
           activeAbortController: null,
           inflightPermissionRequests: new Map(),
         }

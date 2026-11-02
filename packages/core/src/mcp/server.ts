@@ -21,6 +21,7 @@ import {
   getMcpToolInputSchema,
 } from '#core/tooling/mcpToolSchema'
 import { LEGACY_ENV } from '#core/compat/legacyEnv'
+import { loadToolPermissionContextFromDisk } from '#core/permissions/toolPermissionSettings'
 
 const state: {
   readFileTimestamps: Record<string, number>
@@ -43,6 +44,9 @@ function getMcpServerName(): string {
 
 export async function startMCPServer(cwd: string): Promise<void> {
   await setCwd(cwd)
+  const toolPermissionContext = loadToolPermissionContextFromDisk({
+    projectDir: cwd,
+  })
   await Promise.all(MCP_TOOLS.map(tool => resolveToolDescription(tool)))
   const server = new Server(
     {
@@ -101,6 +105,7 @@ export async function startMCPServer(cwd: string): Promise<void> {
           maxThinkingTokens: 0,
           shouldAvoidPermissionPrompts: true,
           persistSession: false,
+          toolPermissionContext,
         },
         messageId: undefined,
         readFileTimestamps: state.readFileTimestamps,

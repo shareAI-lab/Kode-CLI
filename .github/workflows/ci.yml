@@ -62,6 +62,10 @@ jobs:
           ./packages/core/src/test/unit/cli-config-models-help.test.ts
           ./packages/core/src/test/unit/cli-context-help.test.ts
           ./packages/core/src/test/unit/cli-mcp-help.test.ts
+          ./packages/config/src/test/unit/settings-files.test.ts
+          ./packages/core/src/test/unit/permission-settings-fail-closed.test.ts
+          ./packages/core/src/test/integration/cli-settings-fail-closed.test.ts
+          ./apps/server/src/settings-policy.test.ts
 
       - name: Typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Linux' }}
