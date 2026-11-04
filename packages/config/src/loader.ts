@@ -204,8 +204,8 @@ export function getGlobalConfigCached(): GlobalConfig {
   return CACHED_GLOBAL_CONFIG
 }
 
-export function checkHasTrustDialogAccepted(): boolean {
-  let currentPath = getCwd()
+export function checkHasTrustDialogAccepted(startPath?: string): boolean {
+  let currentPath = resolve(startPath ?? getCwd())
   const config = getConfig(getGlobalConfigFilePath(), DEFAULT_GLOBAL_CONFIG)
 
   while (true) {

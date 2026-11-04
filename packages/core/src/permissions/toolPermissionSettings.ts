@@ -8,7 +8,10 @@ import {
   createDefaultToolPermissionContext,
   isPersistableToolPermissionDestination,
 } from '#core/types/toolPermissionContext'
-import { getCurrentProjectConfig } from '#core/utils/config'
+import {
+  checkHasTrustDialogAccepted,
+  getCurrentProjectConfig,
+} from '#core/utils/config'
 import { getCwd } from '#core/utils/state'
 import { logError } from '#core/utils/log'
 import {
@@ -62,6 +65,11 @@ export function loadToolPermissionContextFromDisk(options?: {
   homeDir?: string
   includeKodeProjectConfig?: boolean
   isBypassPermissionsModeAvailable?: boolean
+  /**
+   * Whether the workspace at `projectDir` is trusted. Defaults to the folder
+   * trust dialog state for `projectDir`.
+   */
+  isWorkspaceTrusted?: boolean
 }): ToolPermissionContext {
   const projectDir = options?.projectDir ?? getCwd()
   const homeDir = options?.homeDir
@@ -78,12 +86,23 @@ export function loadToolPermissionContextFromDisk(options?: {
     'localSettings',
   ]
 
+  // projectSettings/localSettings live inside the opened project and are
+  // repository-controlled. Until the folder is trusted, only honor fields that
+  // restrict (deny/ask); never grant (allow/additionalDirectories), and do not
+  // migrate legacy files into .kode/.
+  const workspaceTrusted =
+    options?.isWorkspaceTrusted ?? checkHasTrustDialogAccepted(projectDir)
+
   for (const destination of destinations) {
+    const isWorkspaceSourced =
+      destination === 'projectSettings' || destination === 'localSettings'
+    const mayGrant = !isWorkspaceSourced || workspaceTrusted
+
     const settings = loadSettingsWithLegacyFallback({
       destination,
       projectDir,
       homeDir,
-      migrateToPrimary: true,
+      migrateToPrimary: mayGrant,
     }).settings as SettingsFileWithPermissions | null
     const perms = settings?.permissions
     const allow = uniqueStrings(perms?.allow)
@@ -91,10 +110,11 @@ export function loadToolPermissionContextFromDisk(options?: {
     const ask = uniqueStrings(perms?.ask)
     const additionalDirectories = uniqueStrings(perms?.additionalDirectories)
 
-    if (allow.length > 0) base.alwaysAllowRules[destination] = allow
     if (deny.length > 0) base.alwaysDenyRules[destination] = deny
     if (ask.length > 0) base.alwaysAskRules[destination] = ask
+    if (!mayGrant) continue
 
+    if (allow.length > 0) base.alwaysAllowRules[destination] = allow
     for (const dir of additionalDirectories) {
       base.additionalWorkingDirectories.set(dir, {
         path: dir,

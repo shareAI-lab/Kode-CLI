@@ -135,6 +135,8 @@ describe('Bash permission dont-ask-again (prefix) parity', () => {
         homeDir,
         includeKodeProjectConfig: false,
         isBypassPermissionsModeAvailable: false,
+        // Workspace-sourced allow rules are only honored in trusted folders.
+        isWorkspaceTrusted: true,
       })
 
       const result = await checkBashPermissions({
